@@ -12,13 +12,27 @@
 
             <flux:sidebar.nav>
                 <flux:sidebar.group :heading="__('Platform')" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        {{ __('Dashboard') }}
-                    </flux:sidebar.item>
+                    @if (auth()->user()->role === \App\Enums\UserRole::Admin)
+                        <flux:sidebar.item icon="shield-check" :href="route('admin.dashboard')" :current="request()->routeIs('admin.dashboard')" wire:navigate>
+                            {{ __('Dashboard administrativo') }}
+                        </flux:sidebar.item>
 
-                    <flux:sidebar.item icon="trophy" :href="route('tournaments.index')" :current="request()->routeIs('tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
-                        {{ __('Torneos') }}
-                    </flux:sidebar.item>
+                        <flux:sidebar.item icon="users" :href="route('admin.users.index')" :current="request()->routeIs('admin.users.*')" wire:navigate>
+                            {{ __('Usuarios') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="trophy" :href="route('admin.tournaments.index')" :current="request()->routeIs('admin.tournaments.*')" wire:navigate>
+                            {{ __('Torneos') }}
+                        </flux:sidebar.item>
+                    @else
+                        <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
+                            {{ __('Dashboard') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="trophy" :href="route('tournaments.index')" :current="request()->routeIs('tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
+                            {{ __('Mis torneos') }}
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
