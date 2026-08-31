@@ -15,6 +15,10 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+
+                    <flux:sidebar.item icon="trophy" :href="route('tournaments.index')" :current="request()->routeIs('tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
+                        {{ __('Torneos') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
