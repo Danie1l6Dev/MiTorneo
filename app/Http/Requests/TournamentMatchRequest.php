@@ -46,7 +46,7 @@ class TournamentMatchRequest extends FormRequest
             'home_score' => ['nullable', 'integer', 'min:0'],
             'away_score' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', Rule::enum(MatchStatus::class)],
-            'round' => ['nullable', 'string', 'max:100'],
+            'round_number' => ['nullable', 'integer', 'min:1'],
             'scheduled_at' => ['nullable', 'date'],
         ];
     }

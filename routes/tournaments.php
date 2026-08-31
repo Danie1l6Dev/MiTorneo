@@ -3,6 +3,7 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CompetitionPhaseController;
 use App\Http\Controllers\GroupController;
+use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -33,6 +34,9 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('phases.matches', TournamentMatchController::class)
         ->shallow()
         ->except(['index', 'show']);
+
+    Route::post('phases/{phase}/schedule', [LeagueScheduleController::class, 'store'])
+        ->name('phases.schedule.store');
 
     Route::patch('groups/{group}/teams', [GroupController::class, 'updateTeams'])
         ->name('groups.teams.update');

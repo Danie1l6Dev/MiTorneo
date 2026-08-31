@@ -111,6 +111,7 @@ class TournamentManagementTest extends TestCase
 
         $match = TournamentMatch::forceCreate([
             'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
             'competition_phase_id' => $phase->id,
             'group_id' => $group->id,
             'home_team_id' => $teamOne->id,
@@ -193,6 +194,7 @@ class TournamentManagementTest extends TestCase
 
         $match = TournamentMatch::forceCreate([
             'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
             'competition_phase_id' => $phase->id,
             'group_id' => $group->id,
             'home_team_id' => $teamOne->id,

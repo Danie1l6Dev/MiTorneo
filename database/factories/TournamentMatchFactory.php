@@ -35,13 +35,15 @@ class TournamentMatchFactory extends Factory
         return [
             'competition_phase_id' => $phase->id,
             'tournament_id' => $phase->tournament_id,
+            'category_id' => $phase->category_id,
             'group_id' => null,
+            'league_schedule_id' => null,
             'home_team_id' => $homeTeam->id,
             'away_team_id' => $awayTeam->id,
             'home_score' => null,
             'away_score' => null,
             'status' => MatchStatus::Scheduled,
-            'round' => null,
+            'round_number' => null,
             'scheduled_at' => null,
         ];
     }

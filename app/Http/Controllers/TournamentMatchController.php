@@ -26,6 +26,7 @@ class TournamentMatchController extends Controller
 
         $match = $phase->matches()->make($request->validated());
         $match->tournament_id = $phase->tournament_id;
+        $match->category_id = $phase->category_id;
         $match->save();
 
         return to_route('phases.show', $phase);

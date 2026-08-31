@@ -57,4 +57,12 @@ class CompetitionPhase extends Model
     {
         return $this->hasMany(TournamentMatch::class);
     }
+
+    /**
+     * @return HasMany<LeagueSchedule, $this>
+     */
+    public function leagueSchedules(): HasMany
+    {
+        return $this->hasMany(LeagueSchedule::class);
+    }
 }

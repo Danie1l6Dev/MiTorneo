@@ -14,14 +14,16 @@ return new class extends Migration
         Schema::create('matches', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tournament_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->foreignId('competition_phase_id')->constrained()->cascadeOnDelete();
             $table->foreignId('group_id')->nullable()->constrained()->cascadeOnDelete();
+            $table->foreignId('league_schedule_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('home_team_id')->constrained('teams')->cascadeOnDelete();
             $table->foreignId('away_team_id')->constrained('teams')->cascadeOnDelete();
             $table->unsignedSmallInteger('home_score')->nullable();
             $table->unsignedSmallInteger('away_score')->nullable();
             $table->string('status')->default('scheduled');
-            $table->string('round')->nullable();
+            $table->unsignedSmallInteger('round_number')->nullable();
             $table->dateTime('scheduled_at')->nullable();
             $table->timestamps();
         });

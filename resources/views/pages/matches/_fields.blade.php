@@ -64,10 +64,12 @@
 </flux:select>
 
 <flux:input
-    name="round"
-    label="{{ __('Jornada / ronda') }}"
-    value="{{ old('round', $match->round ?? '') }}"
-    placeholder="{{ __('Jornada 1') }}"
+    name="round_number"
+    type="number"
+    min="1"
+    label="{{ __('Jornada') }}"
+    value="{{ old('round_number', $match->round_number ?? '') }}"
+    placeholder="{{ __('1') }}"
 />
 
 <flux:input
