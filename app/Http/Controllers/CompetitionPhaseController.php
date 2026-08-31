@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CompetitionPhaseType;
 use App\Enums\ScheduleFormat;
 use App\Http\Requests\CompetitionPhaseRequest;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
+use App\Models\Group;
 use App\Models\LeagueSchedule;
 use App\Models\Team;
 use App\Models\TournamentMatch;
+use App\Services\StandingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -33,7 +36,7 @@ class CompetitionPhaseController extends Controller
         return to_route('phases.show', $phase);
     }
 
-    public function show(CompetitionPhase $phase): View
+    public function show(CompetitionPhase $phase, StandingsService $standingsService): View
     {
         $this->authorize('view', $phase);
 
@@ -49,7 +52,35 @@ class CompetitionPhaseController extends Controller
             ->whereNull('league_schedule_id')
             ->get();
 
-        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'unscheduledMatches'));
+        $standings = $phase->type === CompetitionPhaseType::League
+            ? $this->buildStandings($phase, $category, $standingsService)
+            : [];
+
+        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'unscheduledMatches', 'standings'));
+    }
+
+    /**
+     * Calculate the standings table(s) for this phase: one per group when the
+     * category uses groups, otherwise a single table for the whole category.
+     * The table is always derived fresh from the phase's finished matches.
+     *
+     * @return array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>
+     */
+    private function buildStandings(CompetitionPhase $phase, Category $category, StandingsService $standingsService): array
+    {
+        $matches = $phase->matches;
+
+        if ($category->uses_groups) {
+            return $category->groups->map(fn (Group $group): array => [
+                'label' => $group->name,
+                'rows' => $standingsService->calculate($group->teams, $matches->where('group_id', $group->id)),
+            ])->values()->all();
+        }
+
+        return [[
+            'label' => $category->name,
+            'rows' => $standingsService->calculate($category->teams, $matches),
+        ]];
     }
 
     /**

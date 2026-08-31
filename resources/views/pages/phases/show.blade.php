@@ -38,7 +38,12 @@
         <flux:separator />
 
         @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            <div class="space-y-4">
+            <div class="flex gap-2">
+                <flux:button href="#calendario" variant="ghost" size="sm">{{ __('Calendario') }}</flux:button>
+                <flux:button href="#tabla-posiciones" variant="ghost" size="sm">{{ __('Tabla de posiciones') }}</flux:button>
+            </div>
+
+            <div id="calendario" class="space-y-4">
                 <flux:heading size="lg">{{ __('Calendario') }}</flux:heading>
 
                 @forelse ($schedules as $item)
@@ -65,7 +70,15 @@
                                     <div class="mt-1 space-y-1">
                                         @foreach ($round['matches'] as $match)
                                             <flux:text class="text-sm text-zinc-600 dark:text-zinc-400">
-                                                {{ $match->homeTeam->name }} vs {{ $match->awayTeam->name }}
+                                                <a href="{{ route('matches.edit', $match) }}" wire:navigate class="hover:underline">
+                                                    {{ $match->homeTeam->name }}
+                                                    @if ($match->status === \App\Enums\MatchStatus::Finished)
+                                                        {{ $match->home_score }} - {{ $match->away_score }}
+                                                    @else
+                                                        vs
+                                                    @endif
+                                                    {{ $match->awayTeam->name }}
+                                                </a>
                                             </flux:text>
                                         @endforeach
 
@@ -107,6 +120,56 @@
                         <flux:button type="submit" variant="primary" size="sm">{{ __('Generar calendario') }}</flux:button>
                     </form>
                 </flux:card>
+            </div>
+
+            <flux:separator />
+
+            <div id="tabla-posiciones" class="space-y-4">
+                <flux:heading size="lg">{{ __('Tabla de posiciones') }}</flux:heading>
+
+                @foreach ($standings as $item)
+                    <flux:card class="space-y-3">
+                        <flux:heading size="sm">{{ $item['label'] }}</flux:heading>
+
+                        @if (count($item['rows']) === 0)
+                            <flux:text class="text-zinc-500">{{ __('Todavía no hay equipos para esta tabla.') }}</flux:text>
+                        @else
+                            <div class="overflow-x-auto">
+                                <flux:table>
+                                    <flux:table.columns>
+                                        <flux:table.column>{{ __('Pos') }}</flux:table.column>
+                                        <flux:table.column>{{ __('Equipo') }}</flux:table.column>
+                                        <flux:table.column>{{ __('PJ') }}</flux:table.column>
+                                        <flux:table.column>{{ __('PG') }}</flux:table.column>
+                                        <flux:table.column>{{ __('PE') }}</flux:table.column>
+                                        <flux:table.column>{{ __('PP') }}</flux:table.column>
+                                        <flux:table.column>{{ __('GF') }}</flux:table.column>
+                                        <flux:table.column>{{ __('GC') }}</flux:table.column>
+                                        <flux:table.column>{{ __('DG') }}</flux:table.column>
+                                        <flux:table.column>{{ __('PTS') }}</flux:table.column>
+                                    </flux:table.columns>
+
+                                    <flux:table.rows>
+                                        @foreach ($item['rows'] as $index => $row)
+                                            <flux:table.row>
+                                                <flux:table.cell>{{ $index + 1 }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['team']->name }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['played'] }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['won'] }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['drawn'] }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['lost'] }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['goals_for'] }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['goals_against'] }}</flux:table.cell>
+                                                <flux:table.cell>{{ $row['goal_difference'] }}</flux:table.cell>
+                                                <flux:table.cell class="font-semibold">{{ $row['points'] }}</flux:table.cell>
+                                            </flux:table.row>
+                                        @endforeach
+                                    </flux:table.rows>
+                                </flux:table>
+                            </div>
+                        @endif
+                    </flux:card>
+                @endforeach
             </div>
 
             <flux:separator />

@@ -35,24 +35,6 @@
     </flux:select>
 </div>
 
-<div class="grid gap-4 sm:grid-cols-2">
-    <flux:input
-        name="home_score"
-        type="number"
-        min="0"
-        label="{{ __('Goles local') }}"
-        value="{{ old('home_score', $match->home_score ?? '') }}"
-    />
-
-    <flux:input
-        name="away_score"
-        type="number"
-        min="0"
-        label="{{ __('Goles visitante') }}"
-        value="{{ old('away_score', $match->away_score ?? '') }}"
-    />
-</div>
-
 <flux:select name="status" label="{{ __('Estado') }}">
     @php $currentStatus = old('status', $match->status?->value ?? \App\Enums\MatchStatus::Scheduled->value); @endphp
 
