@@ -3,12 +3,71 @@
 namespace App\Services;
 
 use App\Enums\MatchStatus;
+use App\Models\CompetitionPhase;
+use App\Models\Group;
 use App\Models\Team;
 use App\Models\TournamentMatch;
 use Illuminate\Support\Collection;
 
 class StandingsService
 {
+    /**
+     * Calculate the standings table(s) for a phase: a single table for its own
+     * roster of teams when it has one (a phase created from a qualification
+     * cutoff), one table per group when the category uses groups, or a single
+     * table for the whole category otherwise. The table is always derived
+     * fresh from the phase's finished matches.
+     *
+     * @return array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>
+     */
+    public function tablesForPhase(CompetitionPhase $phase): array
+    {
+        $category = $phase->category;
+        $matches = $phase->matches;
+        $roster = $phase->teams;
+
+        if ($roster->isNotEmpty()) {
+            return [[
+                'label' => $phase->name,
+                'rows' => $this->calculate($roster, $matches),
+            ]];
+        }
+
+        if ($category->uses_groups) {
+            return $category->groups->map(fn (Group $group): array => [
+                'label' => $group->name,
+                'rows' => $this->calculate($group->teams, $matches->where('group_id', $group->id)),
+            ])->values()->all();
+        }
+
+        return [[
+            'label' => $category->name,
+            'rows' => $this->calculate($category->teams, $matches),
+        ]];
+    }
+
+    /**
+     * Take the top N teams from each table (by its current order) and flatten
+     * them into a single pool, e.g. for a knockout draw or a follow-up phase's
+     * roster. Nothing is resolved beyond picking rows off the already-ordered
+     * tables: sorting/tie-breaking is entirely calculate()'s responsibility.
+     *
+     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>  $tables
+     * @return Collection<int, Team>
+     */
+    public function topQualifiers(array $tables, int $perTable): Collection
+    {
+        $teams = [];
+
+        foreach ($tables as $table) {
+            foreach (array_slice($table['rows'], 0, $perTable) as $row) {
+                $teams[] = $row['team'];
+            }
+        }
+
+        return collect($teams);
+    }
+
     /**
      * Calculate a standings table from a set of teams and matches, counting only
      * finished matches with a recorded score. Nothing is persisted: the table is
@@ -77,9 +136,11 @@ class StandingsService
 
         $rows = [];
 
-        foreach ($stats as $id => $row) {
+        foreach ($teamsById as $id => $team) {
+            $row = $stats[$id];
+
             $rows[] = [
-                'team' => $teamsById[$id],
+                'team' => $team,
                 'played' => $row['played'],
                 'won' => $row['won'],
                 'drawn' => $row['drawn'],

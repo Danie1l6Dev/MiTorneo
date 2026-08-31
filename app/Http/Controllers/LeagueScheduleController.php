@@ -22,12 +22,13 @@ class LeagueScheduleController extends Controller
         $category = $phase->category;
         $format = ScheduleFormat::from($request->validated('format'));
 
-        $scopes = $category->uses_groups ? $category->groups : collect([null]);
+        $roster = $phase->teams;
+        $scopes = $roster->isEmpty() && $category->uses_groups ? $category->groups : collect([null]);
 
-        DB::transaction(function () use ($scopes, $category, $phase, $format, $service): void {
+        DB::transaction(function () use ($scopes, $category, $phase, $format, $service, $roster): void {
             foreach ($scopes as $group) {
                 /** @var Group|null $group */
-                $teams = $group ? $group->teams : $category->teams;
+                $teams = $group ? $group->teams : ($roster->isNotEmpty() ? $roster : $category->teams);
 
                 $schedule = new LeagueSchedule;
                 $schedule->tournament_id = $phase->tournament_id;

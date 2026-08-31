@@ -172,6 +172,18 @@
                 @endforeach
             </div>
 
+            @if ($readyToAdvance)
+                <flux:card class="space-y-3 border-green-200 dark:border-green-900">
+                    <flux:heading size="sm">{{ __('¿Pasar a la siguiente fase?') }}</flux:heading>
+                    <flux:text>
+                        {{ __('Todos los partidos de esta fase han finalizado. Puedes definir cuántos equipos clasifican y crear la siguiente fase mediante un sorteo en vivo o una nueva fase de liga.') }}
+                    </flux:text>
+                    <flux:button :href="route('phases.advance.create', $phase)" variant="primary" size="sm" wire:navigate>
+                        {{ __('Definir clasificados') }}
+                    </flux:button>
+                </flux:card>
+            @endif
+
             <flux:separator />
         @endif
 

@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\MatchStatus;
 use Database\Factories\CompetitionPhaseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -64,5 +66,27 @@ class CompetitionPhase extends Model
     public function leagueSchedules(): HasMany
     {
         return $this->hasMany(LeagueSchedule::class);
+    }
+
+    /**
+     * The teams that specifically qualified into this phase (e.g. via a draw or
+     * a "top N per table" cutoff), independent of category-wide groups. Empty
+     * for a phase that simply plays with the whole category/group as-is, such
+     * as a category's first league phase.
+     *
+     * @return BelongsToMany<Team, $this>
+     */
+    public function teams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'competition_phase_team')->withTimestamps();
+    }
+
+    /**
+     * Whether this phase has at least one match and every one of them is finished.
+     */
+    public function allMatchesFinished(): bool
+    {
+        return $this->matches->isNotEmpty()
+            && $this->matches->every(fn (TournamentMatch $match): bool => $match->status === MatchStatus::Finished);
     }
 }
