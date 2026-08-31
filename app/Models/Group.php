@@ -7,14 +7,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
  * @property int $tournament_id
- * @property int $competition_phase_id
+ * @property int $category_id
  * @property string $name
  * @property int $order
  * @property Carbon|null $created_at
@@ -35,19 +34,19 @@ class Group extends Model
     }
 
     /**
-     * @return BelongsTo<CompetitionPhase, $this>
+     * @return BelongsTo<Category, $this>
      */
-    public function competitionPhase(): BelongsTo
+    public function category(): BelongsTo
     {
-        return $this->belongsTo(CompetitionPhase::class);
+        return $this->belongsTo(Category::class);
     }
 
     /**
-     * @return BelongsToMany<Team, $this>
+     * @return HasMany<Team, $this>
      */
-    public function teams(): BelongsToMany
+    public function teams(): HasMany
     {
-        return $this->belongsToMany(Team::class, 'group_team');
+        return $this->hasMany(Team::class);
     }
 
     /**

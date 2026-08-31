@@ -40,12 +40,15 @@ class TournamentManagementTest extends TestCase
 
         $this->post(route('tournaments.categories.store', $tournament), [
             'name' => 'Teterito',
+            'status' => 'active',
+            'uses_groups' => '1',
             'order' => 0,
         ])->assertRedirect();
 
         $category = $tournament->categories()->firstWhere('name', 'Teterito');
         $this->assertNotNull($category);
         $this->assertSame($tournament->id, $category->tournament_id);
+        $this->assertTrue($category->uses_groups);
 
         $this->post(route('categories.phases.store', $category), [
             'name' => 'Liga',
@@ -57,30 +60,30 @@ class TournamentManagementTest extends TestCase
         $this->assertNotNull($phase);
         $this->assertSame($tournament->id, $phase->tournament_id);
 
-        $this->post(route('phases.groups.store', $phase), [
+        $this->post(route('categories.groups.store', $category), [
             'name' => 'Grupo A',
             'order' => 0,
         ])->assertRedirect();
 
-        $group = $phase->groups()->firstWhere('name', 'Grupo A');
+        $group = $category->groups()->firstWhere('name', 'Grupo A');
         $this->assertNotNull($group);
         $this->assertSame($tournament->id, $group->tournament_id);
 
-        $this->post(route('categories.teams.store', $category), ['name' => 'Equipo 1'])
-            ->assertRedirect();
-        $this->post(route('categories.teams.store', $category), ['name' => 'Equipo 2'])
-            ->assertRedirect();
+        $this->post(route('categories.teams.store', $category), [
+            'name' => 'Equipo 1',
+            'group_id' => $group->id,
+        ])->assertRedirect();
+        $this->post(route('categories.teams.store', $category), [
+            'name' => 'Equipo 2',
+            'group_id' => $group->id,
+        ])->assertRedirect();
 
         $teamOne = $category->teams()->firstWhere('name', 'Equipo 1');
         $teamTwo = $category->teams()->firstWhere('name', 'Equipo 2');
         $this->assertNotNull($teamOne);
         $this->assertNotNull($teamTwo);
-
-        $this->patch(route('groups.teams.update', $group), [
-            'team_ids' => [$teamOne->id, $teamTwo->id],
-        ])->assertRedirect();
-
-        $this->assertCount(2, $group->fresh()->teams);
+        $this->assertSame($group->id, $teamOne->group_id);
+        $this->assertSame($group->id, $teamTwo->group_id);
 
         $this->post(route('phases.matches.store', $phase), [
             'group_id' => $group->id,
@@ -100,11 +103,11 @@ class TournamentManagementTest extends TestCase
     {
         $user = User::factory()->create();
         $tournament = Tournament::factory()->for($user)->create();
-        $category = Category::factory()->for($tournament)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
         $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
-        $group = Group::factory()->for($tournament)->for($phase)->create();
-        $teamOne = Team::factory()->for($tournament)->for($category)->create();
-        $teamTwo = Team::factory()->for($tournament)->for($category)->create();
+        $group = Group::factory()->for($tournament)->for($category)->create();
+        $teamOne = Team::factory()->for($tournament)->for($category)->for($group)->create();
+        $teamTwo = Team::factory()->for($tournament)->for($category)->for($group)->create();
 
         $match = TournamentMatch::forceCreate([
             'tournament_id' => $tournament->id,
@@ -130,7 +133,7 @@ class TournamentManagementTest extends TestCase
         $this->get(route('phases.show', $phase))->assertOk();
         $this->get(route('phases.edit', $phase))->assertOk();
 
-        $this->get(route('phases.groups.create', $phase))->assertOk();
+        $this->get(route('categories.groups.create', $category))->assertOk();
         $this->get(route('groups.show', $group))->assertOk();
         $this->get(route('groups.edit', $group))->assertOk();
 
@@ -182,11 +185,11 @@ class TournamentManagementTest extends TestCase
     {
         $owner = User::factory()->create();
         $tournament = Tournament::factory()->for($owner)->create();
-        $category = Category::factory()->for($tournament)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
         $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
-        $group = Group::factory()->for($tournament)->for($phase)->create();
-        $teamOne = Team::factory()->for($tournament)->for($category)->create();
-        $teamTwo = Team::factory()->for($tournament)->for($category)->create();
+        $group = Group::factory()->for($tournament)->for($category)->create();
+        $teamOne = Team::factory()->for($tournament)->for($category)->for($group)->create();
+        $teamTwo = Team::factory()->for($tournament)->for($category)->for($group)->create();
 
         $match = TournamentMatch::forceCreate([
             'tournament_id' => $tournament->id,
@@ -207,6 +210,8 @@ class TournamentManagementTest extends TestCase
         $this->get(route('matches.edit', $match))->assertForbidden();
         $this->delete(route('teams.destroy', $teamOne))->assertForbidden();
         $this->delete(route('matches.destroy', $match))->assertForbidden();
+        $this->patch(route('groups.teams.update', $group), ['team_ids' => []])->assertForbidden();
+        $this->patch(route('categories.toggle-status', $category))->assertForbidden();
 
         $this->assertDatabaseHas('teams', ['id' => $teamOne->id]);
         $this->assertDatabaseHas('matches', ['id' => $match->id]);

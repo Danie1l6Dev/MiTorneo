@@ -6,7 +6,7 @@
 <flux:select name="group_id" label="{{ __('Grupo (opcional)') }}" placeholder="{{ __('Sin grupo') }}">
     @php $currentGroup = old('group_id', $match->group_id ?? ''); @endphp
 
-    @foreach ($phase->groups as $group)
+    @foreach ($groups as $group)
         <flux:select.option value="{{ $group->id }}" :selected="(string) $group->id === (string) $currentGroup">
             {{ $group->name }}
         </flux:select.option>

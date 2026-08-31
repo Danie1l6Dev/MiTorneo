@@ -14,10 +14,12 @@ return new class extends Migration
         Schema::create('groups', function (Blueprint $table) {
             $table->id();
             $table->foreignId('tournament_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('competition_phase_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->unsignedSmallInteger('order')->default(0);
             $table->timestamps();
+
+            $table->unique(['category_id', 'name']);
         });
     }
 

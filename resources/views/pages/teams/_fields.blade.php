@@ -1,4 +1,7 @@
-@php $team ??= null; @endphp
+@php
+    $team ??= null;
+    $category ??= $team?->category;
+@endphp
 
 <flux:input
     name="name"
@@ -14,3 +17,15 @@
     value="{{ old('short_name', $team->short_name ?? '') }}"
     maxlength="10"
 />
+
+@if ($category?->uses_groups)
+    <flux:select name="group_id" label="{{ __('Grupo') }}" placeholder="{{ __('Selecciona un grupo') }}">
+        @php $currentGroup = old('group_id', $team->group_id ?? ''); @endphp
+
+        @foreach ($category->groups as $group)
+            <flux:select.option value="{{ $group->id }}" :selected="(string) $group->id === (string) $currentGroup">
+                {{ $group->name }}
+            </flux:select.option>
+        @endforeach
+    </flux:select>
+@endif

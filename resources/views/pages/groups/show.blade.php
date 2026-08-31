@@ -2,8 +2,8 @@
     <div class="w-full space-y-6">
         <div class="flex items-start justify-between gap-4">
             <div>
-                <flux:button :href="route('phases.show', $group->competitionPhase)" variant="ghost" size="sm" icon="arrow-left" wire:navigate>
-                    {{ $group->competitionPhase->name }}
+                <flux:button :href="route('categories.show', $group->category)" variant="ghost" size="sm" icon="arrow-left" wire:navigate>
+                    {{ $group->category->name }}
                 </flux:button>
 
                 <flux:heading size="xl" class="mt-2">{{ $group->name }}</flux:heading>
@@ -22,6 +22,10 @@
             </div>
         </div>
 
+        @if (session('error'))
+            <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
+        @endif
+
         <flux:separator />
 
         <div class="space-y-4">
@@ -36,8 +40,6 @@
                     @csrf
                     @method('PATCH')
 
-                    @php $groupTeamIds = $group->teams->pluck('id'); @endphp
-
                     <div class="grid gap-2 sm:grid-cols-2">
                         @foreach ($availableTeams as $team)
                             <label class="flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-white/10">
@@ -45,10 +47,14 @@
                                     type="checkbox"
                                     name="team_ids[]"
                                     value="{{ $team->id }}"
-                                    @checked($groupTeamIds->contains($team->id))
+                                    @checked($team->group_id === $group->id)
                                     class="rounded border-zinc-300 dark:border-white/20"
                                 >
                                 {{ $team->name }}
+
+                                @if ($team->group_id && $team->group_id !== $group->id)
+                                    <flux:text class="text-xs text-zinc-400">({{ $team->group->name }})</flux:text>
+                                @endif
                             </label>
                         @endforeach
                     </div>

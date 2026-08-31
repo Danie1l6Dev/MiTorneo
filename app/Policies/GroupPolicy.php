@@ -2,7 +2,7 @@
 
 namespace App\Policies;
 
-use App\Models\CompetitionPhase;
+use App\Models\Category;
 use App\Models\Group;
 use App\Models\User;
 
@@ -13,9 +13,9 @@ class GroupPolicy
         return $user->id === $group->tournament->user_id;
     }
 
-    public function create(User $user, CompetitionPhase $competitionPhase): bool
+    public function create(User $user, Category $category): bool
     {
-        return $user->id === $competitionPhase->tournament->user_id;
+        return $user->id === $category->tournament->user_id;
     }
 
     public function update(User $user, Group $group): bool

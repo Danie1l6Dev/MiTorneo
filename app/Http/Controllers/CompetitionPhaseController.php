@@ -32,7 +32,7 @@ class CompetitionPhaseController extends Controller
     {
         $this->authorize('view', $phase);
 
-        $phase->load(['groups', 'matches.homeTeam', 'matches.awayTeam']);
+        $phase->load(['matches.homeTeam', 'matches.awayTeam']);
 
         return view('pages.phases.show', compact('phase'));
     }

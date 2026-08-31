@@ -2,10 +2,12 @@
 
 namespace Database\Seeders;
 
+use App\Enums\CategoryStatus;
 use App\Enums\CompetitionPhaseType;
 use App\Enums\TournamentStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
+use App\Models\Group;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\User;
@@ -52,39 +54,53 @@ class DatabaseSeeder extends Seeder
             'status' => TournamentStatus::Active,
         ]);
 
-        $teterito = $tournament->categories()->create(['name' => 'Teterito', 'order' => 0]);
-        $tournament->categories()->create(['name' => 'Juvenil', 'order' => 1]);
+        $teterito = $tournament->categories()->create([
+            'name' => 'Teterito',
+            'status' => CategoryStatus::Active,
+            'uses_groups' => true,
+            'order' => 0,
+        ]);
 
-        $liga = $teterito->competitionPhases()->forceCreate([
+        $juvenil = $tournament->categories()->create([
+            'name' => 'Juvenil',
+            'status' => CategoryStatus::Active,
+            'uses_groups' => false,
+            'order' => 1,
+        ]);
+
+        $teterito->competitionPhases()->forceCreate([
             'tournament_id' => $tournament->id,
             'name' => 'Liga',
             'type' => CompetitionPhaseType::League,
             'order' => 0,
         ]);
 
-        $groupA = $liga->groups()->forceCreate([
+        $groupA = $teterito->groups()->forceCreate([
             'tournament_id' => $tournament->id,
             'name' => 'Grupo A',
             'order' => 0,
         ]);
 
-        $groupB = $liga->groups()->forceCreate([
+        $groupB = $teterito->groups()->forceCreate([
             'tournament_id' => $tournament->id,
             'name' => 'Grupo B',
             'order' => 1,
         ]);
 
-        $teams = collect(['Real Norte', 'Deportivo Sur', 'Atlético Centro', 'Unión Este'])
-            ->map(fn (string $name) => $this->createTeam($teterito, $tournament, $name));
+        $this->createTeam($teterito, $tournament, 'Real Norte', $groupA);
+        $this->createTeam($teterito, $tournament, 'Deportivo Sur', $groupA);
+        $this->createTeam($teterito, $tournament, 'Atlético Centro', $groupB);
+        $this->createTeam($teterito, $tournament, 'Unión Este', $groupB);
 
-        $groupA->teams()->attach($teams->take(2));
-        $groupB->teams()->attach($teams->skip(2));
+        $this->createTeam($juvenil, $tournament, 'Juvenil A');
+        $this->createTeam($juvenil, $tournament, 'Juvenil B');
     }
 
-    private function createTeam(Category $category, Tournament $tournament, string $name): Team
+    private function createTeam(Category $category, Tournament $tournament, string $name, ?Group $group = null): Team
     {
         return $category->teams()->forceCreate([
             'tournament_id' => $tournament->id,
+            'group_id' => $group?->id,
             'name' => $name,
         ]);
     }

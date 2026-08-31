@@ -27,13 +27,12 @@ class TournamentMatchRequest extends FormRequest
             $phase = $match->competitionPhase;
         }
 
-        $phaseId = $phase instanceof CompetitionPhase ? $phase->id : null;
         $categoryId = $phase instanceof CompetitionPhase ? $phase->category_id : null;
 
         return [
             'group_id' => [
                 'nullable',
-                Rule::exists('groups', 'id')->where('competition_phase_id', $phaseId),
+                Rule::exists('groups', 'id')->where('category_id', $categoryId),
             ],
             'home_team_id' => [
                 'required',

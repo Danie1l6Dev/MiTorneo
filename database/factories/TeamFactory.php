@@ -21,6 +21,7 @@ class TeamFactory extends Factory
         return [
             'category_id' => Category::factory(),
             'tournament_id' => fn (array $attributes) => Category::findOrFail((int) $attributes['category_id'])->tournament_id,
+            'group_id' => null,
             'name' => fake()->unique()->city().' FC',
             'short_name' => strtoupper(fake()->lexify('???')),
         ];

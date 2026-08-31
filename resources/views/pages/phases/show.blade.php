@@ -8,6 +8,10 @@
 
                 <flux:heading size="xl" class="mt-2">{{ $phase->name }}</flux:heading>
                 <flux:badge size="sm" class="mt-1">{{ $phase->type->label() }}</flux:badge>
+                <flux:text class="mt-2 text-sm text-zinc-500">
+                    {{ __('Los grupos de esta categoría se gestionan desde') }}
+                    <a href="{{ route('categories.show', $phase->category) }}" wire:navigate class="underline">{{ __('la página de la categoría') }}</a>.
+                </flux:text>
             </div>
 
             <div class="flex shrink-0 items-center gap-2">
@@ -21,34 +25,6 @@
                     <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
                 </form>
             </div>
-        </div>
-
-        <flux:separator />
-
-        <div class="space-y-4">
-            <div class="flex items-center justify-between">
-                <flux:heading size="lg">{{ __('Grupos') }}</flux:heading>
-
-                <flux:button :href="route('phases.groups.create', $phase)" variant="primary" size="sm" icon="plus" wire:navigate>
-                    {{ __('Nuevo grupo') }}
-                </flux:button>
-            </div>
-
-            @if ($phase->groups->isEmpty())
-                <flux:text class="text-zinc-500">
-                    {{ __('Esta fase no usa grupos. Los partidos se cargan directamente sobre la fase.') }}
-                </flux:text>
-            @else
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    @foreach ($phase->groups->sortBy('order') as $group)
-                        <a href="{{ route('groups.show', $group) }}" wire:navigate class="block">
-                            <flux:card class="h-full hover:border-zinc-300 dark:hover:border-white/20">
-                                <flux:heading size="sm">{{ $group->name }}</flux:heading>
-                            </flux:card>
-                        </a>
-                    @endforeach
-                </div>
-            @endif
         </div>
 
         <flux:separator />

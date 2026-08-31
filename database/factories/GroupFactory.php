@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\CompetitionPhase;
+use App\Models\Category;
 use App\Models\Group;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -19,8 +19,8 @@ class GroupFactory extends Factory
     public function definition(): array
     {
         return [
-            'competition_phase_id' => CompetitionPhase::factory(),
-            'tournament_id' => fn (array $attributes) => CompetitionPhase::findOrFail((int) $attributes['competition_phase_id'])->tournament_id,
+            'category_id' => Category::factory(),
+            'tournament_id' => fn (array $attributes) => Category::findOrFail((int) $attributes['category_id'])->tournament_id,
             'name' => 'Grupo '.fake()->randomLetter(),
             'order' => 0,
         ];

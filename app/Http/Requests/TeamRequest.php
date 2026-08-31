@@ -20,13 +20,16 @@ class TeamRequest extends FormRequest
     public function rules(): array
     {
         $team = $this->route('team');
-        $category = $this->route('category');
+        $routeCategory = $this->route('category');
 
-        $categoryId = match (true) {
-            $team instanceof Team => $team->category_id,
-            $category instanceof Category => $category->id,
+        $category = match (true) {
+            $routeCategory instanceof Category => $routeCategory,
+            $team instanceof Team => $team->category,
             default => null,
         };
+
+        $categoryId = $category?->id;
+        $usesGroups = $category instanceof Category && $category->uses_groups;
 
         return [
             'name' => [
@@ -38,6 +41,10 @@ class TeamRequest extends FormRequest
                     ->ignore($team),
             ],
             'short_name' => ['nullable', 'string', 'max:10'],
+            'group_id' => [
+                $usesGroups ? 'required' : 'prohibited',
+                Rule::exists('groups', 'id')->where('category_id', $categoryId),
+            ],
         ];
     }
 }

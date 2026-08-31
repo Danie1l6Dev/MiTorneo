@@ -52,6 +52,15 @@
                     <a href="{{ route('categories.show', $category) }}" wire:navigate class="block">
                         <flux:card class="h-full hover:border-zinc-300 dark:hover:border-white/20">
                             <flux:heading>{{ $category->name }}</flux:heading>
+                            <div class="mt-2 flex items-center gap-2">
+                                <flux:badge size="sm" :color="$category->status === \App\Enums\CategoryStatus::Active ? 'green' : 'red'">
+                                    {{ $category->status->label() }}
+                                </flux:badge>
+
+                                @if ($category->uses_groups)
+                                    <flux:badge size="sm" color="zinc">{{ __('Grupos') }}</flux:badge>
+                                @endif
+                            </div>
                         </flux:card>
                     </a>
                 @endforeach

@@ -6,6 +6,7 @@ use App\Http\Requests\TeamRequest;
 use App\Models\Category;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Arr;
 use Illuminate\View\View;
 
 class TeamController extends Controller
@@ -21,8 +22,12 @@ class TeamController extends Controller
     {
         $this->authorize('create', [Team::class, $category]);
 
-        $team = $category->teams()->make($request->validated());
+        $validated = $request->validated();
+        $groupId = Arr::pull($validated, 'group_id');
+
+        $team = $category->teams()->make($validated);
         $team->tournament_id = $category->tournament_id;
+        $team->group_id = $groupId;
         $team->save();
 
         return to_route('categories.show', $category);
@@ -39,7 +44,12 @@ class TeamController extends Controller
     {
         $this->authorize('update', $team);
 
-        $team->update($request->validated());
+        $validated = $request->validated();
+        $groupId = Arr::pull($validated, 'group_id');
+
+        $team->fill($validated);
+        $team->group_id = $groupId;
+        $team->save();
 
         return to_route('categories.show', $team->category);
     }

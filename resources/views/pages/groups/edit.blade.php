@@ -2,7 +2,7 @@
     <div class="mx-auto w-full max-w-2xl space-y-6">
         <div>
             <flux:heading size="xl">{{ __('Editar grupo') }}</flux:heading>
-            <flux:text class="mt-1">{{ $group->competitionPhase->name }}</flux:text>
+            <flux:text class="mt-1">{{ $group->category->name }}</flux:text>
         </div>
 
         <form method="POST" action="{{ route('groups.update', $group) }}" class="space-y-6">

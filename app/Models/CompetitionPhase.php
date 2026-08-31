@@ -51,14 +51,6 @@ class CompetitionPhase extends Model
     }
 
     /**
-     * @return HasMany<Group, $this>
-     */
-    public function groups(): HasMany
-    {
-        return $this->hasMany(Group::class);
-    }
-
-    /**
      * @return HasMany<TournamentMatch, $this>
      */
     public function matches(): HasMany

@@ -14,10 +14,10 @@ class TournamentMatchController extends Controller
     {
         $this->authorize('create', [TournamentMatch::class, $phase]);
 
-        $phase->load('groups');
+        $groups = $phase->category->groups;
         $teams = $phase->category->teams;
 
-        return view('pages.matches.create', compact('phase', 'teams'));
+        return view('pages.matches.create', compact('phase', 'groups', 'teams'));
     }
 
     public function store(TournamentMatchRequest $request, CompetitionPhase $phase): RedirectResponse
@@ -35,10 +35,10 @@ class TournamentMatchController extends Controller
     {
         $this->authorize('update', $match);
 
-        $match->competitionPhase->load('groups');
+        $groups = $match->competitionPhase->category->groups;
         $teams = $match->competitionPhase->category->teams;
 
-        return view('pages.matches.edit', compact('match', 'teams'));
+        return view('pages.matches.edit', compact('match', 'groups', 'teams'));
     }
 
     public function update(TournamentMatchRequest $request, TournamentMatch $match): RedirectResponse
