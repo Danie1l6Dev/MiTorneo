@@ -277,7 +277,7 @@ new class extends Component {
                             }
                         }"
                     >
-                        <div class="flex items-stretch w-full border rounded-xl dark:border-white/15">
+                        <div class="flex items-stretch w-full border rounded-2xl dark:border-white/15">
                             @empty($manualSetupKey)
                                 <div class="flex items-center justify-center w-full p-3 bg-zinc-100 dark:bg-white/10">
                                     <flux:icon.loading variant="mini"/>

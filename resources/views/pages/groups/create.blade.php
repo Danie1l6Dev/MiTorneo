@@ -2,7 +2,7 @@
     <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up">
         <x-ui.page-header :title="__('Nuevo grupo')" :subtitle="$category->name" />
 
-        <div class="rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:p-6">
+        <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
             <form method="POST" action="{{ route('categories.groups.store', $category) }}" class="space-y-6">
                 @csrf
 

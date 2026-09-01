@@ -18,7 +18,7 @@ class TournamentManagementTest extends TestCase
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
-        $response = $this->get(route('tournaments.index'));
+        $response = $this->get(route('dashboard'));
 
         $response->assertRedirect(route('login'));
     }
@@ -121,7 +121,7 @@ class TournamentManagementTest extends TestCase
 
         $this->actingAs($user);
 
-        $this->get(route('tournaments.index'))->assertOk();
+        $this->get(route('dashboard'))->assertOk();
         $this->get(route('tournaments.create'))->assertOk();
         $this->get(route('tournaments.show', $tournament))->assertOk();
         $this->get(route('tournaments.edit', $tournament))->assertOk();
@@ -212,7 +212,8 @@ class TournamentManagementTest extends TestCase
         $this->get(route('matches.edit', $match))->assertForbidden();
         $this->delete(route('teams.destroy', $teamOne))->assertForbidden();
         $this->delete(route('matches.destroy', $match))->assertForbidden();
-        $this->patch(route('groups.teams.update', $group), ['team_ids' => []])->assertForbidden();
+        $this->post(route('groups.teams.attach', $group), ['team_id' => $teamOne->id])->assertForbidden();
+        $this->delete(route('groups.teams.detach', [$group, $teamOne]))->assertForbidden();
         $this->patch(route('categories.toggle-status', $category))->assertForbidden();
 
         $this->assertDatabaseHas('teams', ['id' => $teamOne->id]);
@@ -229,7 +230,7 @@ class TournamentManagementTest extends TestCase
 
         $this->actingAs($user)
             ->delete(route('tournaments.destroy', $tournament))
-            ->assertRedirect(route('tournaments.index'));
+            ->assertRedirect(route('dashboard'));
 
         $this->assertDatabaseMissing('tournaments', ['id' => $tournament->id]);
         $this->assertDatabaseMissing('categories', ['id' => $category->id]);

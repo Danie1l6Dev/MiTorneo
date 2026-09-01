@@ -4,12 +4,12 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-neutral-100 antialiased dark:bg-zinc-950">
-        <div class="stadium-bg" aria-hidden="true"></div>
+        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"></div>
 
         <div class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 md:p-10">
             <div class="flex w-full max-w-md flex-col gap-6 animate-fade-in-up">
                 <a href="{{ route('home') }}" class="flex flex-col items-center gap-2 font-medium" wire:navigate>
-                    <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-accent-content text-accent-foreground shadow-lg shadow-black/30">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-content text-accent-foreground shadow-lg shadow-black/30">
                         <x-app-logo-icon class="size-6 fill-current" />
                     </span>
 
@@ -17,7 +17,7 @@
                 </a>
 
                 <div class="flex flex-col gap-6">
-                    <div class="rounded-xl border bg-white dark:border-white/10 text-zinc-800 dark:text-white shadow-xs glass-panel">
+                    <div class="rounded-2xl border bg-white dark:border-white/10 text-zinc-800 dark:text-white shadow-xs glass-panel">
                         <div class="px-10 py-8">{{ $slot }}</div>
                     </div>
                 </div>

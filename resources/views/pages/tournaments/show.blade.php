@@ -3,7 +3,7 @@
         <x-ui.page-header :title="$tournament->name" :subtitle="$tournament->description">
             <x-slot:breadcrumbs>
                 <x-ui.breadcrumbs :items="[
-                    ['label' => __('Mis torneos'), 'href' => route('tournaments.index')],
+                    ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $tournament->name],
                 ]" />
             </x-slot:breadcrumbs>
@@ -14,6 +14,12 @@
                 @if ($tournament->season)
                     <flux:text class="text-sm text-zinc-500">{{ $tournament->season }}</flux:text>
                 @endif
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-center gap-2.5">
+                <x-ui.stat-pill icon="rectangle-group" :value="$tournament->categories_count" :label="__('categorías')" color="cyan" />
+                <x-ui.stat-pill icon="user-group" :value="$tournament->teams_count" :label="__('equipos')" color="amber" />
+                <x-ui.stat-pill icon="calendar-days" :value="$tournament->matches_count" :label="__('partidos')" color="green" />
             </div>
 
             <x-slot:actions>
@@ -28,14 +34,6 @@
                 </form>
             </x-slot:actions>
         </x-ui.page-header>
-
-        <div class="grid gap-4 sm:grid-cols-3">
-            <x-ui.stat-card :label="__('Categorías')" :value="$tournament->categories_count" icon="rectangle-group" color="cyan" />
-            <x-ui.stat-card :label="__('Equipos')" :value="$tournament->teams_count" icon="user-group" color="amber" />
-            <x-ui.stat-card :label="__('Partidos')" :value="$tournament->matches_count" icon="calendar-days" color="accent" />
-        </div>
-
-        <flux:separator variant="subtle" />
 
         <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -55,11 +53,13 @@
                     </x-slot:action>
                 </x-ui.empty-state>
             @else
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="flex flex-wrap justify-center gap-4">
                     @foreach ($tournament->categories->sortBy('order') as $category)
                         <x-ui.entity-card
                             :href="route('categories.show', $category)"
                             :title="$category->name"
+                            icon="rectangle-group"
+                            color="cyan"
                             :stats="[
                                 trans_choice(':count equipo|:count equipos', $category->teams_count, ['count' => $category->teams_count]),
                                 $category->uses_groups ? trans_choice(':count grupo|:count grupos', $category->groups_count, ['count' => $category->groups_count]) : __('Sin grupos'),

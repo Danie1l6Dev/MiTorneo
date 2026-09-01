@@ -20,9 +20,9 @@
                 </div>
 
                 <div class="flex items-center justify-center gap-2 sm:gap-4">
-                    <span class="text-5xl font-bold tabular-nums text-zinc-900 dark:text-white sm:text-6xl">{{ $match->home_score ?? '–' }}</span>
+                    <span class="font-display text-5xl font-bold tabular-nums text-zinc-900 dark:text-white sm:text-6xl">{{ $match->home_score ?? '–' }}</span>
                     <span class="text-2xl font-light text-zinc-300 dark:text-white/25">:</span>
-                    <span class="text-5xl font-bold tabular-nums text-zinc-900 dark:text-white sm:text-6xl">{{ $match->away_score ?? '–' }}</span>
+                    <span class="font-display text-5xl font-bold tabular-nums text-zinc-900 dark:text-white sm:text-6xl">{{ $match->away_score ?? '–' }}</span>
                 </div>
 
                 <div class="text-center">
@@ -63,7 +63,7 @@
 
         <flux:separator variant="subtle" />
 
-        <div class="rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:p-6">
+        <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
             <flux:heading size="sm" class="mb-4">{{ __('Detalles del partido') }}</flux:heading>
 
             <form method="POST" action="{{ route('matches.update', $match) }}" class="space-y-6">

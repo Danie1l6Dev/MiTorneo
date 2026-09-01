@@ -4,12 +4,12 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white antialiased dark:bg-zinc-950">
-        <div class="stadium-bg" aria-hidden="true"></div>
+        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"></div>
 
         <div class="flex min-h-svh flex-col">
             <header class="flex items-center justify-between gap-4 p-6 lg:px-10">
                 <div class="flex items-center gap-2.5">
-                    <span class="flex size-10 items-center justify-center rounded-xl bg-accent-content text-accent-foreground shadow-lg shadow-black/30">
+                    <span class="flex size-10 items-center justify-center rounded-2xl bg-accent-content text-accent-foreground shadow-lg shadow-black/30">
                         <x-app-logo-icon class="size-5 fill-current" />
                     </span>
                     <span class="text-sm font-semibold uppercase tracking-widest text-white/80">{{ config('app.name') }}</span>

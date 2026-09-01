@@ -9,7 +9,7 @@
                 </x-slot:action>
             </x-ui.empty-state>
         @else
-            <div class="rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:p-6">
+            <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
                 <form method="POST" action="{{ route('phases.matches.store', $phase) }}" class="space-y-6">
                     @csrf
 

@@ -3,7 +3,7 @@
         <x-ui.page-header :title="$group->name">
             <x-slot:breadcrumbs>
                 <x-ui.breadcrumbs :items="[
-                    ['label' => __('Mis torneos'), 'href' => route('tournaments.index')],
+                    ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $group->category->tournament->name, 'href' => route('tournaments.show', $group->category->tournament)],
                     ['label' => $group->category->name, 'href' => route('categories.show', $group->category)],
                     ['label' => $group->name],
@@ -30,37 +30,60 @@
         <flux:separator variant="subtle" />
 
         <div class="space-y-4">
-            <flux:heading size="lg">{{ __('Equipos del grupo') }}</flux:heading>
+            <div class="flex items-center justify-between">
+                <flux:heading size="lg">{{ __('Equipos del grupo') }}</flux:heading>
 
-            @if ($availableTeams->isEmpty())
-                <x-ui.empty-state icon="user-group" :message="__('La categoría todavía no tiene equipos registrados.')" />
+                <flux:button
+                    :href="route('categories.teams.create', ['category' => $group->category, 'group' => $group->id])"
+                    variant="primary"
+                    size="sm"
+                    icon="plus"
+                    wire:navigate
+                >
+                    {{ __('Nuevo equipo') }}
+                </flux:button>
+            </div>
+
+            @if ($group->teams->isEmpty())
+                <x-ui.empty-state icon="user-group" :message="__('Todavía no hay equipos en este grupo.')" />
             @else
-                <form method="POST" action="{{ route('groups.teams.update', $group) }}" class="space-y-4">
-                    @csrf
-                    @method('PATCH')
-
-                    <div class="grid gap-2 sm:grid-cols-2">
-                        @foreach ($availableTeams as $team)
-                            <label class="hover-lift flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-white/10 glass-panel">
-                                <input
-                                    type="checkbox"
-                                    name="team_ids[]"
-                                    value="{{ $team->id }}"
-                                    @checked($team->group_id === $group->id)
-                                    class="rounded border-zinc-300 text-accent focus:ring-accent dark:border-white/20"
-                                >
-                                <span class="text-zinc-700 dark:text-white/85">{{ $team->name }}</span>
-
-                                @if ($team->group_id && $team->group_id !== $group->id)
-                                    <flux:text class="text-xs text-zinc-400">({{ $team->group->name }})</flux:text>
-                                @endif
-                            </label>
-                        @endforeach
-                    </div>
-
-                    <flux:button type="submit" variant="primary" size="sm">{{ __('Guardar equipos') }}</flux:button>
-                </form>
+                <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
+                    @foreach ($group->teams->sortBy('name') as $team)
+                        <x-ui.team-row :team="$team">
+                            <x-slot:actions>
+                                <form method="POST" action="{{ route('groups.teams.detach', [$group, $team]) }}" onsubmit="return confirm('{{ __('¿Quitar :name de este grupo?', ['name' => $team->name]) }}')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <flux:tooltip :content="__('Quitar del grupo')">
+                                        <flux:button type="submit" variant="ghost" size="sm" icon="x-mark" />
+                                    </flux:tooltip>
+                                </form>
+                            </x-slot:actions>
+                        </x-ui.team-row>
+                    @endforeach
+                </div>
             @endif
         </div>
+
+        @if ($unassignedTeams->isNotEmpty())
+            <flux:separator variant="subtle" />
+
+            <div class="space-y-4">
+                <flux:heading size="lg">{{ __('Agregar equipo existente') }}</flux:heading>
+                <flux:text class="text-sm">{{ __('Solo se muestran los equipos de la categoría que todavía no están en ningún grupo.') }}</flux:text>
+
+                <form method="POST" action="{{ route('groups.teams.attach', $group) }}" class="flex flex-wrap items-end gap-3">
+                    @csrf
+
+                    <flux:select name="team_id" class="max-w-xs" placeholder="{{ __('Selecciona un equipo') }}">
+                        @foreach ($unassignedTeams as $team)
+                            <flux:select.option value="{{ $team->id }}">{{ $team->name }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+
+                    <flux:button type="submit" variant="primary" size="sm">{{ __('Agregar al grupo') }}</flux:button>
+                </form>
+            </div>
+        @endif
     </div>
 </x-layouts::app>

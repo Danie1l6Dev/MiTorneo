@@ -36,4 +36,15 @@ enum CompetitionPhaseType: string
             self::Custom => 'zinc',
         };
     }
+
+    public function icon(): string
+    {
+        return match ($this) {
+            self::League => 'calendar-days',
+            self::GroupStage => 'rectangle-group',
+            self::Knockout => 'bolt',
+            self::Semifinal, self::Final => 'flag',
+            self::Custom => 'adjustments-horizontal',
+        };
+    }
 }

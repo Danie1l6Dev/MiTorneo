@@ -16,21 +16,18 @@
     };
 @endphp
 
-<div {{ $attributes->class('hover-lift relative overflow-hidden rounded-xl border border-zinc-200 bg-white p-5 dark:border-white/10 glass-panel') }}>
-    <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-            <div class="truncate text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/60">{{ $label }}</div>
-            <div class="mt-1.5 text-3xl font-bold tabular-nums text-zinc-900 dark:text-white">{{ $value }}</div>
-
-            @if ($hint)
-                <div class="mt-1 text-xs text-zinc-400 dark:text-white/50">{{ $hint }}</div>
-            @endif
+<div {{ $attributes->class('hover-lift relative overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 text-center dark:border-white/10 glass-panel sm:p-8') }}>
+    @if ($icon)
+        <div class="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl {{ $iconWrap }}">
+            <flux:icon :icon="$icon" variant="micro" class="size-6" />
         </div>
+    @endif
 
-        @if ($icon)
-            <div class="flex size-10 shrink-0 items-center justify-center rounded-lg {{ $iconWrap }}">
-                <flux:icon :icon="$icon" variant="micro" class="size-5" />
-            </div>
-        @endif
-    </div>
+    <div class="font-display text-4xl font-bold tabular-nums text-zinc-900 dark:text-white sm:text-5xl">{{ $value }}</div>
+
+    <div class="mt-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/60">{{ $label }}</div>
+
+    @if ($hint)
+        <div class="mt-1 text-xs text-zinc-400 dark:text-white/50">{{ $hint }}</div>
+    @endif
 </div>

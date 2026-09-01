@@ -1,13 +1,16 @@
 <x-layouts::app :title="$phase->name">
     @if (session('drawReveal'))
-        <livewire:pages::phases.draw-reveal :phase="$phase" />
+        @include('pages.phases._draw-reveal', [
+            'phase' => $phase,
+            'matches' => $phase->matches()->where('round_number', 1)->with(['homeTeam', 'awayTeam'])->orderBy('id')->get(),
+        ])
     @endif
 
     <div class="w-full space-y-8 animate-fade-in-up">
         <x-ui.page-header :title="$phase->name">
             <x-slot:breadcrumbs>
                 <x-ui.breadcrumbs :items="[
-                    ['label' => __('Mis torneos'), 'href' => route('tournaments.index')],
+                    ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $phase->category->tournament->name, 'href' => route('tournaments.show', $phase->category->tournament)],
                     ['label' => $phase->category->name, 'href' => route('categories.show', $phase->category)],
                     ['label' => $phase->name],
@@ -58,7 +61,7 @@
                 @forelse ($schedules as $item)
                     @php [$schedule, $rounds] = [$item['schedule'], $item['rounds']]; @endphp
 
-                    <div class="space-y-5 rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                    <div class="space-y-5 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
                         <div class="flex flex-wrap items-center justify-between gap-2">
                             <flux:heading size="sm">
                                 {{ $schedule->group?->name ?? $category->name }}
@@ -93,7 +96,7 @@
                     <x-ui.empty-state icon="calendar-days" :message="__('Todavía no se ha generado ningún calendario para esta fase.')" />
                 @endforelse
 
-                <div class="space-y-4 rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                <div class="space-y-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
                     <flux:heading size="sm">{{ __('Generar calendario') }}</flux:heading>
 
                     <form method="POST" action="{{ route('phases.schedule.store', $phase) }}" class="space-y-4">
@@ -132,7 +135,7 @@
             </div>
 
             @if ($readyToAdvance)
-                <div class="space-y-3 rounded-xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
+                <div class="space-y-3 rounded-2xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
                     <flux:heading size="sm">{{ __('¿Pasar a la siguiente fase?') }}</flux:heading>
                     <flux:text>
                         {{ __('Todos los partidos de esta fase han finalizado. Puedes definir cuántos equipos clasifican y crear la siguiente fase mediante un sorteo en vivo o una nueva fase de liga.') }}

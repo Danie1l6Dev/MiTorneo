@@ -10,6 +10,9 @@
 
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Tipografía condensada/atlética para encabezados, marcadores y cifras -- el
+       cuerpo de texto se mantiene en Instrument Sans para máxima legibilidad. */
+    --font-display: 'Oswald', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif;
 
     /* Escala "antracita-navy" -- tinte frío deportivo en vez del gris neutro por defecto */
     --color-zinc-50: #f5f7f7;
@@ -63,6 +66,12 @@ select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-[var(--color-zinc-900)];
 }
 
+/* Alpine's x-cloak has no built-in styling; without this, any [x-cloak] element
+   flashes visible for a moment before Alpine finishes initializing. */
+[x-cloak] {
+    display: none !important;
+}
+
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
@@ -73,7 +82,11 @@ select:focus[data-flux-control] {
 
 /* Capa de fondo fija con la imagen del estadio (public/assets/images/stadium-background.png).
    background-position varía por breakpoint para mantener el arco y las luces
-   reconocibles incluso cuando el recorte es más agresivo en pantallas angostas. */
+   reconocibles incluso cuando el recorte es más agresivo en pantallas angostas.
+   La URL de la foto llega vía la variable --stadium-photo (inline, en el HTML)
+   en lugar de un url() fijo aquí: con el servidor de Vite en marcha (`npm run dev`)
+   una url() absoluta dentro del CSS se reescribe hacia el propio dev-server de
+   Vite, que no sirve public/assets -> 404 silencioso y el fondo no carga. */
 .stadium-bg {
     display: none;
     position: fixed;
@@ -82,7 +95,7 @@ select:focus[data-flux-control] {
     background-image:
         linear-gradient(180deg, rgba(7, 11, 14, .90) 0%, rgba(7, 11, 14, .52) 32%, rgba(7, 11, 14, .62) 68%, rgba(7, 11, 14, .94) 100%),
         radial-gradient(120% 70% at 50% 0%, rgba(34, 197, 94, .08), transparent 60%),
-        url('/assets/images/stadium-background.png');
+        var(--stadium-photo);
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center 20%;
@@ -115,6 +128,20 @@ select:focus[data-flux-control] {
 .dark [data-flux-card] {
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+/* Esquinas más redondeadas y consistentes en toda card de la app (sin tener que
+   editar cada <flux:card>); vale para modo claro y oscuro. */
+[data-flux-card] {
+    border-radius: 1.25rem;
+}
+
+/* Tipografía deportiva/condensada para todo encabezado (<flux:heading>) de la app,
+   sin tocar cada vista -- el texto de cuerpo (<flux:text>) sigue en Instrument Sans. */
+[data-flux-heading] {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.01em;
 }
 
 /* Panel de vidrio para superficies propias (sidebar, header, page-header, stat-card, etc.)

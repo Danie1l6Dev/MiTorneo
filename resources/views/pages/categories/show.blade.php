@@ -3,7 +3,7 @@
         <x-ui.page-header :title="$category->name" :subtitle="$category->description">
             <x-slot:breadcrumbs>
                 <x-ui.breadcrumbs :items="[
-                    ['label' => __('Mis torneos'), 'href' => route('tournaments.index')],
+                    ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $category->tournament->name, 'href' => route('tournaments.show', $category->tournament)],
                     ['label' => $category->name],
                 ]" />
@@ -76,11 +76,13 @@
                 @if ($category->groups->isEmpty())
                     <x-ui.empty-state icon="squares-2x2" :message="__('Todavía no hay grupos definidos.')" />
                 @else
-                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div class="flex flex-wrap justify-center gap-4">
                         @foreach ($category->groups->sortBy('order') as $group)
                             <x-ui.entity-card
                                 :href="route('groups.show', $group)"
                                 :title="$group->name"
+                                icon="squares-2x2"
+                                color="amber"
                                 :stats="[trans_choice(':count equipo|:count equipos', $group->teams_count, ['count' => $group->teams_count])]"
                                 :cta="__('Ver grupo')"
                             />
@@ -96,37 +98,61 @@
             <div class="flex items-center justify-between">
                 <flux:heading size="lg">{{ __('Equipos') }}</flux:heading>
 
-                <flux:button :href="route('categories.teams.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
-                    {{ __('Nuevo equipo') }}
-                </flux:button>
+                @unless ($category->uses_groups)
+                    <flux:button :href="route('categories.teams.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
+                        {{ __('Nuevo equipo') }}
+                    </flux:button>
+                @endunless
             </div>
 
             @if ($category->teams->isEmpty())
                 <x-ui.empty-state icon="user-group" :message="__('Todavía no hay equipos registrados.')" />
-            @else
-                <div class="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
-                    @foreach ($category->teams->sortBy('name') as $team)
-                        <div class="flex items-center justify-between gap-3 px-4 py-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                                <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-content/15 text-xs font-bold uppercase text-accent-content">
-                                    {{ \Illuminate\Support\Str::substr($team->short_name ?: $team->name, 0, 2) }}
-                                </div>
+            @elseif ($category->uses_groups)
+                @php $teamsByGroup = $category->teams->groupBy('group_id'); @endphp
 
-                                <div class="min-w-0">
-                                    <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $team->name }}</div>
-                                    <div class="truncate text-xs text-zinc-500 dark:text-white/50">
-                                        @if ($team->short_name)
-                                            {{ $team->short_name }}
-                                        @endif
-                                        @if ($category->uses_groups)
-                                            · {{ $team->group?->name ?? __('Sin grupo') }}
-                                        @endif
-                                    </div>
-                                </div>
+                <div class="space-y-5">
+                    @foreach ($category->groups->sortBy('order') as $group)
+                        @php $groupTeams = $teamsByGroup->get($group->id, collect()); @endphp
+
+                        <div>
+                            <div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                <flux:icon.squares-2x2 variant="micro" class="size-3.5" />
+                                {{ $group->name }}
                             </div>
 
-                            <flux:button :href="route('teams.edit', $team)" variant="ghost" size="sm" icon="pencil" wire:navigate />
+                            @if ($groupTeams->isEmpty())
+                                <flux:text class="text-sm text-zinc-400 dark:text-white/40">{{ __('Todavía no tiene equipos.') }}</flux:text>
+                            @else
+                                <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
+                                    @foreach ($groupTeams->sortBy('name') as $team)
+                                        <x-ui.team-row :team="$team" />
+                                    @endforeach
+                                </div>
+                            @endif
                         </div>
+                    @endforeach
+
+                    @php $unassigned = $teamsByGroup->get(null, collect()); @endphp
+
+                    @if ($unassigned->isNotEmpty())
+                        <div>
+                            <div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-amber-500">
+                                <flux:icon.exclamation-triangle variant="micro" class="size-3.5" />
+                                {{ __('Sin grupo') }}
+                            </div>
+
+                            <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-amber-500/30 dark:divide-white/5 glass-panel">
+                                @foreach ($unassigned->sortBy('name') as $team)
+                                    <x-ui.team-row :team="$team" />
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @else
+                <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
+                    @foreach ($category->teams->sortBy('name') as $team)
+                        <x-ui.team-row :team="$team" />
                     @endforeach
                 </div>
             @endif
@@ -146,11 +172,13 @@
             @if ($category->competitionPhases->isEmpty())
                 <x-ui.empty-state icon="calendar-days" :message="__('Todavía no hay fases definidas.')" />
             @else
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="flex flex-wrap justify-center gap-4">
                     @foreach ($category->competitionPhases->sortBy('order') as $phase)
                         <x-ui.entity-card
                             :href="route('phases.show', $phase)"
                             :title="$phase->name"
+                            :icon="$phase->type->icon()"
+                            :color="$phase->type->color()"
                             :stats="[trans_choice(':count partido|:count partidos', $phase->matches_count, ['count' => $phase->matches_count])]"
                             :cta="__('Ver fase')"
                         >

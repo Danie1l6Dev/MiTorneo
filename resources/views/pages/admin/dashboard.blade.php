@@ -6,7 +6,7 @@
             :subtitle="__('Vista general de la plataforma.')"
         />
 
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="mx-auto grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5 lg:max-w-3xl">
             <x-ui.stat-card :label="__('Usuarios totales')" :value="$usersCount" icon="users" color="cyan" />
             <x-ui.stat-card :label="__('Usuarios activos')" :value="$activeUsersCount" icon="user-group" color="green" />
             <x-ui.stat-card :label="__('Administradores')" :value="$adminsCount" icon="shield-check" color="amber" />

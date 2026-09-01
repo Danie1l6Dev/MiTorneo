@@ -12,7 +12,7 @@ use App\Http\Controllers\TournamentMatchController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
-    Route::resource('tournaments', TournamentController::class);
+    Route::resource('tournaments', TournamentController::class)->except('index');
 
     Route::resource('tournaments.categories', CategoryController::class)
         ->shallow()
@@ -49,6 +49,9 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('matches/{match}/result', [MatchResultController::class, 'update'])
         ->name('matches.result.update');
 
-    Route::patch('groups/{group}/teams', [GroupController::class, 'updateTeams'])
-        ->name('groups.teams.update');
+    Route::post('groups/{group}/teams', [GroupController::class, 'attachTeam'])
+        ->name('groups.teams.attach');
+
+    Route::delete('groups/{group}/teams/{team}', [GroupController::class, 'detachTeam'])
+        ->name('groups.teams.detach');
 });

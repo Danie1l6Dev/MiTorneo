@@ -6,16 +6,21 @@ use App\Http\Requests\TeamRequest;
 use App\Models\Category;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\View\View;
 
 class TeamController extends Controller
 {
-    public function create(Category $category): View
+    public function create(Category $category, Request $request): View
     {
         $this->authorize('create', [Team::class, $category]);
 
-        return view('pages.teams.create', compact('category'));
+        $lockedGroup = $category->uses_groups
+            ? $category->groups()->find($request->integer('group'))
+            : null;
+
+        return view('pages.teams.create', compact('category', 'lockedGroup'));
     }
 
     public function store(TeamRequest $request, Category $category): RedirectResponse
@@ -30,7 +35,9 @@ class TeamController extends Controller
         $team->group_id = $groupId;
         $team->save();
 
-        return to_route('categories.show', $category);
+        return $groupId
+            ? to_route('groups.show', $groupId)
+            : to_route('categories.show', $category);
     }
 
     public function edit(Team $team): View

@@ -3,7 +3,7 @@
     'rows' => [],
 ])
 
-<div {{ $attributes->class('overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10 glass-panel') }}>
+<div {{ $attributes->class('overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel') }}>
     @if ($label)
         <div class="border-b border-zinc-200 px-4 py-3 dark:border-white/10">
             <flux:heading size="sm">{{ $label }}</flux:heading>
@@ -48,7 +48,7 @@
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['goals_for'] }}</td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['goals_against'] }}</td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['goal_difference'] }}</td>
-                            <td class="px-4 py-2.5 text-center text-base font-bold tabular-nums text-zinc-900 dark:text-white">{{ $row['points'] }}</td>
+                            <td class="px-4 py-2.5 text-center font-display text-base font-bold tabular-nums text-zinc-900 dark:text-white">{{ $row['points'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -71,7 +71,7 @@
                     </div>
 
                     <div class="shrink-0 text-right">
-                        <div class="text-lg font-bold tabular-nums text-zinc-900 dark:text-white">{{ $row['points'] }}</div>
+                        <div class="font-display text-lg font-bold tabular-nums text-zinc-900 dark:text-white">{{ $row['points'] }}</div>
                         <div class="text-[10px] uppercase tracking-wide text-zinc-400 dark:text-white/40">{{ __('pts') }}</div>
                     </div>
                 </div>

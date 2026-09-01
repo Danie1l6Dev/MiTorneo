@@ -10,13 +10,6 @@ use Illuminate\View\View;
 
 class TournamentController extends Controller
 {
-    public function index(): View
-    {
-        $tournaments = Auth::user()->tournaments()->withCount(['categories', 'teams', 'matches'])->latest()->get();
-
-        return view('pages.tournaments.index', compact('tournaments'));
-    }
-
     public function create(): View
     {
         $this->authorize('create', Tournament::class);
@@ -65,6 +58,6 @@ class TournamentController extends Controller
 
         $tournament->delete();
 
-        return to_route('tournaments.index');
+        return to_route('dashboard');
     }
 }

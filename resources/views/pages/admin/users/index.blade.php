@@ -10,7 +10,7 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
-        <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-white/10 glass-panel">
+        <div class="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel">
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>{{ __('Nombre') }}</flux:table.column>

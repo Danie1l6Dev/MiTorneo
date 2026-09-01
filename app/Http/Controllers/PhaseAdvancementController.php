@@ -26,7 +26,12 @@ class PhaseAdvancementController extends Controller
 
         $tables = $standingsService->tablesForPhase($phase);
 
-        return view('pages.phases.advance', compact('phase', 'tables'));
+        $maxPerTable = collect($tables)
+            ->map(fn (array $table): int => count($table['rows']))
+            ->filter(fn (int $count): bool => $count > 0)
+            ->min() ?? 0;
+
+        return view('pages.phases.advance', compact('phase', 'tables', 'maxPerTable'));
     }
 
     public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService): RedirectResponse
@@ -37,29 +42,17 @@ class PhaseAdvancementController extends Controller
             return $redirect;
         }
 
-        $tables = $standingsService->tablesForPhase($phase);
-        $perTable = (int) $request->validated('qualifiers_per_table');
-
-        $smallestTable = collect($tables)->min(fn (array $table): int => count($table['rows']));
-
-        if ($tables === [] || $smallestTable === null || $smallestTable < $perTable) {
-            return back()->withInput()->with('error', __('No todas las tablas tienen suficientes equipos para clasificar :count.', ['count' => $perTable]));
-        }
-
         $type = CompetitionPhaseType::from($request->validated('type'));
         $isLeague = in_array($type, [CompetitionPhaseType::League, CompetitionPhaseType::GroupStage], true);
+
+        $perTable = match ($type) {
+            CompetitionPhaseType::Semifinal => 2,
+            CompetitionPhaseType::Final => 1,
+            default => (int) $request->validated('qualifiers_per_table'),
+        };
+
+        $tables = $standingsService->tablesForPhase($phase);
         $qualifiers = $standingsService->topQualifiers($tables, $perTable);
-
-        if ($qualifiers->count() < 2) {
-            return back()->withInput()->with('error', __('Se necesitan al menos 2 equipos clasificados.'));
-        }
-
-        if (! $isLeague && ! $this->isPowerOfTwo($qualifiers->count())) {
-            return back()->withInput()->with('error', __(
-                'Para una fase eliminatoria el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) para poder completar los cruces hasta la final. Actualmente son :count.',
-                ['count' => $qualifiers->count()]
-            ));
-        }
 
         $newPhase = DB::transaction(function () use ($phase, $request, $type, $qualifiers, $isLeague): CompetitionPhase {
             $newPhase = new CompetitionPhase;
@@ -131,10 +124,5 @@ class PhaseAdvancementController extends Controller
             $match->round_number = 1;
             $match->save();
         }
-    }
-
-    private function isPowerOfTwo(int $n): bool
-    {
-        return $n >= 2 && ($n & ($n - 1)) === 0;
     }
 }

@@ -4,7 +4,7 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-950">
-        <div class="stadium-bg" aria-hidden="true"></div>
+        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"></div>
 
         <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 glass-panel-strong">
             <flux:sidebar.header>
@@ -27,11 +27,7 @@
                             {{ __('Torneos') }}
                         </flux:sidebar.item>
                     @else
-                        <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                            {{ __('Dashboard') }}
-                        </flux:sidebar.item>
-
-                        <flux:sidebar.item icon="trophy" :href="route('tournaments.index')" :current="request()->routeIs('tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
+                        <flux:sidebar.item icon="trophy" :href="route('dashboard')" :current="request()->routeIs('dashboard', 'tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
                             {{ __('Mis torneos') }}
                         </flux:sidebar.item>
                     @endif

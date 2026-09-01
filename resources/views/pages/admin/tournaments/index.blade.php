@@ -2,7 +2,7 @@
     <div class="w-full space-y-6 animate-fade-in-up">
         <x-ui.page-header :title="__('Torneos')" :subtitle="__('Todos los torneos creados en la plataforma.')" />
 
-        <div class="overflow-x-auto rounded-xl border border-zinc-200 dark:border-white/10 glass-panel">
+        <div class="overflow-x-auto rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel">
             <flux:table>
                 <flux:table.columns>
                     <flux:table.column>{{ __('Nombre') }}</flux:table.column>

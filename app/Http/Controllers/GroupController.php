@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\GroupRequest;
 use App\Models\Category;
 use App\Models\Group;
+use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -35,9 +36,9 @@ class GroupController extends Controller
 
         $group->load('teams');
 
-        $availableTeams = $group->category->teams;
+        $unassignedTeams = $group->category->teams()->whereNull('group_id')->orderBy('name')->get();
 
-        return view('pages.groups.show', compact('group', 'availableTeams'));
+        return view('pages.groups.show', compact('group', 'unassignedTeams'));
     }
 
     public function edit(Group $group): View
@@ -74,23 +75,38 @@ class GroupController extends Controller
     }
 
     /**
-     * Assign which of the category's teams belong to this group. Any team
-     * removed from the selection is left without a group.
+     * Assign one currently unassigned team of the group's category to this
+     * group. Teams already in another group are not eligible here — moving
+     * a team between groups is done from the team's own edit form, so this
+     * action can never silently steal a team from a different group.
      */
-    public function updateTeams(Request $request, Group $group): RedirectResponse
+    public function attachTeam(Request $request, Group $group): RedirectResponse
     {
         $this->authorize('update', $group);
 
         $request->validate([
-            'team_ids' => ['array'],
-            'team_ids.*' => ['integer', 'exists:teams,id'],
+            'team_id' => ['required', 'integer'],
         ]);
 
-        $categoryTeamIds = $group->category->teams()->pluck('id');
-        $teamIds = collect($request->array('team_ids'))->intersect($categoryTeamIds);
+        $team = $group->category->teams()->whereNull('group_id')->findOrFail($request->integer('team_id'));
 
-        $group->category->teams()->whereIn('id', $teamIds)->update(['group_id' => $group->id]);
-        $group->category->teams()->where('group_id', $group->id)->whereNotIn('id', $teamIds)->update(['group_id' => null]);
+        $team->group_id = $group->id;
+        $team->save();
+
+        return to_route('groups.show', $group);
+    }
+
+    /**
+     * Remove one team from this group, leaving it unassigned.
+     */
+    public function detachTeam(Group $group, Team $team): RedirectResponse
+    {
+        $this->authorize('update', $group);
+
+        abort_unless($team->group_id === $group->id, 403);
+
+        $team->group_id = null;
+        $team->save();
 
         return to_route('groups.show', $group);
     }

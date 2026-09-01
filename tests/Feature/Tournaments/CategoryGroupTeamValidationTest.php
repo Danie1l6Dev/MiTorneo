@@ -185,7 +185,22 @@ class CategoryGroupTeamValidationTest extends TestCase
         $this->assertSame('inactive', $category->fresh()->status->value);
     }
 
-    public function test_updating_the_teams_of_a_group_moves_them_from_other_groups_in_the_category(): void
+    public function test_a_group_can_attach_an_unassigned_team_of_its_category(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $group = Group::factory()->for($tournament)->for($category)->create();
+        $team = Team::factory()->for($tournament)->for($category)->create(['group_id' => null]);
+
+        $this->actingAs($user)
+            ->post(route('groups.teams.attach', $group), ['team_id' => $team->id])
+            ->assertRedirect(route('groups.show', $group));
+
+        $this->assertSame($group->id, $team->fresh()->group_id);
+    }
+
+    public function test_a_group_cannot_attach_a_team_that_already_belongs_to_another_group(): void
     {
         $user = User::factory()->create();
         $tournament = Tournament::factory()->for($user)->create();
@@ -195,8 +210,59 @@ class CategoryGroupTeamValidationTest extends TestCase
         $team = Team::factory()->for($tournament)->for($category)->for($groupA)->create();
 
         $this->actingAs($user)
-            ->patch(route('groups.teams.update', $groupB), ['team_ids' => [$team->id]])
-            ->assertRedirect();
+            ->post(route('groups.teams.attach', $groupB), ['team_id' => $team->id])
+            ->assertNotFound();
+
+        $this->assertSame($groupA->id, $team->fresh()->group_id);
+    }
+
+    public function test_a_group_cannot_attach_a_team_from_another_category(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $otherCategory = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $group = Group::factory()->for($tournament)->for($category)->create();
+        $team = Team::factory()->for($tournament)->for($otherCategory)->create(['group_id' => null]);
+
+        $this->actingAs($user)
+            ->post(route('groups.teams.attach', $group), ['team_id' => $team->id])
+            ->assertNotFound();
+
+        $this->assertNull($team->fresh()->group_id);
+    }
+
+    public function test_a_team_can_be_detached_from_its_group(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $group = Group::factory()->for($tournament)->for($category)->create();
+        $team = Team::factory()->for($tournament)->for($category)->for($group)->create();
+
+        $this->actingAs($user)
+            ->delete(route('groups.teams.detach', [$group, $team]))
+            ->assertRedirect(route('groups.show', $group));
+
+        $this->assertNull($team->fresh()->group_id);
+    }
+
+    public function test_moving_a_team_between_groups_is_done_by_editing_the_team(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $groupA = Group::factory()->for($tournament)->for($category)->create(['name' => 'Grupo A']);
+        $groupB = Group::factory()->for($tournament)->for($category)->create(['name' => 'Grupo B']);
+        $team = Team::factory()->for($tournament)->for($category)->for($groupA)->create();
+
+        $this->actingAs($user)
+            ->put(route('teams.update', $team), [
+                'name' => $team->name,
+                'short_name' => $team->short_name,
+                'group_id' => $groupB->id,
+            ])
+            ->assertRedirect(route('categories.show', $category));
 
         $this->assertSame($groupB->id, $team->fresh()->group_id);
     }

@@ -13,7 +13,7 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="$errors->first() ?? session('error')" />
         @endif
 
-        <div class="space-y-2 rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+        <div class="space-y-2 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
             <flux:heading size="sm">{{ __('Tablas actuales') }}</flux:heading>
 
             @foreach ($tables as $table)
@@ -23,8 +23,13 @@
             @endforeach
         </div>
 
-        <div class="rounded-xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:p-6">
-            <form method="POST" action="{{ route('phases.advance.store', $phase) }}" class="space-y-6">
+        <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
+            <form
+                method="POST"
+                action="{{ route('phases.advance.store', $phase) }}"
+                class="space-y-6"
+                x-data="{ type: '{{ old('type', \App\Enums\CompetitionPhaseType::Knockout->value) }}' }"
+            >
                 @csrf
 
                 <flux:input
@@ -36,7 +41,7 @@
                     autofocus
                 />
 
-                <flux:select name="type" label="{{ __('Tipo de fase') }}">
+                <flux:select name="type" label="{{ __('Tipo de fase') }}" x-model="type">
                     @php $currentType = old('type', \App\Enums\CompetitionPhaseType::Knockout->value); @endphp
 
                     @foreach (\App\Enums\CompetitionPhaseType::cases() as $type)
@@ -46,13 +51,34 @@
                     @endforeach
                 </flux:select>
 
-                <flux:input
-                    name="qualifiers_per_table"
-                    type="number"
-                    min="1"
-                    label="{{ count($tables) > 1 ? __('¿Cuántos equipos clasifican de cada grupo?') : __('¿Cuántos equipos clasifican de la tabla?') }}"
-                    value="{{ old('qualifiers_per_table', 2) }}"
-                />
+                <div
+                    x-show="!['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}'].includes(type)"
+                    x-cloak
+                    class="space-y-1.5"
+                >
+                    <flux:input
+                        name="qualifiers_per_table"
+                        type="number"
+                        min="1"
+                        max="{{ $maxPerTable ?: null }}"
+                        label="{{ count($tables) > 1 ? __('¿Cuántos equipos clasifican de cada grupo?') : __('¿Cuántos equipos clasifican de la tabla?') }}"
+                        value="{{ old('qualifiers_per_table', min(2, max($maxPerTable, 1))) }}"
+                    />
+
+                    @if ($maxPerTable > 0)
+                        <flux:text class="text-xs text-zinc-500">
+                            {{ __('Como máximo :count, según la tabla con menos equipos.', ['count' => $maxPerTable]) }}
+                        </flux:text>
+                    @endif
+                </div>
+
+                <div x-show="type === '{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}'" x-cloak>
+                    <flux:callout variant="secondary" icon="information-circle" :heading="__('Clasifican 2 equipos de cada tabla, automáticamente.')" />
+                </div>
+
+                <div x-show="type === '{{ \App\Enums\CompetitionPhaseType::Final->value }}'" x-cloak>
+                    <flux:callout variant="secondary" icon="information-circle" :heading="__('Clasifica 1 equipo de cada tabla, automáticamente.')" />
+                </div>
 
                 <flux:text class="text-sm text-zinc-500">
                     {{ __('Si eliges una fase eliminatoria, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) y los cruces se sortearán al azar entre todos los clasificados, sin importar de qué grupo vengan. Si eliges liga o fase de grupos, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
