@@ -32,7 +32,11 @@ class CategoryController extends Controller
     {
         $this->authorize('view', $category);
 
-        $category->load(['groups', 'teams', 'competitionPhases']);
+        $category->load([
+            'groups' => fn ($query) => $query->withCount('teams'),
+            'teams',
+            'competitionPhases' => fn ($query) => $query->withCount('matches'),
+        ]);
 
         return view('pages.categories.show', compact('category'));
     }

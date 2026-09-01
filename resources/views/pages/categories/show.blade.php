@@ -1,29 +1,23 @@
 <x-layouts::app :title="$category->name">
-    <div class="w-full space-y-6">
-        <div class="flex items-start justify-between gap-4">
-            <div>
-                <flux:button :href="route('tournaments.show', $category->tournament)" variant="ghost" size="sm" icon="arrow-left" wire:navigate>
-                    {{ $category->tournament->name }}
-                </flux:button>
+    <div class="w-full space-y-8 animate-fade-in-up">
+        <x-ui.page-header :title="$category->name" :subtitle="$category->description">
+            <x-slot:breadcrumbs>
+                <x-ui.breadcrumbs :items="[
+                    ['label' => __('Mis torneos'), 'href' => route('tournaments.index')],
+                    ['label' => $category->tournament->name, 'href' => route('tournaments.show', $category->tournament)],
+                    ['label' => $category->name],
+                ]" />
+            </x-slot:breadcrumbs>
 
-                <flux:heading size="xl" class="mt-2">{{ $category->name }}</flux:heading>
+            <div class="mt-1 flex items-center gap-2">
+                <flux:badge size="sm" :color="$category->status->color()">{{ $category->status->label() }}</flux:badge>
 
-                <div class="mt-1 flex items-center gap-2">
-                    <flux:badge size="sm" :color="$category->status === \App\Enums\CategoryStatus::Active ? 'green' : 'red'">
-                        {{ $category->status->label() }}
-                    </flux:badge>
-
-                    @if ($category->uses_groups)
-                        <flux:badge size="sm" color="zinc">{{ __('Usa grupos') }}</flux:badge>
-                    @endif
-                </div>
-
-                @if ($category->description)
-                    <flux:text class="mt-3 max-w-2xl">{{ $category->description }}</flux:text>
+                @if ($category->uses_groups)
+                    <flux:badge size="sm" color="zinc">{{ __('Usa grupos') }}</flux:badge>
                 @endif
             </div>
 
-            <div class="flex shrink-0 items-center gap-2">
+            <x-slot:actions>
                 <form method="POST" action="{{ route('categories.toggle-status', $category) }}">
                     @csrf
                     @method('PATCH')
@@ -56,8 +50,8 @@
                         <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
                     </form>
                 @endif
-            </div>
-        </div>
+            </x-slot:actions>
+        </x-ui.page-header>
 
         @if (session('status'))
             <flux:callout variant="success" icon="check-circle" :heading="session('status')" />
@@ -67,7 +61,7 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
-        <flux:separator />
+        <flux:separator variant="subtle" />
 
         @if ($category->uses_groups)
             <div class="space-y-4">
@@ -80,21 +74,22 @@
                 </div>
 
                 @if ($category->groups->isEmpty())
-                    <flux:text class="text-zinc-500">{{ __('Todavía no hay grupos definidos.') }}</flux:text>
+                    <x-ui.empty-state icon="squares-2x2" :message="__('Todavía no hay grupos definidos.')" />
                 @else
                     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         @foreach ($category->groups->sortBy('order') as $group)
-                            <a href="{{ route('groups.show', $group) }}" wire:navigate class="block">
-                                <flux:card class="h-full hover:border-zinc-300 dark:hover:border-white/20">
-                                    <flux:heading size="sm">{{ $group->name }}</flux:heading>
-                                </flux:card>
-                            </a>
+                            <x-ui.entity-card
+                                :href="route('groups.show', $group)"
+                                :title="$group->name"
+                                :stats="[trans_choice(':count equipo|:count equipos', $group->teams_count, ['count' => $group->teams_count])]"
+                                :cta="__('Ver grupo')"
+                            />
                         @endforeach
                     </div>
                 @endif
             </div>
 
-            <flux:separator />
+            <flux:separator variant="subtle" />
         @endif
 
         <div class="space-y-4">
@@ -107,31 +102,37 @@
             </div>
 
             @if ($category->teams->isEmpty())
-                <flux:text class="text-zinc-500">{{ __('Todavía no hay equipos registrados.') }}</flux:text>
+                <x-ui.empty-state icon="user-group" :message="__('Todavía no hay equipos registrados.')" />
             @else
-                <div class="space-y-2">
+                <div class="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                     @foreach ($category->teams->sortBy('name') as $team)
-                        <flux:card class="flex items-center justify-between">
-                            <div>
-                                <flux:heading size="sm">{{ $team->name }}</flux:heading>
-                                <flux:text class="text-sm text-zinc-500">
-                                    @if ($team->short_name)
-                                        {{ $team->short_name }}
-                                    @endif
-                                    @if ($category->uses_groups)
-                                        · {{ $team->group?->name ?? __('Sin grupo') }}
-                                    @endif
-                                </flux:text>
+                        <div class="flex items-center justify-between gap-3 px-4 py-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-content/15 text-xs font-bold uppercase text-accent-content">
+                                    {{ \Illuminate\Support\Str::substr($team->short_name ?: $team->name, 0, 2) }}
+                                </div>
+
+                                <div class="min-w-0">
+                                    <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $team->name }}</div>
+                                    <div class="truncate text-xs text-zinc-500 dark:text-white/50">
+                                        @if ($team->short_name)
+                                            {{ $team->short_name }}
+                                        @endif
+                                        @if ($category->uses_groups)
+                                            · {{ $team->group?->name ?? __('Sin grupo') }}
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
 
                             <flux:button :href="route('teams.edit', $team)" variant="ghost" size="sm" icon="pencil" wire:navigate />
-                        </flux:card>
+                        </div>
                     @endforeach
                 </div>
             @endif
         </div>
 
-        <flux:separator />
+        <flux:separator variant="subtle" />
 
         <div class="space-y-4">
             <div class="flex items-center justify-between">
@@ -143,23 +144,23 @@
             </div>
 
             @if ($category->competitionPhases->isEmpty())
-                <flux:text class="text-zinc-500">{{ __('Todavía no hay fases definidas.') }}</flux:text>
+                <x-ui.empty-state icon="calendar-days" :message="__('Todavía no hay fases definidas.')" />
             @else
-                <div class="space-y-2">
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     @foreach ($category->competitionPhases->sortBy('order') as $phase)
-                        <a href="{{ route('phases.show', $phase) }}" wire:navigate class="block">
-                            <flux:card class="flex items-center justify-between hover:border-zinc-300 dark:hover:border-white/20">
-                                <div>
-                                    <flux:heading size="sm">{{ $phase->name }}</flux:heading>
-                                    <flux:text class="text-sm text-zinc-500">{{ $phase->type->label() }}</flux:text>
-                                </div>
-                            </flux:card>
-                        </a>
+                        <x-ui.entity-card
+                            :href="route('phases.show', $phase)"
+                            :title="$phase->name"
+                            :stats="[trans_choice(':count partido|:count partidos', $phase->matches_count, ['count' => $phase->matches_count])]"
+                            :cta="__('Ver fase')"
+                        >
+                            <x-slot:badges>
+                                <flux:badge size="sm" :color="$phase->type->color()">{{ $phase->type->label() }}</flux:badge>
+                            </x-slot:badges>
+                        </x-ui.entity-card>
                     @endforeach
                 </div>
             @endif
         </div>
-
-        <flux:text class="text-sm text-zinc-400">{{ __('Próximamente: calendario y tabla de posiciones.') }}</flux:text>
     </div>
 </x-layouts::app>

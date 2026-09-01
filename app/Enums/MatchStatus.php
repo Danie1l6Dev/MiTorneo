@@ -20,4 +20,15 @@ enum MatchStatus: string
             self::Cancelled => 'Cancelado',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Scheduled => 'zinc',
+            self::InProgress => 'cyan',
+            self::Finished => 'green',
+            self::Postponed => 'amber',
+            self::Cancelled => 'red',
+        };
+    }
 }

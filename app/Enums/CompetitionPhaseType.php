@@ -26,4 +26,14 @@ enum CompetitionPhaseType: string
             self::Custom => 'Personalizada',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::League => 'green',
+            self::GroupStage => 'cyan',
+            self::Knockout, self::Semifinal, self::Final => 'amber',
+            self::Custom => 'zinc',
+        };
+    }
 }

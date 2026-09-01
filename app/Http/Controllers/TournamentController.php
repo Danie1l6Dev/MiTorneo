@@ -12,7 +12,7 @@ class TournamentController extends Controller
 {
     public function index(): View
     {
-        $tournaments = Auth::user()->tournaments()->latest()->get();
+        $tournaments = Auth::user()->tournaments()->withCount(['categories', 'teams', 'matches'])->latest()->get();
 
         return view('pages.tournaments.index', compact('tournaments'));
     }
@@ -37,7 +37,8 @@ class TournamentController extends Controller
     {
         $this->authorize('view', $tournament);
 
-        $tournament->load('categories');
+        $tournament->load(['categories' => fn ($query) => $query->withCount(['teams', 'groups'])]);
+        $tournament->loadCount(['categories', 'teams', 'matches']);
 
         return view('pages.tournaments.show', compact('tournament'));
     }

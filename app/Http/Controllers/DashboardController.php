@@ -9,7 +9,7 @@ class DashboardController extends Controller
 {
     public function index(): View
     {
-        $tournaments = Auth::user()->tournaments()->latest()->take(5)->get();
+        $tournaments = Auth::user()->tournaments()->withCount(['categories', 'teams', 'matches'])->latest()->take(5)->get();
         $tournamentsCount = Auth::user()->tournaments()->count();
 
         return view('dashboard', compact('tournaments', 'tournamentsCount'));

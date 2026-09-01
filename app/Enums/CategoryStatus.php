@@ -14,4 +14,12 @@ enum CategoryStatus: string
             self::Inactive => 'Inactiva',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Active => 'green',
+            self::Inactive => 'red',
+        };
+    }
 }

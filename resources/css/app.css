@@ -11,17 +11,18 @@
 @theme {
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
-    --color-zinc-50: #fafafa;
-    --color-zinc-100: #f5f5f5;
-    --color-zinc-200: #e5e5e5;
-    --color-zinc-300: #d4d4d4;
-    --color-zinc-400: #a3a3a3;
-    --color-zinc-500: #737373;
-    --color-zinc-600: #525252;
-    --color-zinc-700: #404040;
-    --color-zinc-800: #262626;
-    --color-zinc-900: #171717;
-    --color-zinc-950: #0a0a0a;
+    /* Escala "antracita-navy" -- tinte frío deportivo en vez del gris neutro por defecto */
+    --color-zinc-50: #f5f7f7;
+    --color-zinc-100: #e8edee;
+    --color-zinc-200: #d3dbdd;
+    --color-zinc-300: #aab8bb;
+    --color-zinc-400: #7c8d92;
+    --color-zinc-500: #566269;
+    --color-zinc-600: #3d4850;
+    --color-zinc-700: #29333a;
+    --color-zinc-800: #182027;
+    --color-zinc-900: #0e151a;
+    --color-zinc-950: #070b0e;
 
     --color-accent: var(--color-neutral-800);
     --color-accent-content: var(--color-neutral-800);
@@ -30,9 +31,10 @@
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        /* Acento verde césped para acciones primarias, focos y estados activos */
+        --color-accent: var(--color-green-600);
+        --color-accent-content: var(--color-green-400);
+        --color-accent-foreground: var(--color-white);
     }
 }
 
@@ -58,9 +60,137 @@
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-[var(--color-zinc-900)];
 }
 
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/* ==========================================================================
+   Identidad visual "estadio nocturno" -- fondo, glassmorphism, microinteracciones
+   ========================================================================== */
+
+/* Capa de fondo fija con la imagen del estadio (public/assets/images/stadium-background.png).
+   background-position varía por breakpoint para mantener el arco y las luces
+   reconocibles incluso cuando el recorte es más agresivo en pantallas angostas. */
+.stadium-bg {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image:
+        linear-gradient(180deg, rgba(7, 11, 14, .90) 0%, rgba(7, 11, 14, .52) 32%, rgba(7, 11, 14, .62) 68%, rgba(7, 11, 14, .94) 100%),
+        radial-gradient(120% 70% at 50% 0%, rgba(34, 197, 94, .08), transparent 60%),
+        url('/assets/images/stadium-background.png');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center 20%;
+}
+
+@media (min-width: 641px) {
+    .stadium-bg {
+        background-position: center 30%;
+    }
+}
+
+@media (min-width: 1024px) {
+    .stadium-bg {
+        background-position: center 40%;
+    }
+}
+
+/* Solo se muestra en modo oscuro (el estado por defecto de la app); en modo claro
+   (appearance = light, elegido por el usuario en Ajustes) se mantiene el fondo
+   plano original, sin ningún cambio de comportamiento del selector de apariencia. */
+.dark .stadium-bg {
+    display: block;
+}
+
+/* Todas las flux:card quedan translúcidas por defecto en modo oscuro (bg-white/10);
+   añadirles blur convierte automáticamente cada card de la app en un panel de vidrio
+   sobre el fondo del estadio, sin tener que tocar cada vista que usa <flux:card>.
+   Se limita a modo oscuro: en modo claro (appearance = light) la card sigue opaca
+   como hoy, sin ningún cambio de comportamiento. */
+.dark [data-flux-card] {
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+/* Panel de vidrio para superficies propias (sidebar, header, page-header, stat-card, etc.)
+   -- únicamente activo en modo oscuro; en modo claro no se aplica ningún fondo especial. */
+.dark .glass-panel {
+    background: linear-gradient(160deg, color-mix(in oklab, var(--color-zinc-900) 78%, transparent), color-mix(in oklab, var(--color-zinc-950) 88%, transparent));
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+
+/* Variante más opaca para superficies que necesitan máxima legibilidad de texto/nav */
+.dark .glass-panel-strong {
+    background: color-mix(in oklab, var(--color-zinc-950) 92%, transparent);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.hover-lift {
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease;
+}
+
+.hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 36px -16px rgba(0, 0, 0, .6);
+}
+
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in-up {
+    animation: fade-in-up .45s ease-out both;
+}
+
+/* Sorteo en vivo (draw reveal) */
+@keyframes reveal-pop {
+    0% {
+        opacity: 0;
+        transform: scale(.82);
+    }
+
+    65% {
+        opacity: 1;
+        transform: scale(1.04);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-reveal-pop {
+    animation: reveal-pop .5s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+
+@keyframes shimmer-pulse {
+
+    0%,
+    100% {
+        opacity: .45;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.animate-shimmer-pulse {
+    animation: shimmer-pulse 1.3s ease-in-out infinite;
+}

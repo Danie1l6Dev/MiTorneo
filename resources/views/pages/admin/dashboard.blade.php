@@ -1,38 +1,24 @@
 <x-layouts::app :title="__('Dashboard administrativo')">
-    <div class="w-full space-y-6">
-        <div>
-            <flux:heading size="xl">{{ __('Dashboard administrativo') }}</flux:heading>
-            <flux:text class="mt-1">{{ __('Vista general de la plataforma.') }}</flux:text>
-        </div>
+    <div class="w-full space-y-8 animate-fade-in-up">
+        <x-ui.page-header
+            :eyebrow="__('Administración')"
+            :title="__('Dashboard administrativo')"
+            :subtitle="__('Vista general de la plataforma.')"
+        />
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <flux:card class="space-y-1">
-                <flux:text class="text-sm text-zinc-500">{{ __('Usuarios totales') }}</flux:text>
-                <flux:heading size="xl">{{ $usersCount }}</flux:heading>
-            </flux:card>
-
-            <flux:card class="space-y-1">
-                <flux:text class="text-sm text-zinc-500">{{ __('Usuarios activos') }}</flux:text>
-                <flux:heading size="xl">{{ $activeUsersCount }}</flux:heading>
-            </flux:card>
-
-            <flux:card class="space-y-1">
-                <flux:text class="text-sm text-zinc-500">{{ __('Administradores') }}</flux:text>
-                <flux:heading size="xl">{{ $adminsCount }}</flux:heading>
-            </flux:card>
-
-            <flux:card class="space-y-1">
-                <flux:text class="text-sm text-zinc-500">{{ __('Torneos totales') }}</flux:text>
-                <flux:heading size="xl">{{ $tournamentsCount }}</flux:heading>
-            </flux:card>
+            <x-ui.stat-card :label="__('Usuarios totales')" :value="$usersCount" icon="users" color="cyan" />
+            <x-ui.stat-card :label="__('Usuarios activos')" :value="$activeUsersCount" icon="user-group" color="green" />
+            <x-ui.stat-card :label="__('Administradores')" :value="$adminsCount" icon="shield-check" color="amber" />
+            <x-ui.stat-card :label="__('Torneos totales')" :value="$tournamentsCount" icon="trophy" color="accent" />
         </div>
 
-        <div class="flex gap-2">
-            <flux:button :href="route('admin.users.index')" variant="primary" wire:navigate>
+        <div class="flex flex-wrap gap-2">
+            <flux:button :href="route('admin.users.index')" variant="primary" icon="users" wire:navigate>
                 {{ __('Ver usuarios') }}
             </flux:button>
 
-            <flux:button :href="route('admin.tournaments.index')" variant="ghost" wire:navigate>
+            <flux:button :href="route('admin.tournaments.index')" variant="ghost" icon="trophy" wire:navigate>
                 {{ __('Ver torneos') }}
             </flux:button>
         </div>

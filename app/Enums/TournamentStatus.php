@@ -16,4 +16,13 @@ enum TournamentStatus: string
             self::Finished => 'Finalizado',
         };
     }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::Draft => 'zinc',
+            self::Active => 'green',
+            self::Finished => 'cyan',
+        };
+    }
 }

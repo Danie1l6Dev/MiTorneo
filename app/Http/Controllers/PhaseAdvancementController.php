@@ -83,7 +83,16 @@ class PhaseAdvancementController extends Controller
             ? __(':count equipos clasificados a :name. Genera el calendario de la nueva fase cuando quieras.', ['count' => $qualifiers->count(), 'name' => $newPhase->name])
             : __('Sorteo realizado: :count cruces creados para :name.', ['count' => intdiv($qualifiers->count(), 2), 'name' => $newPhase->name]);
 
-        return to_route('phases.show', $newPhase)->with('status', $status);
+        $redirect = to_route('phases.show', $newPhase)->with('status', $status);
+
+        // Flag a single-use flash so the destination page can play the live
+        // draw reveal animation once, using the matches this request just
+        // created, instead of showing them instantly.
+        if (! $isLeague) {
+            $redirect->with('drawReveal', true);
+        }
+
+        return $redirect;
     }
 
     private function guard(CompetitionPhase $phase): ?RedirectResponse
