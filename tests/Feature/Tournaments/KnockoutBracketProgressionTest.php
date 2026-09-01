@@ -129,6 +129,47 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->assertSame(MatchStatus::Finished, $final->fresh()->status);
     }
 
+    public function test_the_phase_page_shows_a_champion_card_once_the_final_is_finished(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['type' => CompetitionPhaseType::League]);
+        $teams = Team::factory()->for($tournament)->for($category)->count(4)->create();
+
+        foreach ($teams->chunk(2) as $pair) {
+            $this->finishedMatch($phase, $pair->first(), $pair->last());
+        }
+
+        $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+            'name' => 'Semifinales',
+            'type' => CompetitionPhaseType::Knockout->value,
+            'qualifiers_per_table' => 4,
+        ]);
+
+        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $semiMatches = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
+        $final = $newPhase->matches()->where('round_number', 2)->firstOrFail();
+
+        // Before the final is played, there's no champion card yet.
+        $this->actingAs($user)
+            ->get(route('phases.show', $newPhase))
+            ->assertOk()
+            ->assertDontSee('Campeón');
+
+        $this->actingAs($user)->patch(route('matches.result.update', $semiMatches[0]), ['home_score' => 2, 'away_score' => 1]);
+        $this->actingAs($user)->patch(route('matches.result.update', $semiMatches[1]), ['home_score' => 0, 'away_score' => 3]);
+        $this->actingAs($user)->patch(route('matches.result.update', $final), ['home_score' => 2, 'away_score' => 0]);
+
+        $champion = $final->fresh()->homeTeam;
+
+        $this->actingAs($user)
+            ->get(route('phases.show', $newPhase))
+            ->assertOk()
+            ->assertSee('Campeón')
+            ->assertSee($champion->name);
+    }
+
     public function test_a_pending_match_cannot_have_a_result_registered_before_both_teams_are_known(): void
     {
         $user = User::factory()->create();

@@ -53,6 +53,8 @@ class CompetitionPhaseController extends Controller
 
         $bracketColumns = $this->buildBracketColumns($bracketRounds);
 
+        $champion = $this->championFor($bracketRounds);
+
         $bracketMatchIds = collect($bracketRounds)->flatMap(fn (array $round): Collection => $round['matches'])->pluck('id');
 
         $unscheduledMatches = $phase->matches()
@@ -67,7 +69,28 @@ class CompetitionPhaseController extends Controller
 
         $readyToAdvance = $phase->type === CompetitionPhaseType::League && $phase->allMatchesFinished();
 
-        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'champion', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+    }
+
+    /**
+     * The winner of the bracket's final match, once it's been played -- null
+     * while the phase has no bracket at all, or its final hasn't finished yet.
+     *
+     * @param  array<int, array{round_number: int, label: string, matches: Collection<int, TournamentMatch>}>  $bracketRounds
+     */
+    private function championFor(array $bracketRounds): ?Team
+    {
+        if (empty($bracketRounds)) {
+            return null;
+        }
+
+        $final = end($bracketRounds)['matches']->first();
+
+        if (! $final instanceof TournamentMatch || $final->status !== MatchStatus::Finished) {
+            return null;
+        }
+
+        return $final->home_score > $final->away_score ? $final->homeTeam : $final->awayTeam;
     }
 
     /**

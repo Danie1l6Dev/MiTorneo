@@ -264,12 +264,30 @@
                         @endforeach
                     </div>
 
-                    {{-- Desktop: the classic bracket shape -- rounds converge from a left and
-                         a right column toward the final in the middle. --}}
+                    {{--
+                        Desktop: the classic bracket shape -- rounds converge from a left and a
+                        right column toward the final in the middle. Every non-final column is
+                        chunked into pairs of 2 matches (always possible: rounds are always a
+                        power of 2); a pair gets a vertical bar joining both cards' midpoints
+                        plus a stub reaching all the way into the next column, while a lone
+                        match (a column with only 1 match, when it feeds the final directly)
+                        just gets a straight stub. The receiving column never needs its own
+                        connector: the sending side's line already reaches its edge.
+
+                        `justify-around` on every column, combined with `items-stretch` making
+                        every column share round 1's full height, is what keeps a pair's bar
+                        exactly centered on its two matches and exactly aligned with what it
+                        feeds in the next column, at any bracket depth -- no pixel math needed.
+                    --}}
                     <div class="hidden overflow-x-auto pb-4 lg:block">
-                        <div class="flex min-w-max items-stretch gap-10 px-2">
+                        <div class="mx-auto flex w-max items-stretch gap-14 px-2">
                             @foreach ($bracketColumns as $column)
-                                <div class="flex w-64 shrink-0 flex-col {{ $column['side'] === 'final' ? 'justify-center' : 'justify-around gap-6' }}">
+                                <div class="flex w-64 shrink-0 flex-col">
+                                    {{-- The label sits outside the matches' own flex container below: if it
+                                         shared that container's justify-around, it would count as one more
+                                         item in the space-around split, throwing every column's math off by
+                                         a different amount depending on how tall that column's own match
+                                         content is -- which is exactly what caused the previous misalignment. --}}
                                     <div class="mb-3 flex items-center justify-center gap-1.5 text-center text-xs font-semibold uppercase tracking-wider
                                         {{ $column['side'] === 'final' ? 'text-amber-400' : 'text-zinc-500 dark:text-white/50' }}">
                                         @if ($column['side'] === 'final')
@@ -278,18 +296,60 @@
                                         {{ $column['label'] }}
                                     </div>
 
-                                    @foreach ($column['matches'] as $match)
-                                        <div class="relative
-                                            {{ $column['side'] === 'left' ? "after:absolute after:top-1/2 after:-right-5 after:h-px after:w-5 after:bg-zinc-300 after:content-[''] dark:after:bg-white/15" : '' }}
-                                            {{ $column['side'] === 'right' ? "before:absolute before:top-1/2 before:-left-5 before:h-px before:w-5 before:bg-zinc-300 before:content-[''] dark:before:bg-white/15" : '' }}"
-                                        >
-                                            <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" full-width />
-                                        </div>
-                                    @endforeach
+                                    <div class="flex flex-1 flex-col {{ $column['side'] === 'final' ? 'justify-center' : 'justify-around' }}">
+                                        @if ($column['side'] === 'final')
+                                            <x-ui.bracket-match-card :match="$column['matches']->first()" :href="route('matches.edit', $column['matches']->first())" />
+                                        @else
+                                            @foreach ($column['matches']->chunk(2) as $pair)
+                                                @if ($pair->count() === 2)
+                                                    <div @class([
+                                                        'relative flex flex-col justify-between gap-4',
+                                                        "after:content-[''] after:absolute after:top-8 after:bottom-8 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35" => true,
+                                                        "before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35" => true,
+                                                        'after:-right-7 before:-right-14 before:w-7' => $column['side'] === 'left',
+                                                        'after:-left-7 before:-left-14 before:w-7' => $column['side'] === 'right',
+                                                    ])>
+                                                        {{-- Each card gets its own short stub reaching the shared vertical
+                                                             bar above; it must live on this plain wrapper (not the card
+                                                             itself) since the card's own overflow-hidden would clip it. --}}
+                                                        @foreach ($pair as $match)
+                                                            <div @class([
+                                                                'relative',
+                                                                "after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-7 after:bg-zinc-400 dark:after:bg-white/35 after:-right-7" => $column['side'] === 'left',
+                                                                "before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-7 before:bg-zinc-400 dark:before:bg-white/35 before:-left-7" => $column['side'] === 'right',
+                                                            ])>
+                                                                <x-ui.bracket-match-card :match="$match" :href="route('matches.edit', $match)" />
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @else
+                                                    <div @class([
+                                                        'relative',
+                                                        "after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-14 after:bg-zinc-400 dark:after:bg-white/35 after:-right-14" => $column['side'] === 'left',
+                                                        "before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-14 before:bg-zinc-400 dark:before:bg-white/35 before:-left-14" => $column['side'] === 'right',
+                                                    ])>
+                                                        <x-ui.bracket-match-card :match="$pair->first()" :href="route('matches.edit', $pair->first())" />
+                                                    </div>
+                                                @endif
+                                            @endforeach
+                                        @endif
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
                     </div>
+
+                    @if ($champion)
+                        <div class="relative mx-auto flex max-w-sm flex-col items-center gap-3 overflow-hidden rounded-3xl border border-amber-500/40 p-8 text-center glass-panel-strong dark:border-amber-400/30">
+                            <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-amber-500/20 via-transparent to-transparent"></div>
+
+                            <div class="relative flex size-16 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
+                                <flux:icon.trophy variant="outline" class="size-8" />
+                            </div>
+                            <div class="relative text-xs font-semibold uppercase tracking-widest text-amber-500 dark:text-amber-400">{{ __('Campeón') }}</div>
+                            <flux:heading size="xl" class="relative">{{ $champion->name }}</flux:heading>
+                        </div>
+                    @endif
                 @endif
             </div>
 
