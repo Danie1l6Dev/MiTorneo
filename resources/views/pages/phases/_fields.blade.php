@@ -10,7 +10,7 @@
 />
 
 <flux:select name="type" label="{{ __('Tipo') }}">
-    @php $currentType = old('type', $phase->type?->value ?? \App\Enums\CompetitionPhaseType::Custom->value); @endphp
+    @php $currentType = old('type', $phase->type?->value ?? \App\Enums\CompetitionPhaseType::League->value); @endphp
 
     @foreach (\App\Enums\CompetitionPhaseType::cases() as $type)
         <flux:select.option value="{{ $type->value }}" :selected="$type->value === $currentType">

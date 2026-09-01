@@ -2,10 +2,11 @@
     'match' => null,
     'resting' => null,
     'href' => null,
+    'fullWidth' => false,
 ])
 
 @php
-    $widthClasses = 'w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.667rem)] lg:max-w-sm';
+    $widthClasses = $fullWidth ? 'w-full' : 'w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.667rem)] lg:max-w-sm';
 @endphp
 
 @if ($resting)
@@ -17,7 +18,8 @@
 @else
     @php
         $finished = $match->status === \App\Enums\MatchStatus::Finished;
-        $tag = $href ? 'a' : 'div';
+        $pending = $match->home_team_id === null || $match->away_team_id === null;
+        $tag = ($href && ! $pending) ? 'a' : 'div';
         $scoreClasses = $finished ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 dark:text-white/40';
         $accentClasses = match ($match->status->color()) {
             'green' => 'border-t-green-500/70',
@@ -29,12 +31,12 @@
     @endphp
 
     <{{ $tag }}
-        @if ($href) href="{{ $href }}" wire:navigate @endif
-        {{ $attributes->class('hover-lift group block rounded-3xl border border-t-2 border-zinc-200 bg-white p-6 dark:border-white/10 glass-panel ' . $accentClasses . ' ' . $widthClasses . ($href ? ' cursor-pointer' : '')) }}
+        @if ($href && ! $pending) href="{{ $href }}" wire:navigate @endif
+        {{ $attributes->class('hover-lift group block rounded-3xl border border-t-2 border-zinc-200 bg-white p-6 dark:border-white/10 glass-panel ' . $accentClasses . ' ' . $widthClasses . ($href && ! $pending ? ' cursor-pointer' : '')) }}
     >
         <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex-1 text-right text-base font-semibold truncate text-zinc-800 dark:text-white">
-                {{ $match->homeTeam->name }}
+                {{ $match->homeTeam?->name ?? __('Por definir') }}
             </div>
 
             <div class="flex shrink-0 items-center gap-2 rounded-xl bg-zinc-100 px-3.5 py-2 dark:bg-white/10">
@@ -44,12 +46,16 @@
             </div>
 
             <div class="min-w-0 flex-1 text-left text-base font-semibold truncate text-zinc-800 dark:text-white">
-                {{ $match->awayTeam->name }}
+                {{ $match->awayTeam?->name ?? __('Por definir') }}
             </div>
         </div>
 
         <div class="mt-4 flex items-center justify-center">
-            <flux:badge size="sm" :color="$match->status->color()">{{ mb_strtoupper($match->status->label()) }}</flux:badge>
+            @if ($pending)
+                <flux:badge size="sm" color="zinc">{{ mb_strtoupper(__('Por definir')) }}</flux:badge>
+            @else
+                <flux:badge size="sm" :color="$match->status->color()">{{ mb_strtoupper($match->status->label()) }}</flux:badge>
+            @endif
         </div>
     </{{ $tag }}>
 @endif

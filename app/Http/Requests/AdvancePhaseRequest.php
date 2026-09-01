@@ -17,9 +17,7 @@ class AdvancePhaseRequest extends FormRequest
      */
     private const TYPES_REQUIRING_QUALIFIER_COUNT = [
         CompetitionPhaseType::League,
-        CompetitionPhaseType::GroupStage,
         CompetitionPhaseType::Knockout,
-        CompetitionPhaseType::Custom,
     ];
 
     /**
@@ -118,7 +116,7 @@ class AdvancePhaseRequest extends FormRequest
                 return;
             }
 
-            $isLeague = in_array($type, [CompetitionPhaseType::League, CompetitionPhaseType::GroupStage], true);
+            $isLeague = $type === CompetitionPhaseType::League;
             $totalQualifiers = $standingsService->topQualifiers($tables, $perTable)->count();
 
             if ($totalQualifiers < 2) {

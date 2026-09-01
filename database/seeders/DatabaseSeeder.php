@@ -46,13 +46,15 @@ class DatabaseSeeder extends Seeder
             'email' => 'demo@mitorneo.test',
         ]);
 
-        // Two demo tournaments so there's always something ready to click
-        // through right after logging in, covering the two states that are
-        // otherwise tedious to set up by hand: one waiting on "Generar
-        // calendario", and one already finished and waiting on "Definir
-        // clasificados" (the knockout draw).
+        // Demo tournaments so there's always something ready to click through
+        // right after logging in, covering the states that are otherwise
+        // tedious to set up by hand: one waiting on "Generar calendario", one
+        // already finished with a small group-stage draw ready to try, and
+        // one with a full 8-team league already played out end to end so the
+        // knockout bracket (cuartos -> semifinal -> final) can be tried too.
         $this->seedReadyForScheduleTournament($daniel);
         $this->seedReadyForDrawTournament($daniel);
+        $this->seedReadyForKnockoutBracketTournament($daniel);
     }
 
     /**
@@ -164,8 +166,46 @@ class DatabaseSeeder extends Seeder
 
         // Deliberately varied scores (wins, a draw, different margins) so the
         // standings tables have a clear, non-trivial ranking to look at.
-        $this->generateFinishedGroupSchedule($phase, $groupA, $teamsA, [[2, 1], [0, 0], [3, 1]]);
-        $this->generateFinishedGroupSchedule($phase, $groupB, $teamsB, [[1, 1], [2, 0], [1, 2]]);
+        $this->generateFinishedSchedule($phase, $teamsA, [[2, 1], [0, 0], [3, 1]], $groupA);
+        $this->generateFinishedSchedule($phase, $teamsB, [[1, 1], [2, 0], [1, 2]], $groupB);
+    }
+
+    /**
+     * A third tournament with a single, ungrouped 8-team league whose full
+     * single round-robin calendar (28 matches) is already generated and
+     * finished with random scores -- large enough to be immediately ready
+     * for "Definir clasificados" -> Eliminación directa with all 8 teams,
+     * exercising the full cuartos -> semifinal -> final bracket cascade
+     * without first having to play a league out by hand.
+     */
+    private function seedReadyForKnockoutBracketTournament(User $user): void
+    {
+        $tournament = Tournament::factory()->for($user)->create([
+            'name' => 'Liga Profesional 2026',
+            'season' => '2026',
+            'status' => TournamentStatus::Active,
+        ]);
+
+        $primera = $tournament->categories()->create([
+            'name' => 'Primera División',
+            'status' => CategoryStatus::Active,
+            'uses_groups' => false,
+            'order' => 0,
+        ]);
+
+        $phase = $primera->competitionPhases()->forceCreate([
+            'tournament_id' => $tournament->id,
+            'name' => 'Liga',
+            'type' => CompetitionPhaseType::League,
+            'order' => 0,
+        ]);
+
+        $teams = collect([
+            'Real Norte FC', 'Deportivo Sur', 'Atlético Central', 'Unión Este',
+            'Estrella del Pacífico', 'Halcones United', 'Titanes FC', 'Rayo Andino',
+        ])->map(fn (string $name): Team => $this->createTeam($primera, $tournament, $name));
+
+        $this->generateFinishedSchedule($phase, $teams);
     }
 
     private function createTeam(Category $category, Tournament $tournament, string $name, ?Group $group = null): Team
@@ -178,19 +218,21 @@ class DatabaseSeeder extends Seeder
     }
 
     /**
-     * Generate a single round-robin schedule for a group (using the same
-     * service the app itself uses) and immediately mark every fixture as
-     * finished with the given scores, in generation order.
+     * Generate a single round-robin schedule (using the same service the app
+     * itself uses), optionally scoped to one group, and immediately mark
+     * every fixture as finished. Explicit scores can be given in generation
+     * order; any fixture beyond the given list (or all of them, if none are
+     * given at all) gets a random scoreline instead.
      *
      * @param  Collection<int, Team>  $teams
      * @param  array<int, array{0: int, 1: int}>  $scores
      */
-    private function generateFinishedGroupSchedule(CompetitionPhase $phase, Group $group, Collection $teams, array $scores): void
+    private function generateFinishedSchedule(CompetitionPhase $phase, Collection $teams, array $scores = [], ?Group $group = null): void
     {
         $schedule = new LeagueSchedule;
         $schedule->tournament_id = $phase->tournament_id;
         $schedule->competition_phase_id = $phase->id;
-        $schedule->group_id = $group->id;
+        $schedule->group_id = $group?->id;
         $schedule->format = ScheduleFormat::SingleRound;
         $schedule->generated_at = now();
         $schedule->save();
@@ -199,14 +241,14 @@ class DatabaseSeeder extends Seeder
 
         foreach (app(LeagueScheduleService::class)->generate($teams, ScheduleFormat::SingleRound) as $round) {
             foreach ($round['fixtures'] as $fixture) {
-                [$homeScore, $awayScore] = $scores[$fixtureIndex] ?? [1, 1];
+                [$homeScore, $awayScore] = $scores[$fixtureIndex] ?? [random_int(0, 4), random_int(0, 4)];
                 $fixtureIndex++;
 
                 $match = new TournamentMatch;
                 $match->tournament_id = $phase->tournament_id;
                 $match->category_id = $phase->category_id;
                 $match->competition_phase_id = $phase->id;
-                $match->group_id = $group->id;
+                $match->group_id = $group?->id;
                 $match->league_schedule_id = $schedule->id;
                 $match->home_team_id = $fixture['home_team_id'];
                 $match->away_team_id = $fixture['away_team_id'];

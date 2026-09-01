@@ -237,6 +237,63 @@
             @endif
 
             <flux:separator variant="subtle" />
+        @else
+            <div id="cuadro" class="scroll-mt-24 space-y-6">
+                <flux:heading size="lg">{{ __('Cuadro de eliminación') }}</flux:heading>
+
+                @if (empty($bracketRounds))
+                    <x-ui.empty-state icon="bolt" :message="__('Todavía no se ha generado el cuadro de esta fase.')" />
+                @else
+                    {{-- Mobile/tablet: rounds stacked top to bottom, one under the other. --}}
+                    <div class="space-y-6 lg:hidden">
+                        @foreach ($bracketRounds as $round)
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+                                        <flux:icon.bolt variant="micro" class="size-4" />
+                                    </div>
+                                    <flux:heading size="sm" class="text-base!">{{ $round['label'] }}</flux:heading>
+                                </div>
+
+                                <div class="flex flex-wrap justify-center gap-4">
+                                    @foreach ($round['matches'] as $match)
+                                        <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    {{-- Desktop: the classic bracket shape -- rounds converge from a left and
+                         a right column toward the final in the middle. --}}
+                    <div class="hidden overflow-x-auto pb-4 lg:block">
+                        <div class="flex min-w-max items-stretch gap-10 px-2">
+                            @foreach ($bracketColumns as $column)
+                                <div class="flex w-64 shrink-0 flex-col {{ $column['side'] === 'final' ? 'justify-center' : 'justify-around gap-6' }}">
+                                    <div class="mb-3 flex items-center justify-center gap-1.5 text-center text-xs font-semibold uppercase tracking-wider
+                                        {{ $column['side'] === 'final' ? 'text-amber-400' : 'text-zinc-500 dark:text-white/50' }}">
+                                        @if ($column['side'] === 'final')
+                                            <flux:icon.trophy variant="micro" class="size-3.5" />
+                                        @endif
+                                        {{ $column['label'] }}
+                                    </div>
+
+                                    @foreach ($column['matches'] as $match)
+                                        <div class="relative
+                                            {{ $column['side'] === 'left' ? "after:absolute after:top-1/2 after:-right-5 after:h-px after:w-5 after:bg-zinc-300 after:content-[''] dark:after:bg-white/15" : '' }}
+                                            {{ $column['side'] === 'right' ? "before:absolute before:top-1/2 before:-left-5 before:h-px before:w-5 before:bg-zinc-300 before:content-[''] dark:before:bg-white/15" : '' }}"
+                                        >
+                                            <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" full-width />
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
+
+            <flux:separator variant="subtle" />
         @endif
 
         <div class="space-y-4">

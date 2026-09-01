@@ -3,14 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
-use App\Enums\MatchStatus;
 use App\Http\Requests\AdvancePhaseRequest;
 use App\Models\CompetitionPhase;
-use App\Models\Team;
-use App\Models\TournamentMatch;
+use App\Services\KnockoutBracketService;
 use App\Services\StandingsService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -34,7 +31,7 @@ class PhaseAdvancementController extends Controller
         return view('pages.phases.advance', compact('phase', 'tables', 'maxPerTable'));
     }
 
-    public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService): RedirectResponse
+    public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService, KnockoutBracketService $bracketService): RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $phase->category]);
 
@@ -43,7 +40,7 @@ class PhaseAdvancementController extends Controller
         }
 
         $type = CompetitionPhaseType::from($request->validated('type'));
-        $isLeague = in_array($type, [CompetitionPhaseType::League, CompetitionPhaseType::GroupStage], true);
+        $isLeague = $type === CompetitionPhaseType::League;
 
         $perTable = match ($type) {
             CompetitionPhaseType::Semifinal => 2,
@@ -54,7 +51,7 @@ class PhaseAdvancementController extends Controller
         $tables = $standingsService->tablesForPhase($phase);
         $qualifiers = $standingsService->topQualifiers($tables, $perTable);
 
-        $newPhase = DB::transaction(function () use ($phase, $request, $type, $qualifiers, $isLeague): CompetitionPhase {
+        $newPhase = DB::transaction(function () use ($phase, $request, $type, $qualifiers, $isLeague, $bracketService): CompetitionPhase {
             $newPhase = new CompetitionPhase;
             $newPhase->tournament_id = $phase->tournament_id;
             $newPhase->category_id = $phase->category_id;
@@ -66,7 +63,7 @@ class PhaseAdvancementController extends Controller
             $newPhase->teams()->attach($qualifiers->pluck('id'));
 
             if (! $isLeague) {
-                $this->drawMatches($newPhase, $qualifiers);
+                $bracketService->generateBracket($newPhase, $qualifiers);
             }
 
             return $newPhase;
@@ -99,30 +96,5 @@ class PhaseAdvancementController extends Controller
         }
 
         return null;
-    }
-
-    /**
-     * Randomly pair every qualified team with another one (a live draw pooling
-     * all qualifiers together, regardless of which table/group they came
-     * from) and create the resulting matches for the new phase's first round.
-     *
-     * @param  Collection<int, Team>  $qualifiers
-     */
-    private function drawMatches(CompetitionPhase $newPhase, Collection $qualifiers): void
-    {
-        $pool = $qualifiers->all();
-        shuffle($pool);
-
-        foreach (array_chunk($pool, 2) as [$home, $away]) {
-            $match = new TournamentMatch;
-            $match->tournament_id = $newPhase->tournament_id;
-            $match->category_id = $newPhase->category_id;
-            $match->competition_phase_id = $newPhase->id;
-            $match->home_team_id = $home->id;
-            $match->away_team_id = $away->id;
-            $match->status = MatchStatus::Scheduled;
-            $match->round_number = 1;
-            $match->save();
-        }
     }
 }

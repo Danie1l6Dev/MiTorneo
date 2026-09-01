@@ -57,11 +57,23 @@ class PhaseAdvancementTest extends TestCase
         $this->assertSame(1, $newPhase->order);
         $this->assertSame(4, $newPhase->teams()->count());
 
+        // 4 qualifiers builds the full bracket, not just round 1: 2 semifinal
+        // matches with real teams, plus the final already created and waiting
+        // on its two sides to be resolved once the semifinals are played.
         $matches = $newPhase->matches()->get();
-        $this->assertCount(2, $matches);
-        $this->assertTrue($matches->every(fn (TournamentMatch $match): bool => $match->round_number === 1 && $match->status === MatchStatus::Scheduled));
+        $this->assertCount(3, $matches);
 
-        $playingTeamIds = $matches->flatMap(fn (TournamentMatch $match): array => [$match->home_team_id, $match->away_team_id])->sort()->values();
+        $round1 = $matches->where('round_number', 1);
+        $this->assertCount(2, $round1);
+        $this->assertTrue($round1->every(fn (TournamentMatch $match): bool => $match->status === MatchStatus::Scheduled && $match->home_team_id !== null && $match->away_team_id !== null));
+
+        $round2 = $matches->where('round_number', 2);
+        $this->assertCount(1, $round2);
+        $final = $round2->first();
+        $this->assertNull($final->home_team_id);
+        $this->assertNull($final->away_team_id);
+
+        $playingTeamIds = $round1->flatMap(fn (TournamentMatch $match): array => [$match->home_team_id, $match->away_team_id])->sort()->values();
         $this->assertSame($teams->pluck('id')->sort()->values()->all(), $playingTeamIds->all());
     }
 
@@ -197,7 +209,9 @@ class PhaseAdvancementTest extends TestCase
         $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
         $response->assertRedirect(route('phases.show', $semifinal));
         $this->assertSame(4, $semifinal->teams()->count());
-        $this->assertSame(2, $semifinal->matches()->count());
+        // The 2 semifinal matches, plus the final already created and pending.
+        $this->assertSame(3, $semifinal->matches()->count());
+        $this->assertSame(1, $semifinal->matches()->whereNull('home_team_id')->count());
 
         // Advance the same league phase again, this time straight to a Final: 1 per table implied.
         $finalResponse = $this->actingAs($user)->post(route('phases.advance.store', $phase), [

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('tournament_id')->constrained()->cascadeOnDelete();
             $table->foreignId('category_id')->constrained()->cascadeOnDelete();
             $table->string('name');
-            $table->string('type')->default('custom');
+            $table->string('type')->default('league');
             $table->unsignedSmallInteger('order')->default(0);
             $table->timestamps();
         });

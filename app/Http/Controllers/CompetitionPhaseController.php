@@ -47,9 +47,18 @@ class CompetitionPhaseController extends Controller
             ->get()
             ->map(fn (LeagueSchedule $schedule): array => $this->buildScheduleView($schedule, $phase));
 
+        $bracketRounds = $phase->type !== CompetitionPhaseType::League
+            ? $this->buildBracketRounds($phase)
+            : [];
+
+        $bracketColumns = $this->buildBracketColumns($bracketRounds);
+
+        $bracketMatchIds = collect($bracketRounds)->flatMap(fn (array $round): Collection => $round['matches'])->pluck('id');
+
         $unscheduledMatches = $phase->matches()
             ->with(['homeTeam', 'awayTeam'])
             ->whereNull('league_schedule_id')
+            ->whereNotIn('id', $bracketMatchIds)
             ->get();
 
         $standings = $phase->type === CompetitionPhaseType::League
@@ -58,7 +67,90 @@ class CompetitionPhaseController extends Controller
 
         $readyToAdvance = $phase->type === CompetitionPhaseType::League && $phase->allMatchesFinished();
 
-        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+    }
+
+    /**
+     * Group a knockout-style phase's matches by round, labeling each round by
+     * its traditional bracket name (derived purely from how many matches it
+     * has: a round with 1 match is the final, 2 is the semifinal, 4 is the
+     * quarterfinal, and so on) rather than by the phase's own type -- a
+     * "Semifinal"-type phase already starts at its semifinal round, and a
+     * "Knockout"-type phase can start anywhere depending on how many teams
+     * qualified.
+     *
+     * @return array<int, array{round_number: int, label: string, matches: Collection<int, TournamentMatch>}>
+     */
+    private function buildBracketRounds(CompetitionPhase $phase): array
+    {
+        return $phase->matches()
+            ->with(['homeTeam', 'awayTeam'])
+            ->orderBy('round_number')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('round_number')
+            ->sortKeys()
+            ->map(fn (Collection $roundMatches, int $roundNumber): array => [
+                'round_number' => $roundNumber,
+                'label' => $this->knockoutRoundLabel($roundMatches->count()),
+                'matches' => $roundMatches->values(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    private function knockoutRoundLabel(int $matchesInRound): string
+    {
+        return match ($matchesInRound) {
+            1 => __('Final'),
+            2 => __('Semifinal'),
+            4 => __('Cuartos de final'),
+            8 => __('Octavos de final'),
+            16 => __('Dieciseisavos de final'),
+            default => __('Ronda de :count', ['count' => $matchesInRound * 2]),
+        };
+    }
+
+    /**
+     * Lay $bracketRounds out for the classic two-sided bracket view: every
+     * round except the final is split into its left and right half (a round's
+     * first half of matches always converges into the left half of the next
+     * round, its second half into the right half -- a direct consequence of
+     * how KnockoutBracketService pairs adjacent matches into the round after),
+     * ordered outside-in on the left, then the single final column, then the
+     * same rounds mirrored outside-in on the right.
+     *
+     * @param  array<int, array{round_number: int, label: string, matches: Collection<int, TournamentMatch>}>  $bracketRounds
+     * @return array<int, array{side: string, label: string, matches: Collection<int, TournamentMatch>}>
+     */
+    private function buildBracketColumns(array $bracketRounds): array
+    {
+        if (empty($bracketRounds)) {
+            return [];
+        }
+
+        $finalRound = end($bracketRounds);
+        $earlierRounds = array_slice($bracketRounds, 0, -1);
+
+        $left = array_map(fn (array $round): array => [
+            'side' => 'left',
+            'label' => $round['label'],
+            'matches' => $round['matches']->slice(0, intdiv($round['matches']->count(), 2))->values(),
+        ], $earlierRounds);
+
+        $right = array_reverse(array_map(fn (array $round): array => [
+            'side' => 'right',
+            'label' => $round['label'],
+            'matches' => $round['matches']->slice(intdiv($round['matches']->count(), 2))->values(),
+        ], $earlierRounds));
+
+        $final = [[
+            'side' => 'final',
+            'label' => $finalRound['label'],
+            'matches' => $finalRound['matches'],
+        ]];
+
+        return [...$left, ...$final, ...$right];
     }
 
     /**

@@ -6,17 +6,27 @@
             <flux:callout variant="success" icon="check-circle" :heading="session('status')" />
         @endif
 
+        @php
+            $pending = $match->home_team_id === null || $match->away_team_id === null;
+            $homeInitials = $match->homeTeam ? \Illuminate\Support\Str::substr($match->homeTeam->short_name ?: $match->homeTeam->name, 0, 2) : '?';
+            $awayInitials = $match->awayTeam ? \Illuminate\Support\Str::substr($match->awayTeam->short_name ?: $match->awayTeam->name, 0, 2) : '?';
+        @endphp
+
         <div class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel">
             <div class="flex items-center justify-center border-b border-zinc-200 px-4 py-2.5 dark:border-white/10">
-                <flux:badge size="sm" :color="$match->status->color()">{{ mb_strtoupper($match->status->label()) }}</flux:badge>
+                @if ($pending)
+                    <flux:badge size="sm" color="zinc">{{ mb_strtoupper(__('Por definir')) }}</flux:badge>
+                @else
+                    <flux:badge size="sm" :color="$match->status->color()">{{ mb_strtoupper($match->status->label()) }}</flux:badge>
+                @endif
             </div>
 
             <div class="grid grid-cols-3 items-center gap-3 px-4 py-8 sm:px-8">
                 <div class="text-center">
                     <div class="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-accent-content/15 text-lg font-bold uppercase text-accent-content sm:size-16">
-                        {{ \Illuminate\Support\Str::substr($match->homeTeam->short_name ?: $match->homeTeam->name, 0, 2) }}
+                        {{ $homeInitials }}
                     </div>
-                    <flux:heading size="sm" class="truncate">{{ $match->homeTeam->name }}</flux:heading>
+                    <flux:heading size="sm" class="truncate">{{ $match->homeTeam?->name ?? __('Por definir') }}</flux:heading>
                 </div>
 
                 <div class="flex items-center justify-center gap-2 sm:gap-4">
@@ -27,38 +37,49 @@
 
                 <div class="text-center">
                     <div class="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-accent-content/15 text-lg font-bold uppercase text-accent-content sm:size-16">
-                        {{ \Illuminate\Support\Str::substr($match->awayTeam->short_name ?: $match->awayTeam->name, 0, 2) }}
+                        {{ $awayInitials }}
                     </div>
-                    <flux:heading size="sm" class="truncate">{{ $match->awayTeam->name }}</flux:heading>
+                    <flux:heading size="sm" class="truncate">{{ $match->awayTeam?->name ?? __('Por definir') }}</flux:heading>
                 </div>
             </div>
 
-            <form method="POST" action="{{ route('matches.result.update', $match) }}" class="flex flex-wrap items-end justify-center gap-4 border-t border-zinc-200 px-4 py-6 dark:border-white/10 sm:px-8">
-                @csrf
-                @method('PATCH')
+            @if ($pending)
+                <div class="border-t border-zinc-200 px-4 py-6 dark:border-white/10 sm:px-8">
+                    <flux:callout
+                        variant="secondary"
+                        icon="clock"
+                        :heading="__('Todavía no se conocen los dos equipos de este partido.')"
+                        :text="__('Se completará automáticamente en cuanto termine el partido de la ronda anterior que define a su clasificado.')"
+                    />
+                </div>
+            @else
+                <form method="POST" action="{{ route('matches.result.update', $match) }}" class="flex flex-wrap items-end justify-center gap-4 border-t border-zinc-200 px-4 py-6 dark:border-white/10 sm:px-8">
+                    @csrf
+                    @method('PATCH')
 
-                <flux:input
-                    name="home_score"
-                    type="number"
-                    min="0"
-                    label="{{ $match->homeTeam->name }}"
-                    value="{{ old('home_score', $match->home_score ?? '') }}"
-                    class="w-24"
-                />
+                    <flux:input
+                        name="home_score"
+                        type="number"
+                        min="0"
+                        label="{{ $match->homeTeam->name }}"
+                        value="{{ old('home_score', $match->home_score ?? '') }}"
+                        class="w-24"
+                    />
 
-                <div class="pb-2.5 text-lg text-zinc-400 dark:text-white/30">&ndash;</div>
+                    <div class="pb-2.5 text-lg text-zinc-400 dark:text-white/30">&ndash;</div>
 
-                <flux:input
-                    name="away_score"
-                    type="number"
-                    min="0"
-                    label="{{ $match->awayTeam->name }}"
-                    value="{{ old('away_score', $match->away_score ?? '') }}"
-                    class="w-24"
-                />
+                    <flux:input
+                        name="away_score"
+                        type="number"
+                        min="0"
+                        label="{{ $match->awayTeam->name }}"
+                        value="{{ old('away_score', $match->away_score ?? '') }}"
+                        class="w-24"
+                    />
 
-                <flux:button type="submit" variant="primary" icon="check">{{ __('Registrar resultado') }}</flux:button>
-            </form>
+                    <flux:button type="submit" variant="primary" icon="check">{{ __('Registrar resultado') }}</flux:button>
+                </form>
+            @endif
         </div>
 
         <flux:separator variant="subtle" />

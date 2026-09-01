@@ -9,21 +9,17 @@ namespace App\Enums;
 enum CompetitionPhaseType: string
 {
     case League = 'league';
-    case GroupStage = 'group_stage';
     case Knockout = 'knockout';
     case Semifinal = 'semifinal';
     case Final = 'final';
-    case Custom = 'custom';
 
     public function label(): string
     {
         return match ($this) {
             self::League => 'Liga',
-            self::GroupStage => 'Fase de grupos',
             self::Knockout => 'Eliminación directa',
             self::Semifinal => 'Semifinales',
             self::Final => 'Final',
-            self::Custom => 'Personalizada',
         };
     }
 
@@ -31,9 +27,7 @@ enum CompetitionPhaseType: string
     {
         return match ($this) {
             self::League => 'green',
-            self::GroupStage => 'cyan',
             self::Knockout, self::Semifinal, self::Final => 'amber',
-            self::Custom => 'zinc',
         };
     }
 
@@ -41,10 +35,8 @@ enum CompetitionPhaseType: string
     {
         return match ($this) {
             self::League => 'calendar-days',
-            self::GroupStage => 'rectangle-group',
             self::Knockout => 'bolt',
             self::Semifinal, self::Final => 'flag',
-            self::Custom => 'adjustments-horizontal',
         };
     }
 }

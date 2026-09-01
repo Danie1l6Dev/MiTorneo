@@ -63,6 +63,7 @@
                         max="{{ $maxPerTable ?: null }}"
                         label="{{ count($tables) > 1 ? __('¿Cuántos equipos clasifican de cada grupo?') : __('¿Cuántos equipos clasifican de la tabla?') }}"
                         value="{{ old('qualifiers_per_table', min(2, max($maxPerTable, 1))) }}"
+                        x-bind:disabled="['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}'].includes(type)"
                     />
 
                     @if ($maxPerTable > 0)
@@ -81,7 +82,7 @@
                 </div>
 
                 <flux:text class="text-sm text-zinc-500">
-                    {{ __('Si eliges una fase eliminatoria, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) y los cruces se sortearán al azar entre todos los clasificados, sin importar de qué grupo vengan. Si eliges liga o fase de grupos, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
+                    {{ __('Si eliges eliminación directa, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) y los cruces se sortearán al azar entre todos los clasificados, sin importar de qué grupo vengan. Si eliges liga, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
                 </flux:text>
 
                 <flux:button type="submit" variant="primary">{{ __('Continuar') }}</flux:button>
