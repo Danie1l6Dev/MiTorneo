@@ -40,6 +40,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('phases/{phase}/schedule', [LeagueScheduleController::class, 'store'])
         ->name('phases.schedule.store');
 
+    Route::delete('phases/{phase}/schedule', [LeagueScheduleController::class, 'destroy'])
+        ->name('phases.schedule.destroy');
+
     Route::get('phases/{phase}/advance', [PhaseAdvancementController::class, 'create'])
         ->name('phases.advance.create');
 

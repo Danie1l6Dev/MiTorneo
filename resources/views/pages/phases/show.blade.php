@@ -55,71 +55,161 @@
                 ['label' => __('Tabla de posiciones'), 'href' => '#tabla-posiciones', 'icon' => 'table-cells'],
             ]" />
 
-            <div id="calendario" class="scroll-mt-24 space-y-4">
+            <div
+                id="calendario"
+                class="scroll-mt-24 space-y-4"
+                x-data="{
+                    activeGroup: 0,
+                    startRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
+                    currentRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
+                }"
+            >
                 <flux:heading size="lg">{{ __('Calendario') }}</flux:heading>
 
-                @forelse ($schedules as $item)
-                    @php [$schedule, $rounds] = [$item['schedule'], $item['rounds']]; @endphp
-
-                    <div class="space-y-5 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
-                        <div class="flex flex-wrap items-center justify-between gap-2">
-                            <flux:heading size="sm">
-                                {{ $schedule->group?->name ?? $category->name }}
-                            </flux:heading>
-                            <flux:badge size="sm" color="zinc">{{ __('FORMATO: :format', ['format' => mb_strtoupper($schedule->format->label())]) }}</flux:badge>
-                        </div>
-
-                        <div class="space-y-5">
-                            @foreach ($rounds as $round)
-                                <div>
-                                    <div class="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
-                                        {{ __('Jornada :number', ['number' => $round['round_number']]) }}
-                                        @if ($schedule->format === \App\Enums\ScheduleFormat::HomeAndAway)
-                                            — {{ $round['leg'] === 1 ? __('Primera vuelta') : __('Segunda vuelta') }}
-                                        @endif
-                                    </div>
-
-                                    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                                        @foreach ($round['matches'] as $match)
-                                            <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
-                                        @endforeach
-
-                                        @if ($round['resting_team'])
-                                            <x-ui.match-card :resting="$round['resting_team']->name" />
-                                        @endif
-                                    </div>
-                                </div>
+                @if ($schedules->isEmpty())
+                    <x-ui.empty-state icon="calendar-days" :message="__('Todavía no se ha generado ningún calendario para esta fase.')" />
+                @else
+                    @if ($schedules->count() > 1)
+                        <div class="inline-flex flex-wrap gap-1.5 rounded-xl border border-zinc-200 bg-zinc-100/70 p-1.5 dark:border-white/10 dark:bg-white/5">
+                            @foreach ($schedules as $index => $item)
+                                <button
+                                    type="button"
+                                    @click="activeGroup = {{ $index }}; currentRound[{{ $index }}] = startRound[{{ $index }}]"
+                                    :class="activeGroup === {{ $index }} ? 'bg-white text-zinc-900 shadow-[0_0_0_1px_var(--color-accent)] dark:bg-white/10 dark:text-white' : 'text-zinc-600 hover:bg-white/60 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white'"
+                                    class="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-all duration-150 hover:scale-105 active:scale-95"
+                                >
+                                    <flux:icon.squares-2x2 variant="micro" class="size-4 text-amber-400" />
+                                    {{ $item['schedule']->group?->name ?? $category->name }}
+                                </button>
                             @endforeach
                         </div>
+                    @endif
+
+                    @foreach ($schedules as $index => $item)
+                        @php [$schedule, $rounds] = [$item['schedule'], $item['rounds']]; @endphp
+                        @php $lastRoundIndex = max(count($rounds) - 1, 0); @endphp
+
+                        <div
+                            x-show="activeGroup === {{ $index }}"
+                            @if ($schedules->count() > 1) x-cloak @endif
+                            x-transition:enter="transition ease-out duration-300"
+                            x-transition:enter-start="opacity-0 translate-y-2 scale-[0.99]"
+                            x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                            class="relative space-y-6 overflow-hidden rounded-3xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-7"
+                        >
+                            <div class="pointer-events-none absolute -top-32 left-1/2 h-56 w-[140%] -translate-x-1/2 bg-gradient-to-b from-green-500/15 via-cyan-500/5 to-transparent blur-2xl"></div>
+
+                            <div class="relative flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-400">
+                                        <flux:icon.squares-2x2 variant="micro" class="size-5" />
+                                    </div>
+                                    <flux:heading size="sm" class="text-lg!">
+                                        {{ $schedule->group?->name ?? $category->name }}
+                                    </flux:heading>
+                                </div>
+                                <flux:badge size="sm" color="zinc">{{ __('FORMATO: :format', ['format' => mb_strtoupper($schedule->format->label())]) }}</flux:badge>
+                            </div>
+
+                            @if (count($rounds) === 0)
+                                <x-ui.empty-state icon="calendar-days" :message="__('Esta tabla todavía no tiene partidos.')" />
+                            @else
+                                <div class="relative flex items-center justify-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                                    <flux:button
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="chevron-left"
+                                        @click="currentRound[{{ $index }}] = Math.max(0, currentRound[{{ $index }}] - 1)"
+                                        x-bind:disabled="currentRound[{{ $index }}] <= 0"
+                                    />
+
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon.calendar-days variant="micro" class="size-4 text-accent-content" />
+                                        <flux:text class="w-28 text-center text-sm font-semibold text-zinc-700 dark:text-white/85" x-text="'{{ __('Jornada') }} ' + (currentRound[{{ $index }}] + 1) + ' {{ __('de') }} {{ count($rounds) }}'"></flux:text>
+                                    </div>
+
+                                    <flux:button
+                                        variant="ghost"
+                                        size="sm"
+                                        icon="chevron-right"
+                                        @click="currentRound[{{ $index }}] = Math.min({{ $lastRoundIndex }}, currentRound[{{ $index }}] + 1)"
+                                        x-bind:disabled="currentRound[{{ $index }}] >= {{ $lastRoundIndex }}"
+                                    />
+                                </div>
+
+                                @foreach ($rounds as $roundIdx => $round)
+                                    <div
+                                        x-show="currentRound[{{ $index }}] === {{ $roundIdx }}"
+                                        x-cloak
+                                        x-transition:enter="transition ease-out duration-250"
+                                        x-transition:enter-start="opacity-0 translate-x-3"
+                                        x-transition:enter-end="opacity-100 translate-x-0"
+                                        class="relative"
+                                    >
+                                        <div class="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                            {{ __('Jornada :number', ['number' => $round['round_number']]) }}
+                                            @if ($schedule->format === \App\Enums\ScheduleFormat::HomeAndAway)
+                                                — {{ $round['leg'] === 1 ? __('Primera vuelta') : __('Segunda vuelta') }}
+                                            @endif
+                                        </div>
+
+                                        <div class="flex flex-wrap justify-center gap-4">
+                                            @foreach ($round['matches'] as $match)
+                                                <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
+                                            @endforeach
+
+                                            @if ($round['resting_team'])
+                                                <x-ui.match-card :resting="$round['resting_team']->name" />
+                                            @endif
+                                        </div>
+                                    </div>
+                                @endforeach
+                            @endif
+                        </div>
+                    @endforeach
+                @endif
+
+                @if ($schedules->isEmpty())
+                    <div class="space-y-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                        <flux:heading size="sm">{{ __('Generar calendario') }}</flux:heading>
+
+                        <form method="POST" action="{{ route('phases.schedule.store', $phase) }}" class="space-y-4">
+                            @csrf
+
+                            <flux:radio.group name="format" label="{{ __('Formato de liga') }}">
+                                <flux:radio
+                                    value="{{ \App\Enums\ScheduleFormat::SingleRound->value }}"
+                                    label="{{ \App\Enums\ScheduleFormat::SingleRound->label() }}"
+                                    description="{{ \App\Enums\ScheduleFormat::SingleRound->description() }}"
+                                    :checked="old('format', \App\Enums\ScheduleFormat::SingleRound->value) === \App\Enums\ScheduleFormat::SingleRound->value"
+                                />
+                                <flux:radio
+                                    value="{{ \App\Enums\ScheduleFormat::HomeAndAway->value }}"
+                                    label="{{ \App\Enums\ScheduleFormat::HomeAndAway->label() }}"
+                                    description="{{ \App\Enums\ScheduleFormat::HomeAndAway->description() }}"
+                                    :checked="old('format') === \App\Enums\ScheduleFormat::HomeAndAway->value"
+                                />
+                            </flux:radio.group>
+
+                            <flux:button type="submit" variant="primary" size="sm">{{ __('Generar calendario') }}</flux:button>
+                        </form>
                     </div>
-                @empty
-                    <x-ui.empty-state icon="calendar-days" :message="__('Todavía no se ha generado ningún calendario para esta fase.')" />
-                @endforelse
+                @else
+                    <div class="flex items-center justify-between gap-4 rounded-2xl border border-red-500/20 p-5 dark:border-red-400/20 glass-panel">
+                        <div class="space-y-1">
+                            <flux:heading size="sm">{{ __('Eliminar calendario') }}</flux:heading>
+                            <flux:text class="text-zinc-500 dark:text-white/60">
+                                {{ __('Borra todas las jornadas y partidos generados para poder crear un calendario nuevo.') }}
+                            </flux:text>
+                        </div>
 
-                <div class="space-y-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
-                    <flux:heading size="sm">{{ __('Generar calendario') }}</flux:heading>
-
-                    <form method="POST" action="{{ route('phases.schedule.store', $phase) }}" class="space-y-4">
-                        @csrf
-
-                        <flux:radio.group name="format" label="{{ __('Formato de liga') }}">
-                            <flux:radio
-                                value="{{ \App\Enums\ScheduleFormat::SingleRound->value }}"
-                                label="{{ \App\Enums\ScheduleFormat::SingleRound->label() }}"
-                                description="{{ \App\Enums\ScheduleFormat::SingleRound->description() }}"
-                                :checked="old('format', \App\Enums\ScheduleFormat::SingleRound->value) === \App\Enums\ScheduleFormat::SingleRound->value"
-                            />
-                            <flux:radio
-                                value="{{ \App\Enums\ScheduleFormat::HomeAndAway->value }}"
-                                label="{{ \App\Enums\ScheduleFormat::HomeAndAway->label() }}"
-                                description="{{ \App\Enums\ScheduleFormat::HomeAndAway->description() }}"
-                                :checked="old('format') === \App\Enums\ScheduleFormat::HomeAndAway->value"
-                            />
-                        </flux:radio.group>
-
-                        <flux:button type="submit" variant="primary" size="sm">{{ __('Generar calendario') }}</flux:button>
-                    </form>
-                </div>
+                        <form method="POST" action="{{ route('phases.schedule.destroy', $phase) }}" onsubmit="return confirm('{{ __('¿Eliminar el calendario generado? Se borrarán todas las jornadas y sus partidos. Esta acción no se puede deshacer.') }}')">
+                            @csrf
+                            @method('DELETE')
+                            <flux:button type="submit" variant="danger" size="sm" icon="trash">{{ __('Eliminar calendario') }}</flux:button>
+                        </form>
+                    </div>
+                @endif
             </div>
 
             <flux:separator variant="subtle" />
@@ -161,7 +251,7 @@
             @if ($unscheduledMatches->isEmpty())
                 <x-ui.empty-state icon="flag" :message="__('No hay partidos cargados manualmente en esta fase.')" />
             @else
-                <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div class="flex flex-wrap justify-center gap-4">
                     @foreach ($unscheduledMatches as $match)
                         <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
                     @endforeach

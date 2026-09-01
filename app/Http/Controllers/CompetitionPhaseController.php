@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\MatchStatus;
 use App\Enums\ScheduleFormat;
 use App\Http\Requests\CompetitionPhaseRequest;
 use App\Models\Category;
@@ -61,7 +62,7 @@ class CompetitionPhaseController extends Controller
     }
 
     /**
-     * @return array{schedule: LeagueSchedule, rounds: array<int, array{round_number: int, leg: int, matches: Collection<int, TournamentMatch>, resting_team: Team|null}>}
+     * @return array{schedule: LeagueSchedule, rounds: array<int, array{round_number: int, leg: int, matches: Collection<int, TournamentMatch>, resting_team: Team|null}>, start_round_index: int}
      */
     private function buildScheduleView(LeagueSchedule $schedule, CompetitionPhase $phase): array
     {
@@ -87,7 +88,20 @@ class CompetitionPhaseController extends Controller
             ->values()
             ->all();
 
-        return ['schedule' => $schedule, 'rounds' => $rounds];
+        // Jump straight to the first round that still has an unfinished match
+        // (i.e. the "current" jornada) instead of always opening on round 1;
+        // once every round is finished, land on the last one.
+        $startRoundIndex = collect($rounds)->search(
+            fn (array $round): bool => collect($round['matches'])->contains(
+                fn (TournamentMatch $match): bool => $match->status !== MatchStatus::Finished
+            )
+        );
+
+        if ($startRoundIndex === false) {
+            $startRoundIndex = max(count($rounds) - 1, 0);
+        }
+
+        return ['schedule' => $schedule, 'rounds' => $rounds, 'start_round_index' => $startRoundIndex];
     }
 
     public function edit(CompetitionPhase $phase): View

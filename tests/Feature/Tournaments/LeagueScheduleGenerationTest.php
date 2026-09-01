@@ -127,4 +127,57 @@ class LeagueScheduleGenerationTest extends TestCase
 
         $this->assertSame(0, $phase->leagueSchedules()->count());
     }
+
+    public function test_a_user_can_delete_a_generated_schedule_and_regenerate_it(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
+        Team::factory()->for($tournament)->for($category)->count(4)->create();
+
+        $this->actingAs($user)
+            ->post(route('phases.schedule.store', $phase), ['format' => ScheduleFormat::SingleRound->value])
+            ->assertRedirect(route('phases.show', $phase));
+
+        $this->actingAs($user)
+            ->delete(route('phases.schedule.destroy', $phase))
+            ->assertRedirect(route('phases.show', $phase));
+
+        $this->assertSame(0, $phase->leagueSchedules()->count());
+        $this->assertSame(0, $phase->matches()->count());
+
+        $this->actingAs($user)
+            ->get(route('phases.show', $phase))
+            ->assertOk()
+            ->assertSee(__('Generar calendario'));
+
+        $this->actingAs($user)
+            ->post(route('phases.schedule.store', $phase), ['format' => ScheduleFormat::SingleRound->value])
+            ->assertRedirect(route('phases.show', $phase));
+
+        $this->assertSame(1, $phase->leagueSchedules()->count());
+        $this->assertSame(6, $phase->matches()->count());
+    }
+
+    public function test_a_user_cannot_delete_the_schedule_of_another_users_phase(): void
+    {
+        $owner = User::factory()->create();
+        $tournament = Tournament::factory()->for($owner)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
+        Team::factory()->for($tournament)->for($category)->count(4)->create();
+
+        $this->actingAs($owner)
+            ->post(route('phases.schedule.store', $phase), ['format' => ScheduleFormat::SingleRound->value])
+            ->assertRedirect(route('phases.show', $phase));
+
+        $intruder = User::factory()->create();
+
+        $this->actingAs($intruder)
+            ->delete(route('phases.schedule.destroy', $phase))
+            ->assertForbidden();
+
+        $this->assertSame(1, $phase->leagueSchedules()->count());
+    }
 }

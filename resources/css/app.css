@@ -144,6 +144,34 @@ select:focus[data-flux-control] {
     letter-spacing: -0.01em;
 }
 
+/* Microinteracción global en todo botón de la app: se levanta y agranda muy
+   levemente al pasar el mouse, y se "presiona" al hacer clic. Una sola regla
+   para que todo <flux:button> de la app la herede sin tocar cada vista. */
+[data-flux-button] {
+    transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+
+[data-flux-button]:hover:not(:disabled) {
+    transform: translateY(-2px) scale(1.03);
+    filter: brightness(1.08);
+}
+
+[data-flux-button]:active:not(:disabled) {
+    transform: translateY(0) scale(0.97);
+    filter: brightness(0.97);
+}
+
+/* Native <button> elements don't get a pointer cursor by default (only <a href>
+   does) -- without this every button in the app, Flux or plain, shows the
+   regular arrow cursor on hover instead of signalling it's clickable. */
+button:not(:disabled) {
+    cursor: pointer;
+}
+
+button:disabled {
+    cursor: not-allowed;
+}
+
 /* Panel de vidrio para superficies propias (sidebar, header, page-header, stat-card, etc.)
    -- únicamente activo en modo oscuro; en modo claro no se aplica ningún fondo especial. */
 .dark .glass-panel {

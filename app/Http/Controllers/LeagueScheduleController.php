@@ -58,4 +58,18 @@ class LeagueScheduleController extends Controller
 
         return to_route('phases.show', $phase)->with('status', __('Calendario generado correctamente.'));
     }
+
+    public function destroy(CompetitionPhase $phase): RedirectResponse
+    {
+        $this->authorize('update', $phase);
+
+        DB::transaction(function () use ($phase): void {
+            $scheduleIds = $phase->leagueSchedules()->pluck('id');
+
+            TournamentMatch::query()->whereIn('league_schedule_id', $scheduleIds)->delete();
+            LeagueSchedule::query()->whereIn('id', $scheduleIds)->delete();
+        });
+
+        return to_route('phases.show', $phase)->with('status', __('Calendario eliminado correctamente.'));
+    }
 }
