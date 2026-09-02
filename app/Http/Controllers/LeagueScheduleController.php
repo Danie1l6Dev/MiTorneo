@@ -10,6 +10,7 @@ use App\Models\Group;
 use App\Models\LeagueSchedule;
 use App\Models\TournamentMatch;
 use App\Services\LeagueScheduleService;
+use App\Services\PhaseEligibilityService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -59,9 +60,20 @@ class LeagueScheduleController extends Controller
         return to_route('phases.show', $phase)->with('status', __('Calendario generado correctamente.'));
     }
 
-    public function destroy(CompetitionPhase $phase): RedirectResponse
+    public function destroy(CompetitionPhase $phase, PhaseEligibilityService $eligibilityService): RedirectResponse
     {
         $this->authorize('update', $phase);
+
+        // This schedule's final standings are the sustento of whatever was
+        // built from them (a declared champion, or a next phase's roster) --
+        // deleting it out from under that would leave a stale, unsupported
+        // result. Undoing that outcome (removing the champion, or deleting
+        // the next phase) is what has to happen first.
+        if ($eligibilityService->isAlreadyResolved($phase)) {
+            return to_route('phases.show', $phase)->with('error', __(
+                'No se puede eliminar el calendario: ya se declaró un campeón o se creó una fase siguiente a partir de esta tabla. Elimina esa fase (o quita el campeón declarado) primero.'
+            ));
+        }
 
         DB::transaction(function () use ($phase): void {
             $scheduleIds = $phase->leagueSchedules()->pluck('id');

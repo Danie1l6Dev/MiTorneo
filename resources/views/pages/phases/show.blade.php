@@ -50,11 +50,14 @@
         <flux:separator variant="subtle" />
 
         @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            <div x-data="{ section: 'calendario' }">
+            {{-- Landing back on 'calendario' after registering a match result (see MatchResultController's
+                 #calendario redirect) beats always resetting to the table, since that's usually where the
+                 user wants to keep going -- e.g. to register the next match's result. --}}
+            <div x-data="{ section: window.location.hash === '#calendario' ? 'calendario' : 'tabla' }">
                 {{-- Selector de sección: en el futuro puede sumarse aquí una pestaña de estadísticas (goleadores, asistencias, tarjetas). --}}
                 <x-ui.section-tabs :tabs="[
-                    ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
                     ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
+                    ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
                 ]" />
 
             <div
@@ -197,6 +200,13 @@
                             <flux:button type="submit" variant="primary" size="sm">{{ __('Generar calendario') }}</flux:button>
                         </form>
                     </div>
+                @elseif ($isAlreadyResolved)
+                    <div class="space-y-1 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                        <flux:heading size="sm">{{ __('Calendario bloqueado') }}</flux:heading>
+                        <flux:text class="text-zinc-500 dark:text-white/60">
+                            {{ __('Ya se creó un campeón o una fase siguiente a partir de esta tabla, así que el calendario no se puede borrar. Elimina esa fase (o quita el campeón declarado) primero si necesitas rehacer el calendario.') }}
+                        </flux:text>
+                    </div>
                 @else
                     <div class="flex items-center justify-between gap-4 rounded-2xl border border-red-500/20 p-5 dark:border-red-400/20 glass-panel">
                         <div class="space-y-1">
@@ -218,22 +228,52 @@
             <div x-show="section === 'tabla'" x-cloak class="mt-4 space-y-4">
                 <flux:heading size="lg">{{ __('Tabla de posiciones') }}</flux:heading>
 
-                <div class="grid gap-4 lg:grid-cols-2">
+                <div class="grid gap-4 {{ count($standings) > 1 ? 'lg:grid-cols-2' : '' }}">
                     @foreach ($standings as $item)
                         <x-ui.standings-table :label="$item['label']" :rows="$item['rows']" />
                     @endforeach
                 </div>
             </div>
 
-            @if ($readyToAdvance)
-                <div class="mt-4 space-y-3 rounded-2xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
-                    <flux:heading size="sm">{{ __('¿Pasar a la siguiente fase?') }}</flux:heading>
-                    <flux:text>
-                        {{ __('Todos los partidos de esta fase han finalizado. Puedes definir cuántos equipos clasifican y crear la siguiente fase mediante un sorteo en vivo o una nueva fase de liga.') }}
+            @if ($champion)
+                <div class="mt-4">
+                    @include('pages.phases._champion-card', ['team' => $champion, 'undoRoute' => route('phases.champion.destroy', $phase)])
+                </div>
+            @elseif ($readyToAdvance || $canDeclareChampion)
+                <div class="mt-4 grid gap-4 {{ $canDeclareChampion ? 'sm:grid-cols-2' : '' }}">
+                    @if ($canDeclareChampion)
+                        <div class="space-y-3 rounded-2xl border border-amber-500/25 p-5 dark:border-amber-400/25 glass-panel">
+                            <flux:heading size="sm">{{ __('¿Declarar campeón?') }}</flux:heading>
+                            <flux:text>
+                                {{ __('Esta liga tiene una sola tabla: puedes declarar campeón directamente al equipo que quedó en primer lugar.') }}
+                            </flux:text>
+                            <form method="POST" action="{{ route('phases.champion.store', $phase) }}" onsubmit="return confirm('{{ __('¿Declarar campeón al equipo que quedó en primer lugar? Esta fase quedará cerrada.') }}')">
+                                @csrf
+                                <flux:button type="submit" variant="primary" size="sm">{{ __('Declarar campeón') }}</flux:button>
+                            </form>
+                        </div>
+                    @endif
+
+                    @if ($readyToAdvance)
+                        <div class="space-y-3 rounded-2xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
+                            <flux:heading size="sm">{{ __('¿Pasar a la siguiente fase?') }}</flux:heading>
+                            <flux:text>
+                                {{ $canDeclareChampion
+                                    ? __('O crea una fase de eliminación directa (eliminación, semifinales o final) a partir de esta tabla.')
+                                    : __('Todos los partidos de esta fase han finalizado. Puedes definir cuántos equipos clasifican y crear la siguiente fase mediante un sorteo en vivo o una nueva fase de liga.') }}
+                            </flux:text>
+                            <flux:button :href="route('phases.advance.create', $phase)" variant="primary" size="sm" wire:navigate>
+                                {{ __('Definir clasificados') }}
+                            </flux:button>
+                        </div>
+                    @endif
+                </div>
+            @elseif ($phase->allMatchesFinished() && $isAlreadyResolved)
+                <div class="mt-4 space-y-1 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                    <flux:heading size="sm">{{ __('Esta fase ya fue avanzada') }}</flux:heading>
+                    <flux:text class="text-zinc-500">
+                        {{ __('Ya se creó una fase siguiente a partir de esta liga. Elimínala si quieres volver a definir los clasificados.') }}
                     </flux:text>
-                    <flux:button :href="route('phases.advance.create', $phase)" variant="primary" size="sm" wire:navigate>
-                        {{ __('Definir clasificados') }}
-                    </flux:button>
                 </div>
             @endif
             </div>
@@ -345,17 +385,7 @@
                         </div>
                     </div>
 
-                    @if ($champion)
-                        <div class="relative mx-auto flex max-w-sm flex-col items-center gap-3 overflow-hidden rounded-3xl border border-amber-500/40 p-8 text-center glass-panel-strong dark:border-amber-400/30">
-                            <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-amber-500/20 via-transparent to-transparent"></div>
-
-                            <div class="relative flex size-16 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
-                                <flux:icon.trophy variant="outline" class="size-8" />
-                            </div>
-                            <div class="relative text-xs font-semibold uppercase tracking-widest text-amber-500 dark:text-amber-400">{{ __('Campeón') }}</div>
-                            <flux:heading size="xl" class="relative">{{ $champion->name }}</flux:heading>
-                        </div>
-                    @endif
+                    @include('pages.phases._champion-card', ['team' => $champion])
                 @endif
             </div>
 

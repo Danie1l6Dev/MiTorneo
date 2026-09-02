@@ -87,6 +87,18 @@ class AdvancePhaseRequest extends FormRequest
                 return;
             }
 
+            // A league with a single standings table (no groups, or an
+            // already-unified "liga de clasificados") has nothing left to
+            // unify into another league -- from there the only ways forward
+            // are declaring a champion directly or moving into a knockout.
+            if ($type === CompetitionPhaseType::League && ! $eligibilityService->canAdvanceToLeague($tablesWithTeams->count())) {
+                $validator->errors()->add('type', __(
+                    'Esta fase ya tiene una sola tabla: no se puede crear otra liga a partir de ella. Declara campeón directamente o pasa a una fase de eliminación.'
+                ));
+
+                return;
+            }
+
             $fixedTarget = $eligibilityService->fixedQualifierTarget($type);
 
             if ($fixedTarget !== null) {

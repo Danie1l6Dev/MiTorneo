@@ -6,6 +6,7 @@ use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchResultController;
 use App\Http\Controllers\PhaseAdvancementController;
+use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -48,6 +49,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('phases/{phase}/advance', [PhaseAdvancementController::class, 'store'])
         ->name('phases.advance.store');
+
+    Route::post('phases/{phase}/champion', [PhaseChampionController::class, 'store'])
+        ->name('phases.champion.store');
+
+    Route::delete('phases/{phase}/champion', [PhaseChampionController::class, 'destroy'])
+        ->name('phases.champion.destroy');
 
     Route::patch('matches/{match}/result', [MatchResultController::class, 'update'])
         ->name('matches.result.update');

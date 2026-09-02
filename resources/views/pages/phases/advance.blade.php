@@ -41,15 +41,25 @@
                     autofocus
                 />
 
-                <flux:select name="type" label="{{ __('Tipo de fase') }}" x-model="type">
-                    @php $currentType = old('type', \App\Enums\CompetitionPhaseType::Knockout->value); @endphp
+                <div class="space-y-1.5">
+                    <flux:select name="type" label="{{ __('Tipo de fase') }}" x-model="type">
+                        @php $currentType = old('type', \App\Enums\CompetitionPhaseType::Knockout->value); @endphp
 
-                    @foreach (\App\Enums\CompetitionPhaseType::cases() as $type)
-                        <flux:select.option value="{{ $type->value }}" :selected="$type->value === $currentType">
-                            {{ $type->label() }}
-                        </flux:select.option>
+                        @foreach ($typeOptions as $option)
+                            <flux:select.option
+                                value="{{ $option['type']->value }}"
+                                :selected="$option['type']->value === $currentType"
+                                :disabled="! $option['available']"
+                            >
+                                {{ $option['type']->label() }}@if (! $option['available']) — {{ __('no disponible') }}@endif
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+
+                    @foreach (collect($typeOptions)->where('available', false) as $option)
+                        <flux:text class="text-xs text-zinc-500">{{ $option['reason'] }}</flux:text>
                     @endforeach
-                </flux:select>
+                </div>
 
                 <div
                     x-show="!['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}'].includes(type)"

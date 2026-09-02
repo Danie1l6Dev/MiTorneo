@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property CompetitionPhaseType $type
  * @property int $order
+ * @property int|null $champion_team_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -79,6 +80,19 @@ class CompetitionPhase extends Model
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class, 'competition_phase_team')->withTimestamps();
+    }
+
+    /**
+     * The team directly declared champion from this phase's standings,
+     * instead of the phase spawning a further phase to decide one -- only
+     * ever set on a single-table league phase; a knockout-type phase's
+     * champion is derived from its bracket's final match instead.
+     *
+     * @return BelongsTo<Team, $this>
+     */
+    public function champion(): BelongsTo
+    {
+        return $this->belongsTo(Team::class, 'champion_team_id');
     }
 
     /**

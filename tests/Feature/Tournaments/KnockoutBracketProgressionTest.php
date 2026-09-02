@@ -501,7 +501,7 @@ class KnockoutBracketProgressionTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => 1, 'away_score' => 1])
-            ->assertRedirect(route('phases.show', $phase));
+            ->assertRedirect(route('phases.show', $phase).'#calendario');
 
         $this->assertSame(MatchStatus::Finished, $match->fresh()->status);
     }

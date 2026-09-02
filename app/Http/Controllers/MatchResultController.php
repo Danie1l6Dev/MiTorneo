@@ -38,7 +38,7 @@ class MatchResultController extends Controller
 
         $bracketService->resolveWinner($match);
 
-        return redirect(route('phases.show', $match->competitionPhase).($isKnockoutMatch ? '#cuadro' : ''))
+        return redirect(route('phases.show', $match->competitionPhase).($isKnockoutMatch ? '#cuadro' : '#calendario'))
             ->with('status', __('Resultado registrado correctamente.'));
     }
 }

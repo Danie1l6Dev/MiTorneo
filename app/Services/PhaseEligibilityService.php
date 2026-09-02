@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\CompetitionPhaseType;
 use App\Models\Category;
+use App\Models\CompetitionPhase;
 
 /**
  * Central authority for which competition-phase configurations are
@@ -104,5 +105,63 @@ class PhaseEligibilityService
         }
 
         return false;
+    }
+
+    /**
+     * Whether $phase has already been advanced from: a category's phases
+     * chain in a single line, each one created with the previous phase's
+     * order + 1, so a later phase already existing means this one already
+     * produced its "next phase" -- picking classificados again would spawn
+     * a second, conflicting one instead of the one true continuation.
+     * Deleting that later phase is what re-opens advancing from here.
+     */
+    public function hasNextPhase(CompetitionPhase $phase): bool
+    {
+        return CompetitionPhase::query()
+            ->where('category_id', $phase->category_id)
+            ->where('order', '>', $phase->order)
+            ->exists();
+    }
+
+    /**
+     * Whether $phase's league can spawn ANOTHER league phase from its
+     * standings: only when more than one table fed it (i.e. it was a
+     * per-group league), where unifying each group's qualifiers into a new
+     * combined league still makes sporting sense. A single-table league (a
+     * category with no groups, or an already-unified "liga de clasificados")
+     * has nothing left to unify into another league -- from there the only
+     * ways forward are declaring its top team champion directly or moving
+     * into a knockout format.
+     */
+    public function canAdvanceToLeague(int $tableCount): bool
+    {
+        return $tableCount > 1;
+    }
+
+    /**
+     * Whether $phase's league can be closed out by directly declaring its
+     * top team champion instead of spawning a further phase: only when
+     * exactly one standings table feeds it (no groups, or already-unified
+     * qualifiers), so there is one unambiguous "1st place" to crown, the
+     * league is actually finished, and it hasn't already been resolved one
+     * way or the other.
+     */
+    public function canDeclareChampion(CompetitionPhase $phase, int $tableCount): bool
+    {
+        return $phase->type === CompetitionPhaseType::League
+            && $tableCount === 1
+            && $phase->allMatchesFinished()
+            && ! $this->isAlreadyResolved($phase);
+    }
+
+    /**
+     * Whether $phase's league has already been closed out one way or the
+     * other -- a champion declared directly from it, or a next phase
+     * already created from its qualifiers -- so no further action should
+     * spawn a second, conflicting outcome from the same finished league.
+     */
+    public function isAlreadyResolved(CompetitionPhase $phase): bool
+    {
+        return $phase->champion_team_id !== null || $this->hasNextPhase($phase);
     }
 }

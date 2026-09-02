@@ -186,7 +186,7 @@ class PhaseAdvancementTest extends TestCase
         $this->assertDatabaseMissing('competition_phases', ['name' => 'Semifinales']);
     }
 
-    public function test_semifinal_and_final_do_not_require_qualifiers_per_table_and_use_fixed_counts(): void
+    public function test_semifinal_does_not_require_qualifiers_per_table_and_uses_a_fixed_count(): void
     {
         $user = User::factory()->create();
         $tournament = Tournament::factory()->for($user)->create();
@@ -212,17 +212,78 @@ class PhaseAdvancementTest extends TestCase
         // The 2 semifinal matches, plus the final already created and pending.
         $this->assertSame(3, $semifinal->matches()->count());
         $this->assertSame(1, $semifinal->matches()->whereNull('home_team_id')->count());
+    }
 
-        // Advance the same league phase again, this time straight to a Final: 1 per table implied.
-        $finalResponse = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+    public function test_final_does_not_require_qualifiers_per_table_and_uses_a_fixed_count(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['name' => 'Fase de Liga', 'type' => CompetitionPhaseType::League]);
+        $groupA = Group::factory()->for($tournament)->for($category)->create();
+        $groupB = Group::factory()->for($tournament)->for($category)->create();
+        $teamsA = Team::factory()->for($tournament)->for($category)->for($groupA)->count(3)->create();
+        $teamsB = Team::factory()->for($tournament)->for($category)->for($groupB)->count(3)->create();
+
+        $this->finishedMatch($phase, $teamsA[0], $teamsA[1], $groupA);
+        $this->finishedMatch($phase, $teamsB[0], $teamsB[1], $groupB);
+
+        // Final: no qualifiers_per_table sent at all, 1 per table implied.
+        $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Final',
             'type' => CompetitionPhaseType::Final->value,
         ]);
 
         $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
-        $finalResponse->assertRedirect(route('phases.show', $final));
+        $response->assertRedirect(route('phases.show', $final));
         $this->assertSame(2, $final->teams()->count());
         $this->assertSame(1, $final->matches()->count());
+    }
+
+    public function test_cannot_advance_the_same_league_phase_twice(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['name' => 'Fase de Liga', 'type' => CompetitionPhaseType::League, 'order' => 1]);
+        $teams = Team::factory()->for($tournament)->for($category)->count(4)->create();
+
+        $this->finishedMatch($phase, $teams[0], $teams[1]);
+        $this->finishedMatch($phase, $teams[2], $teams[3]);
+
+        $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+            'name' => 'Eliminatoria',
+            'type' => CompetitionPhaseType::Knockout->value,
+            'qualifiers_per_table' => 4,
+        ])->assertRedirect();
+
+        $this->assertSame(1, CompetitionPhase::where('category_id', $category->id)->where('order', '>', 1)->count());
+
+        // Even though the league is still fully finished, it already has a
+        // next phase (the champion is decided inside that bracket already):
+        // trying to advance it again must not spawn a second, conflicting one.
+        $createResponse = $this->actingAs($user)->get(route('phases.advance.create', $phase));
+        $createResponse->assertRedirect(route('phases.show', $phase));
+        $this->assertNotNull(session('error'));
+
+        $storeResponse = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+            'name' => 'Otra eliminatoria',
+            'type' => CompetitionPhaseType::Knockout->value,
+            'qualifiers_per_table' => 4,
+        ]);
+
+        $storeResponse->assertRedirect(route('phases.show', $phase));
+        $this->assertNotNull(session('error'));
+        $this->assertDatabaseMissing('competition_phases', ['name' => 'Otra eliminatoria']);
+
+        // Deleting the phase that was already created from it re-opens advancing.
+        CompetitionPhase::where('category_id', $category->id)->where('order', '>', 1)->delete();
+
+        $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+            'name' => 'Otra eliminatoria',
+            'type' => CompetitionPhaseType::Knockout->value,
+            'qualifiers_per_table' => 4,
+        ])->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'Otra eliminatoria')->firstOrFail()));
     }
 
     public function test_qualifiers_per_table_cannot_be_sent_for_semifinal_or_final(): void
@@ -289,18 +350,24 @@ class PhaseAdvancementTest extends TestCase
     {
         $user = User::factory()->create();
         $tournament = Tournament::factory()->for($user)->create();
-        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        // A League phase can only spawn another League phase when it has
+        // more than one standings table to unify (see canAdvanceToLeague);
+        // a category without groups feeds from a single table, so this
+        // needs 2 groups to exercise "advance to a new League" here.
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
         $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['name' => 'Fase de Liga', 'type' => CompetitionPhaseType::League]);
-        $teams = Team::factory()->for($tournament)->for($category)->count(6)->create();
+        $groupA = Group::factory()->for($tournament)->for($category)->create();
+        $groupB = Group::factory()->for($tournament)->for($category)->create();
+        $teamsA = Team::factory()->for($tournament)->for($category)->for($groupA)->count(3)->create();
+        $teamsB = Team::factory()->for($tournament)->for($category)->for($groupB)->count(3)->create();
 
-        $this->finishedMatch($phase, $teams[0], $teams[1]);
-        $this->finishedMatch($phase, $teams[2], $teams[3]);
-        $this->finishedMatch($phase, $teams[4], $teams[5]);
+        $this->finishedMatch($phase, $teamsA[0], $teamsA[1], $groupA);
+        $this->finishedMatch($phase, $teamsB[0], $teamsB[1], $groupB);
 
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Liga final',
             'type' => CompetitionPhaseType::League->value,
-            'qualifiers_per_table' => 4,
+            'qualifiers_per_table' => 2,
         ]);
 
         $newPhase = CompetitionPhase::where('name', 'Liga final')->firstOrFail();

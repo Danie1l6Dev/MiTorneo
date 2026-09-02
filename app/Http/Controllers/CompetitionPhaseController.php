@@ -98,7 +98,7 @@ class CompetitionPhaseController extends Controller
         return null;
     }
 
-    public function show(CompetitionPhase $phase, StandingsService $standingsService): View
+    public function show(CompetitionPhase $phase, StandingsService $standingsService, PhaseEligibilityService $eligibilityService): View
     {
         $this->authorize('view', $phase);
 
@@ -117,15 +117,31 @@ class CompetitionPhaseController extends Controller
 
         $bracketSize = $this->bracketSizeTokens(count($bracketRounds));
 
-        $champion = $this->championFor($bracketRounds);
-
         $standings = $phase->type === CompetitionPhaseType::League
             ? $standingsService->tablesForPhase($phase)
             : [];
 
-        $readyToAdvance = $phase->type === CompetitionPhaseType::League && $phase->allMatchesFinished();
+        // A knockout-type phase's champion comes from its bracket's final
+        // once played; a league-type phase's only ever comes from directly
+        // declaring one (see PhaseChampionController), never from a match.
+        $champion = $phase->type === CompetitionPhaseType::League
+            ? $phase->champion
+            : $this->championFor($bracketRounds);
 
-        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'champion', 'standings', 'readyToAdvance'));
+        $tableCount = collect($standings)->filter(fn (array $table): bool => count($table['rows']) > 0)->count();
+
+        $isAlreadyResolved = $eligibilityService->isAlreadyResolved($phase);
+
+        $readyToAdvance = $phase->type === CompetitionPhaseType::League
+            && $phase->allMatchesFinished()
+            && ! $isAlreadyResolved;
+
+        $canDeclareChampion = $eligibilityService->canDeclareChampion($phase, $tableCount);
+
+        return view('pages.phases.show', compact(
+            'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize',
+            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion'
+        ));
     }
 
     /**
