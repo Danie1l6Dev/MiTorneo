@@ -29,6 +29,10 @@ use Illuminate\Support\Carbon;
  * @property int|null $away_team_id
  * @property int|null $home_score
  * @property int|null $away_score
+ * @property int|null $home_extra_time_score
+ * @property int|null $away_extra_time_score
+ * @property int|null $home_penalty_score
+ * @property int|null $away_penalty_score
  * @property MatchStatus $status
  * @property int|null $round_number
  * @property Carbon|null $scheduled_at
@@ -36,7 +40,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Table('matches')]
-#[Fillable(['group_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'status', 'round_number', 'scheduled_at'])]
+#[Fillable(['group_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at'])]
 class TournamentMatch extends Model
 {
     /** @use HasFactory<TournamentMatchFactory> */
@@ -136,5 +140,32 @@ class TournamentMatch extends Model
     public function awayParticipant(): HasOne
     {
         return $this->hasOne(MatchParticipant::class, 'match_id')->where('side', MatchParticipantSide::Away);
+    }
+
+    /**
+     * The id of the team that won this match, or null if it hasn't finished,
+     * it's a genuine draw (only possible in a league phase), or -- for a
+     * knockout match -- the tie hasn't been broken by extra time or
+     * penalties yet. Considers, in order: the regular + extra time aggregate
+     * score, then the penalty shoot-out score.
+     */
+    public function winnerTeamId(): ?int
+    {
+        if ($this->status !== MatchStatus::Finished || $this->home_score === null || $this->away_score === null) {
+            return null;
+        }
+
+        $homeTotal = $this->home_score + ($this->home_extra_time_score ?? 0);
+        $awayTotal = $this->away_score + ($this->away_extra_time_score ?? 0);
+
+        if ($homeTotal !== $awayTotal) {
+            return $homeTotal > $awayTotal ? $this->home_team_id : $this->away_team_id;
+        }
+
+        if ($this->home_penalty_score !== null && $this->away_penalty_score !== null && $this->home_penalty_score !== $this->away_penalty_score) {
+            return $this->home_penalty_score > $this->away_penalty_score ? $this->home_team_id : $this->away_team_id;
+        }
+
+        return null;
     }
 }

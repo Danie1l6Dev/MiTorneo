@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tournaments;
 
+use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
@@ -236,5 +237,46 @@ class TournamentManagementTest extends TestCase
         $this->assertDatabaseMissing('categories', ['id' => $category->id]);
         $this->assertDatabaseMissing('competition_phases', ['id' => $phase->id]);
         $this->assertDatabaseMissing('teams', ['id' => $team->id]);
+    }
+
+    public function test_editing_a_match_cannot_change_its_group_teams_or_round_but_can_change_its_status(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
+        $group = Group::factory()->for($tournament)->for($category)->create();
+        $otherGroup = Group::factory()->for($tournament)->for($category)->create();
+        $teamOne = Team::factory()->for($tournament)->for($category)->for($group)->create();
+        $teamTwo = Team::factory()->for($tournament)->for($category)->for($group)->create();
+        $otherTeam = Team::factory()->for($tournament)->for($category)->create();
+
+        $match = TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'group_id' => $group->id,
+            'home_team_id' => $teamOne->id,
+            'away_team_id' => $teamTwo->id,
+            'round_number' => 3,
+            'status' => 'scheduled',
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('matches.update', $match), [
+                'group_id' => $otherGroup->id,
+                'home_team_id' => $otherTeam->id,
+                'away_team_id' => $teamTwo->id,
+                'round_number' => 9,
+                'status' => 'postponed',
+                'scheduled_at' => null,
+            ])
+            ->assertRedirect(route('phases.show', $phase).'#calendario');
+
+        $match->refresh();
+        $this->assertSame($group->id, $match->group_id);
+        $this->assertSame($teamOne->id, $match->home_team_id);
+        $this->assertSame($teamTwo->id, $match->away_team_id);
+        $this->assertSame(3, $match->round_number);
+        $this->assertSame(MatchStatus::Postponed, $match->status);
     }
 }

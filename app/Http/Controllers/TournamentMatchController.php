@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CompetitionPhaseType;
 use App\Http\Requests\TournamentMatchRequest;
 use App\Models\CompetitionPhase;
 use App\Models\TournamentMatch;
+use App\Services\KnockoutBracketService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -42,13 +44,20 @@ class TournamentMatchController extends Controller
         return view('pages.matches.edit', compact('match', 'groups', 'teams'));
     }
 
-    public function update(TournamentMatchRequest $request, TournamentMatch $match): RedirectResponse
+    public function update(TournamentMatchRequest $request, TournamentMatch $match, KnockoutBracketService $bracketService): RedirectResponse
     {
         $this->authorize('update', $match);
 
         $match->update($request->validated());
 
-        return to_route('phases.show', $match->competitionPhase);
+        if ($match->home_score !== null && $match->away_score !== null) {
+            $bracketService->resolveWinner($match);
+        }
+
+        $isKnockoutMatch = $match->competitionPhase->type !== CompetitionPhaseType::League;
+
+        return redirect(route('phases.show', $match->competitionPhase).($isKnockoutMatch ? '#cuadro' : '#calendario'))
+            ->with('status', __('Cambios guardados correctamente.'));
     }
 
     public function destroy(TournamentMatch $match): RedirectResponse

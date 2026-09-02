@@ -72,9 +72,7 @@ class KnockoutBracketService
             return;
         }
 
-        $winnerTeamId = $finishedMatch->home_score > $finishedMatch->away_score
-            ? $finishedMatch->home_team_id
-            : $finishedMatch->away_team_id;
+        $winnerTeamId = $finishedMatch->winnerTeamId();
 
         foreach ($participants as $participant) {
             $targetMatch = $participant->match;

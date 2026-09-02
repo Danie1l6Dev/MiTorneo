@@ -154,11 +154,17 @@ class CompetitionPhaseController extends Controller
 
         $final = end($bracketRounds)['matches']->first();
 
-        if (! $final instanceof TournamentMatch || $final->status !== MatchStatus::Finished) {
+        if (! $final instanceof TournamentMatch) {
             return null;
         }
 
-        return $final->home_score > $final->away_score ? $final->homeTeam : $final->awayTeam;
+        $winnerTeamId = $final->winnerTeamId();
+
+        if ($winnerTeamId === null) {
+            return null;
+        }
+
+        return $winnerTeamId === $final->home_team_id ? $final->homeTeam : $final->awayTeam;
     }
 
     /**

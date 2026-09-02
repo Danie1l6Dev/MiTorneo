@@ -20,13 +20,19 @@ class TournamentMatchRequest extends FormRequest
      */
     public function rules(): array
     {
-        $phase = $this->route('phase');
         $match = $this->route('match');
 
-        if (! $phase instanceof CompetitionPhase && $match instanceof TournamentMatch) {
-            $phase = $match->competitionPhase;
+        // Editing an existing match: the group, teams and round number are
+        // fixed at creation time and can't be changed here, only the status
+        // and (optionally) the scheduled date/time.
+        if ($match instanceof TournamentMatch) {
+            return [
+                'status' => ['required', Rule::enum(MatchStatus::class)],
+                'scheduled_at' => ['nullable', 'date'],
+            ];
         }
 
+        $phase = $this->route('phase');
         $categoryId = $phase instanceof CompetitionPhase ? $phase->category_id : null;
 
         return [
@@ -43,8 +49,6 @@ class TournamentMatchRequest extends FormRequest
                 'required',
                 Rule::exists('teams', 'id')->where('category_id', $categoryId),
             ],
-            'home_score' => ['nullable', 'integer', 'min:0'],
-            'away_score' => ['nullable', 'integer', 'min:0'],
             'status' => ['required', Rule::enum(MatchStatus::class)],
             'round_number' => ['nullable', 'integer', 'min:1'],
             'scheduled_at' => ['nullable', 'date'],
