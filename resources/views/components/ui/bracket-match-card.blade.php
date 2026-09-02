@@ -1,6 +1,9 @@
 @props([
     'match',
     'href' => null,
+    'cardClass' => 'h-16',
+    'rowClass' => 'h-8',
+    'textClass' => 'text-sm',
 ])
 
 @php
@@ -29,7 +32,7 @@
 
 <{{ $tag }}
     @if ($href && ! $pending) href="{{ $href }}" wire:navigate @endif
-    {{ $attributes->class('hover-lift group relative block h-16 w-full overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-white/10 glass-panel' . ($href && ! $pending ? ' cursor-pointer' : '')) }}
+    {{ $attributes->class('hover-lift group relative block w-full overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-white/10 glass-panel ' . $cardClass . ($href && ! $pending ? ' cursor-pointer' : '')) }}
 >
     {{-- Status accent: once the match is finished, split it so the top half
          (home) and bottom half (away) each show green for the winner, red
@@ -43,20 +46,20 @@
         <div class="absolute inset-y-0 left-0 w-1 {{ $accentBarClasses }}"></div>
     @endif
 
-    <div class="flex h-8 items-center justify-between gap-2 px-3">
-        <span class="truncate text-sm {{ $rowClasses($homeWinner) }}">
+    <div class="{{ $rowClass }} flex items-center justify-between gap-2 px-3">
+        <span class="truncate {{ $textClass }} {{ $rowClasses($homeWinner) }}">
             {{ $match->homeTeam?->name ?? __('Por definir') }}
         </span>
-        <span class="font-display shrink-0 text-sm font-bold tabular-nums {{ $scoreClasses($homeWinner) }}">
+        <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($homeWinner) }}">
             {{ $match->home_score ?? '–' }}
         </span>
     </div>
 
-    <div class="flex h-8 items-center justify-between gap-2 border-t border-zinc-100 px-3 dark:border-white/5">
-        <span class="truncate text-sm {{ $rowClasses($awayWinner) }}">
+    <div class="{{ $rowClass }} flex items-center justify-between gap-2 border-t border-zinc-100 px-3 dark:border-white/5">
+        <span class="truncate {{ $textClass }} {{ $rowClasses($awayWinner) }}">
             {{ $match->awayTeam?->name ?? __('Por definir') }}
         </span>
-        <span class="font-display shrink-0 text-sm font-bold tabular-nums {{ $scoreClasses($awayWinner) }}">
+        <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($awayWinner) }}">
             {{ $match->away_score ?? '–' }}
         </span>
     </div>

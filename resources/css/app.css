@@ -5,6 +5,11 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
 @source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+/* The bracket's size-tier utility classes are assembled as plain PHP strings
+   in CompetitionPhaseController (not written literally in a Blade file), so
+   Tailwind's static scanner needs to be pointed at that file directly or it
+   never generates their CSS. */
+@source '../../app/Http/Controllers/CompetitionPhaseController.php';
 
 @custom-variant dark (&:where(.dark, .dark *));
 

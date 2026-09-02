@@ -280,9 +280,9 @@
                         feeds in the next column, at any bracket depth -- no pixel math needed.
                     --}}
                     <div class="hidden overflow-x-auto pb-4 lg:block">
-                        <div class="mx-auto flex w-max items-stretch gap-14 px-2">
+                        <div class="flex w-full items-stretch justify-center {{ $bracketSize['columnGap'] }} px-6 lg:px-10">
                             @foreach ($bracketColumns as $column)
-                                <div class="flex w-64 shrink-0 flex-col">
+                                <div class="flex {{ $bracketSize['column'] }} flex-col">
                                     {{-- The label sits outside the matches' own flex container below: if it
                                          shared that container's justify-around, it would count as one more
                                          item in the space-around split, throwing every column's math off by
@@ -298,37 +298,41 @@
 
                                     <div class="flex flex-1 flex-col {{ $column['side'] === 'final' ? 'justify-center' : 'justify-around' }}">
                                         @if ($column['side'] === 'final')
-                                            <x-ui.bracket-match-card :match="$column['matches']->first()" :href="route('matches.edit', $column['matches']->first())" />
+                                            <x-ui.bracket-match-card
+                                                :match="$column['matches']->first()"
+                                                :href="route('matches.edit', $column['matches']->first())"
+                                                :card-class="$bracketSize['card']"
+                                                :row-class="$bracketSize['row']"
+                                                :text-class="$bracketSize['text']"
+                                            />
                                         @else
                                             @foreach ($column['matches']->chunk(2) as $pair)
                                                 @if ($pair->count() === 2)
-                                                    <div @class([
-                                                        'relative flex flex-col justify-between gap-4',
-                                                        "after:content-[''] after:absolute after:top-8 after:bottom-8 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35" => true,
-                                                        "before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35" => true,
-                                                        'after:-right-7 before:-right-14 before:w-7' => $column['side'] === 'left',
-                                                        'after:-left-7 before:-left-14 before:w-7' => $column['side'] === 'right',
-                                                    ])>
+                                                    <div class="{{ $column['side'] === 'left' ? $bracketSize['pairWrapperLeft'] : $bracketSize['pairWrapperRight'] }}">
                                                         {{-- Each card gets its own short stub reaching the shared vertical
                                                              bar above; it must live on this plain wrapper (not the card
                                                              itself) since the card's own overflow-hidden would clip it. --}}
                                                         @foreach ($pair as $match)
-                                                            <div @class([
-                                                                'relative',
-                                                                "after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-7 after:bg-zinc-400 dark:after:bg-white/35 after:-right-7" => $column['side'] === 'left',
-                                                                "before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-7 before:bg-zinc-400 dark:before:bg-white/35 before:-left-7" => $column['side'] === 'right',
-                                                            ])>
-                                                                <x-ui.bracket-match-card :match="$match" :href="route('matches.edit', $match)" />
+                                                            <div class="{{ $column['side'] === 'left' ? $bracketSize['cardStubLeft'] : $bracketSize['cardStubRight'] }}">
+                                                                <x-ui.bracket-match-card
+                                                                    :match="$match"
+                                                                    :href="route('matches.edit', $match)"
+                                                                    :card-class="$bracketSize['card']"
+                                                                    :row-class="$bracketSize['row']"
+                                                                    :text-class="$bracketSize['text']"
+                                                                />
                                                             </div>
                                                         @endforeach
                                                     </div>
                                                 @else
-                                                    <div @class([
-                                                        'relative',
-                                                        "after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-14 after:bg-zinc-400 dark:after:bg-white/35 after:-right-14" => $column['side'] === 'left',
-                                                        "before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-14 before:bg-zinc-400 dark:before:bg-white/35 before:-left-14" => $column['side'] === 'right',
-                                                    ])>
-                                                        <x-ui.bracket-match-card :match="$pair->first()" :href="route('matches.edit', $pair->first())" />
+                                                    <div class="{{ $column['side'] === 'left' ? $bracketSize['singleStubLeft'] : $bracketSize['singleStubRight'] }}">
+                                                        <x-ui.bracket-match-card
+                                                            :match="$pair->first()"
+                                                            :href="route('matches.edit', $pair->first())"
+                                                            :card-class="$bracketSize['card']"
+                                                            :row-class="$bracketSize['row']"
+                                                            :text-class="$bracketSize['text']"
+                                                        />
                                                     </div>
                                                 @endif
                                             @endforeach
@@ -356,24 +360,26 @@
             <flux:separator variant="subtle" />
         @endif
 
-        <div class="space-y-4">
-            <div class="flex items-center justify-between">
-                <flux:heading size="lg">{{ __('Partidos sin calendario asignado') }}</flux:heading>
+        @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <flux:heading size="lg">{{ __('Partidos sin calendario asignado') }}</flux:heading>
 
-                <flux:button :href="route('phases.matches.create', $phase)" variant="primary" size="sm" icon="plus" wire:navigate>
-                    {{ __('Nuevo partido') }}
-                </flux:button>
-            </div>
-
-            @if ($unscheduledMatches->isEmpty())
-                <x-ui.empty-state icon="flag" :message="__('No hay partidos cargados manualmente en esta fase.')" />
-            @else
-                <div class="flex flex-wrap justify-center gap-4">
-                    @foreach ($unscheduledMatches as $match)
-                        <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
-                    @endforeach
+                    <flux:button :href="route('phases.matches.create', $phase)" variant="primary" size="sm" icon="plus" wire:navigate>
+                        {{ __('Nuevo partido') }}
+                    </flux:button>
                 </div>
-            @endif
-        </div>
+
+                @if ($unscheduledMatches->isEmpty())
+                    <x-ui.empty-state icon="flag" :message="__('No hay partidos cargados manualmente en esta fase.')" />
+                @else
+                    <div class="flex flex-wrap justify-center gap-4">
+                        @foreach ($unscheduledMatches as $match)
+                            <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endif
     </div>
 </x-layouts::app>

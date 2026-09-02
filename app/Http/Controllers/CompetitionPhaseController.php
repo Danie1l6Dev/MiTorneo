@@ -53,15 +53,16 @@ class CompetitionPhaseController extends Controller
 
         $bracketColumns = $this->buildBracketColumns($bracketRounds);
 
+        $bracketSize = $this->bracketSizeTokens(count($bracketRounds));
+
         $champion = $this->championFor($bracketRounds);
 
-        $bracketMatchIds = collect($bracketRounds)->flatMap(fn (array $round): Collection => $round['matches'])->pluck('id');
-
-        $unscheduledMatches = $phase->matches()
-            ->with(['homeTeam', 'awayTeam'])
-            ->whereNull('league_schedule_id')
-            ->whereNotIn('id', $bracketMatchIds)
-            ->get();
+        // Manually added matches are only surfaced for league phases: a
+        // bracket phase's matches are entirely accounted for by the bracket
+        // itself, so there's nothing meaningful left to show there.
+        $unscheduledMatches = $phase->type === CompetitionPhaseType::League
+            ? $phase->matches()->with(['homeTeam', 'awayTeam'])->whereNull('league_schedule_id')->get()
+            : collect();
 
         $standings = $phase->type === CompetitionPhaseType::League
             ? $standingsService->tablesForPhase($phase)
@@ -69,7 +70,74 @@ class CompetitionPhaseController extends Controller
 
         $readyToAdvance = $phase->type === CompetitionPhaseType::League && $phase->allMatchesFinished();
 
-        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'champion', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'champion', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+    }
+
+    /**
+     * Sizing for the desktop bracket, scaled to how many rounds it has: a
+     * short bracket (e.g. starting straight from the semifinal) gets larger
+     * cards so it doesn't look sparse in the available space, while a deep
+     * one (e.g. starting from octavos) gets smaller cards so the whole thing
+     * still fits reasonably without excessive horizontal scrolling.
+     *
+     * Every class string below is written out in full, per tier, rather than
+     * assembled from parts at runtime: Tailwind's build only generates CSS
+     * for a utility it finds as *literal* contiguous text in a scanned file
+     * (see the @source line in app.css pointing it at this file) -- a class
+     * name pieced together via PHP interpolation (e.g. `"after:{$offset}"`)
+     * never appears as such anywhere and would silently produce no CSS.
+     *
+     * @return array<string, string>
+     */
+    private function bracketSizeTokens(int $roundCount): array
+    {
+        return match (true) {
+            $roundCount <= 2 => [
+                'card' => 'h-20',
+                'row' => 'h-10',
+                'text' => 'text-base',
+                // flex-1 lets a column shrink or grow to whatever room is actually
+                // available (never forcing horizontal scroll), max-w caps how wide
+                // it gets on a roomy screen so a short bracket doesn't look stretched.
+                'column' => 'flex-1 min-w-0 max-w-80',
+                'columnGap' => 'gap-24',
+                'pairGap' => 'gap-14',
+                'pairWrapperLeft' => "relative flex flex-col justify-between gap-14 after:content-[''] after:absolute after:top-10 after:bottom-10 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35 after:-right-12 before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35 before:w-12 before:-right-24",
+                'pairWrapperRight' => "relative flex flex-col justify-between gap-14 after:content-[''] after:absolute after:top-10 after:bottom-10 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35 after:-left-12 before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35 before:w-12 before:-left-24",
+                'cardStubLeft' => "relative after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-12 after:bg-zinc-400 dark:after:bg-white/35 after:-right-12",
+                'cardStubRight' => "relative before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-12 before:bg-zinc-400 dark:before:bg-white/35 before:-left-12",
+                'singleStubLeft' => "relative after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-24 after:bg-zinc-400 dark:after:bg-white/35 after:-right-24",
+                'singleStubRight' => "relative before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-24 before:bg-zinc-400 dark:before:bg-white/35 before:-left-24",
+            ],
+            $roundCount === 3 => [
+                'card' => 'h-16',
+                'row' => 'h-8',
+                'text' => 'text-sm',
+                'column' => 'flex-1 min-w-0 max-w-72',
+                'columnGap' => 'gap-16',
+                'pairGap' => 'gap-12',
+                'pairWrapperLeft' => "relative flex flex-col justify-between gap-12 after:content-[''] after:absolute after:top-8 after:bottom-8 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35 after:-right-8 before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35 before:w-8 before:-right-16",
+                'pairWrapperRight' => "relative flex flex-col justify-between gap-12 after:content-[''] after:absolute after:top-8 after:bottom-8 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35 after:-left-8 before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35 before:w-8 before:-left-16",
+                'cardStubLeft' => "relative after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-8 after:bg-zinc-400 dark:after:bg-white/35 after:-right-8",
+                'cardStubRight' => "relative before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-8 before:bg-zinc-400 dark:before:bg-white/35 before:-left-8",
+                'singleStubLeft' => "relative after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-16 after:bg-zinc-400 dark:after:bg-white/35 after:-right-16",
+                'singleStubRight' => "relative before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-16 before:bg-zinc-400 dark:before:bg-white/35 before:-left-16",
+            ],
+            default => [
+                'card' => 'h-12',
+                'row' => 'h-6',
+                'text' => 'text-xs',
+                'column' => 'flex-1 min-w-0 max-w-56',
+                'columnGap' => 'gap-10',
+                'pairGap' => 'gap-10',
+                'pairWrapperLeft' => "relative flex flex-col justify-between gap-10 after:content-[''] after:absolute after:top-6 after:bottom-6 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35 after:-right-5 before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35 before:w-5 before:-right-10",
+                'pairWrapperRight' => "relative flex flex-col justify-between gap-10 after:content-[''] after:absolute after:top-6 after:bottom-6 after:w-0.5 after:bg-zinc-400 dark:after:bg-white/35 after:-left-5 before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:bg-zinc-400 dark:before:bg-white/35 before:w-5 before:-left-10",
+                'cardStubLeft' => "relative after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-5 after:bg-zinc-400 dark:after:bg-white/35 after:-right-5",
+                'cardStubRight' => "relative before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-5 before:bg-zinc-400 dark:before:bg-white/35 before:-left-5",
+                'singleStubLeft' => "relative after:content-[''] after:absolute after:top-1/2 after:h-0.5 after:w-10 after:bg-zinc-400 dark:after:bg-white/35 after:-right-10",
+                'singleStubRight' => "relative before:content-[''] before:absolute before:top-1/2 before:h-0.5 before:w-10 before:bg-zinc-400 dark:before:bg-white/35 before:-left-10",
+            ],
+        };
     }
 
     /**
