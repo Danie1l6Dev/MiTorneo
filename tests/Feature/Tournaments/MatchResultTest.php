@@ -36,7 +36,7 @@ class MatchResultTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => 3, 'away_score' => 1])
-            ->assertRedirect(route('phases.show', $phase).'#calendario');
+            ->assertRedirect(route('phases.show', $phase));
 
         $match->refresh();
 
@@ -67,7 +67,7 @@ class MatchResultTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => 2, 'away_score' => 2])
-            ->assertRedirect(route('phases.show', $phase).'#calendario');
+            ->assertRedirect(route('phases.show', $phase));
 
         $match->refresh();
 
@@ -118,25 +118,6 @@ class MatchResultTest extends TestCase
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => '1.5', 'away_score' => 0])
             ->assertSessionHasErrors('home_score');
-    }
-
-    public function test_a_match_cannot_have_the_same_team_as_home_and_away(): void
-    {
-        $user = User::factory()->create();
-        $tournament = Tournament::factory()->for($user)->create();
-        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
-        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
-        $team = Team::factory()->for($tournament)->for($category)->create();
-
-        $this->actingAs($user)
-            ->post(route('phases.matches.store', $phase), [
-                'home_team_id' => $team->id,
-                'away_team_id' => $team->id,
-                'status' => 'scheduled',
-            ])
-            ->assertSessionHasErrors('home_team_id');
-
-        $this->assertSame(0, $phase->matches()->count());
     }
 
     public function test_a_user_cannot_register_a_result_for_another_users_match(): void

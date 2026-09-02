@@ -85,19 +85,6 @@ class TournamentManagementTest extends TestCase
         $this->assertNotNull($teamTwo);
         $this->assertSame($group->id, $teamOne->group_id);
         $this->assertSame($group->id, $teamTwo->group_id);
-
-        $this->post(route('phases.matches.store', $phase), [
-            'group_id' => $group->id,
-            'home_team_id' => $teamOne->id,
-            'away_team_id' => $teamTwo->id,
-            'status' => 'scheduled',
-        ])->assertRedirect();
-
-        $match = $phase->matches()->first();
-        $this->assertNotNull($match);
-        $this->assertSame($tournament->id, $match->tournament_id);
-        $this->assertSame($teamOne->id, $match->home_team_id);
-        $this->assertSame($teamTwo->id, $match->away_team_id);
     }
 
     public function test_all_pages_in_the_hierarchy_render_successfully_for_their_owner(): void
@@ -142,26 +129,7 @@ class TournamentManagementTest extends TestCase
         $this->get(route('categories.teams.create', $category))->assertOk();
         $this->get(route('teams.edit', $teamOne))->assertOk();
 
-        $this->get(route('phases.matches.create', $phase))->assertOk();
         $this->get(route('matches.edit', $match))->assertOk();
-    }
-
-    public function test_a_user_cannot_create_a_match_with_a_team_from_another_category(): void
-    {
-        $user = User::factory()->create();
-        $tournament = Tournament::factory()->for($user)->create();
-        $category = Category::factory()->for($tournament)->create();
-        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create();
-        $teamInCategory = Team::factory()->for($tournament)->for($category)->create();
-        $teamInOtherCategory = Team::factory()->for($tournament)->create();
-
-        $this->actingAs($user)->post(route('phases.matches.store', $phase), [
-            'home_team_id' => $teamInCategory->id,
-            'away_team_id' => $teamInOtherCategory->id,
-            'status' => 'scheduled',
-        ])->assertSessionHasErrors('away_team_id');
-
-        $this->assertSame(0, $phase->matches()->count());
     }
 
     public function test_a_user_cannot_access_another_users_tournament(): void
@@ -270,7 +238,7 @@ class TournamentManagementTest extends TestCase
                 'status' => 'postponed',
                 'scheduled_at' => null,
             ])
-            ->assertRedirect(route('phases.show', $phase).'#calendario');
+            ->assertRedirect(route('phases.show', $phase));
 
         $match->refresh();
         $this->assertSame($group->id, $match->group_id);

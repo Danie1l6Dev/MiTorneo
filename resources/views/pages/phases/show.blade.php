@@ -50,14 +50,17 @@
         <flux:separator variant="subtle" />
 
         @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            <x-ui.section-tabs :tabs="[
-                ['label' => __('Calendario'), 'href' => '#calendario', 'icon' => 'calendar-days'],
-                ['label' => __('Tabla de posiciones'), 'href' => '#tabla-posiciones', 'icon' => 'table-cells'],
-            ]" />
+            <div x-data="{ section: 'calendario' }">
+                {{-- Selector de sección: en el futuro puede sumarse aquí una pestaña de estadísticas (goleadores, asistencias, tarjetas). --}}
+                <x-ui.section-tabs :tabs="[
+                    ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
+                    ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
+                ]" />
 
             <div
-                id="calendario"
-                class="scroll-mt-24 space-y-4"
+                x-show="section === 'calendario'"
+                x-cloak
+                class="mt-4 space-y-4"
                 x-data="{
                     activeGroup: 0,
                     startRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
@@ -212,9 +215,7 @@
                 @endif
             </div>
 
-            <flux:separator variant="subtle" />
-
-            <div id="tabla-posiciones" class="scroll-mt-24 space-y-4">
+            <div x-show="section === 'tabla'" x-cloak class="mt-4 space-y-4">
                 <flux:heading size="lg">{{ __('Tabla de posiciones') }}</flux:heading>
 
                 <div class="grid gap-4 lg:grid-cols-2">
@@ -225,7 +226,7 @@
             </div>
 
             @if ($readyToAdvance)
-                <div class="space-y-3 rounded-2xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
+                <div class="mt-4 space-y-3 rounded-2xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
                     <flux:heading size="sm">{{ __('¿Pasar a la siguiente fase?') }}</flux:heading>
                     <flux:text>
                         {{ __('Todos los partidos de esta fase han finalizado. Puedes definir cuántos equipos clasifican y crear la siguiente fase mediante un sorteo en vivo o una nueva fase de liga.') }}
@@ -235,6 +236,7 @@
                     </flux:button>
                 </div>
             @endif
+            </div>
 
             <flux:separator variant="subtle" />
         @else
@@ -358,28 +360,6 @@
             </div>
 
             <flux:separator variant="subtle" />
-        @endif
-
-        @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            <div class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <flux:heading size="lg">{{ __('Partidos sin calendario asignado') }}</flux:heading>
-
-                    <flux:button :href="route('phases.matches.create', $phase)" variant="primary" size="sm" icon="plus" wire:navigate>
-                        {{ __('Nuevo partido') }}
-                    </flux:button>
-                </div>
-
-                @if ($unscheduledMatches->isEmpty())
-                    <x-ui.empty-state icon="flag" :message="__('No hay partidos cargados manualmente en esta fase.')" />
-                @else
-                    <div class="flex flex-wrap justify-center gap-4">
-                        @foreach ($unscheduledMatches as $match)
-                            <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
-                        @endforeach
-                    </div>
-                @endif
-            </div>
         @endif
     </div>
 </x-layouts::app>

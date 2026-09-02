@@ -35,7 +35,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('phases.matches', TournamentMatchController::class)
         ->shallow()
-        ->except(['index', 'show']);
+        ->only(['edit', 'update', 'destroy']);
 
     Route::post('phases/{phase}/schedule', [LeagueScheduleController::class, 'store'])
         ->name('phases.schedule.store');

@@ -57,20 +57,13 @@ class CompetitionPhaseController extends Controller
 
         $champion = $this->championFor($bracketRounds);
 
-        // Manually added matches are only surfaced for league phases: a
-        // bracket phase's matches are entirely accounted for by the bracket
-        // itself, so there's nothing meaningful left to show there.
-        $unscheduledMatches = $phase->type === CompetitionPhaseType::League
-            ? $phase->matches()->with(['homeTeam', 'awayTeam'])->whereNull('league_schedule_id')->get()
-            : collect();
-
         $standings = $phase->type === CompetitionPhaseType::League
             ? $standingsService->tablesForPhase($phase)
             : [];
 
         $readyToAdvance = $phase->type === CompetitionPhaseType::League && $phase->allMatchesFinished();
 
-        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'champion', 'unscheduledMatches', 'standings', 'readyToAdvance'));
+        return view('pages.phases.show', compact('phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'champion', 'standings', 'readyToAdvance'));
     }
 
     /**

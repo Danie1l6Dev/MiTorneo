@@ -34,9 +34,17 @@
                 </thead>
                 <tbody>
                     @foreach ($rows as $index => $row)
-                        <tr class="border-b border-zinc-100 last:border-0 dark:border-white/5 {{ $index === 0 ? 'bg-accent/10' : '' }}">
+                        <tr class="border-b border-zinc-100 last:border-0 dark:border-white/5 {{ match (true) {
+                            $index === 0 => 'bg-green-500/10',
+                            $index <= 3 => 'bg-blue-500/5',
+                            default => '',
+                        } }}">
                             <td class="px-4 py-2.5 text-center">
-                                <span class="inline-flex size-6 items-center justify-center rounded-full text-xs font-bold {{ $index === 0 ? 'bg-accent text-accent-foreground' : 'text-zinc-500 dark:text-white/50' }}">
+                                <span class="inline-flex size-6 items-center justify-center rounded-full text-xs font-bold {{ match (true) {
+                                    $index === 0 => 'bg-green-500 text-white',
+                                    $index <= 3 => 'bg-blue-500 text-white',
+                                    default => 'text-zinc-500 dark:text-white/50',
+                                } }}">
                                     {{ $index + 1 }}
                                 </span>
                             </td>
@@ -58,8 +66,16 @@
         {{-- Mobile --}}
         <div class="divide-y divide-zinc-100 dark:divide-white/5 md:hidden">
             @foreach ($rows as $index => $row)
-                <div class="flex items-center gap-3 px-4 py-3 {{ $index === 0 ? 'bg-accent/10' : '' }}">
-                    <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold {{ $index === 0 ? 'bg-accent text-accent-foreground' : 'text-zinc-500 dark:text-white/50' }}">
+                <div class="flex items-center gap-3 px-4 py-3 {{ match (true) {
+                    $index === 0 => 'bg-green-500/10',
+                    $index <= 3 => 'bg-blue-500/5',
+                    default => '',
+                } }}">
+                    <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold {{ match (true) {
+                        $index === 0 => 'bg-green-500 text-white',
+                        $index <= 3 => 'bg-blue-500 text-white',
+                        default => 'text-zinc-500 dark:text-white/50',
+                    } }}">
                         {{ $index + 1 }}
                     </span>
 
