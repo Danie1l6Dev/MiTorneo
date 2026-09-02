@@ -6,6 +6,7 @@ use App\Enums\CompetitionPhaseType;
 use App\Http\Requests\AdvancePhaseRequest;
 use App\Models\CompetitionPhase;
 use App\Services\KnockoutBracketService;
+use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,7 @@ use Illuminate\View\View;
 
 class PhaseAdvancementController extends Controller
 {
-    public function create(CompetitionPhase $phase, StandingsService $standingsService): View|RedirectResponse
+    public function create(CompetitionPhase $phase, StandingsService $standingsService, PhaseEligibilityService $eligibilityService): View|RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $phase->category]);
 
@@ -22,16 +23,30 @@ class PhaseAdvancementController extends Controller
         }
 
         $tables = $standingsService->tablesForPhase($phase);
+        $tableCount = collect($tables)->filter(fn (array $table): bool => count($table['rows']) > 0)->count();
 
         $maxPerTable = collect($tables)
             ->map(fn (array $table): int => count($table['rows']))
             ->filter(fn (int $count): bool => $count > 0)
             ->min() ?? 0;
 
-        return view('pages.phases.advance', compact('phase', 'tables', 'maxPerTable'));
+        // How many qualifiers Semifinal/Final would take from each table
+        // given how many tables actually feed this phase, for the view to
+        // explain -- null when that fixed total can't be split evenly
+        // across them, meaning the option isn't really usable here.
+        $fixedPerTable = collect([CompetitionPhaseType::Semifinal, CompetitionPhaseType::Final])
+            ->mapWithKeys(function (CompetitionPhaseType $type) use ($eligibilityService, $tableCount): array {
+                $target = $eligibilityService->fixedQualifierTarget($type);
+
+                return [
+                    $type->value => $target === null ? null : $eligibilityService->perTableCountForTarget($target, $tableCount),
+                ];
+            });
+
+        return view('pages.phases.advance', compact('phase', 'tables', 'maxPerTable', 'fixedPerTable'));
     }
 
-    public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService, KnockoutBracketService $bracketService): RedirectResponse
+    public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $phase->category]);
 
@@ -42,13 +57,23 @@ class PhaseAdvancementController extends Controller
         $type = CompetitionPhaseType::from($request->validated('type'));
         $isLeague = $type === CompetitionPhaseType::League;
 
-        $perTable = match ($type) {
-            CompetitionPhaseType::Semifinal => 2,
-            CompetitionPhaseType::Final => 1,
-            default => (int) $request->validated('qualifiers_per_table'),
-        };
-
         $tables = $standingsService->tablesForPhase($phase);
+        $tableCount = collect($tables)->filter(fn (array $table): bool => count($table['rows']) > 0)->count();
+
+        $fixedTarget = $eligibilityService->fixedQualifierTarget($type);
+
+        // AdvancePhaseRequest already verified this configuration is
+        // reachable (a fixed target splits evenly across the tables, or the
+        // user-supplied per-table count clears validation), so this can only
+        // be null if the request and this recomputation somehow disagree.
+        $perTable = $fixedTarget !== null
+            ? $eligibilityService->perTableCountForTarget($fixedTarget, $tableCount)
+            : (int) $request->validated('qualifiers_per_table');
+
+        if ($perTable === null) {
+            abort(422);
+        }
+
         $qualifiers = $standingsService->topQualifiers($tables, $perTable);
 
         $newPhase = DB::transaction(function () use ($phase, $request, $type, $qualifiers, $isLeague, $bracketService): CompetitionPhase {

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\CompetitionPhaseType;
 use App\Models\CompetitionPhase;
+use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -18,15 +19,6 @@ class AdvancePhaseRequest extends FormRequest
     private const TYPES_REQUIRING_QUALIFIER_COUNT = [
         CompetitionPhaseType::League,
         CompetitionPhaseType::Knockout,
-    ];
-
-    /**
-     * Fixed qualifiers-per-table for phase types that imply their own bracket
-     * size: a semifinal always needs 2 teams per table, a final always needs 1.
-     */
-    private const FIXED_QUALIFIER_COUNTS = [
-        'semifinal' => 2,
-        'final' => 1,
     ];
 
     public function authorize(): bool
@@ -81,9 +73,8 @@ class AdvancePhaseRequest extends FormRequest
 
             $type = CompetitionPhaseType::from((string) $this->input('type'));
 
-            $perTable = self::FIXED_QUALIFIER_COUNTS[$type->value] ?? (int) $this->input('qualifiers_per_table');
-
             $standingsService = app(StandingsService::class);
+            $eligibilityService = app(PhaseEligibilityService::class);
             $tables = $standingsService->tablesForPhase($phase);
 
             $tablesWithTeams = collect($tables)->filter(fn (array $table): bool => count($table['rows']) > 0);
@@ -96,16 +87,34 @@ class AdvancePhaseRequest extends FormRequest
                 return;
             }
 
+            $fixedTarget = $eligibilityService->fixedQualifierTarget($type);
+
+            if ($fixedTarget !== null) {
+                $perTable = $eligibilityService->perTableCountForTarget($fixedTarget, $tablesWithTeams->count());
+
+                if ($perTable === null) {
+                    $validator->errors()->add('qualifiers_per_table', __(
+                        'No se pueden repartir :target clasificados en partes iguales entre las :tables tablas disponibles.',
+                        ['target' => $fixedTarget, 'tables' => $tablesWithTeams->count()]
+                    ));
+
+                    return;
+                }
+            } else {
+                $perTable = (int) $this->input('qualifiers_per_table');
+            }
+
             $smallestTable = $tablesWithTeams->min(fn (array $table): int => count($table['rows']));
 
             if ($smallestTable < $perTable) {
                 $validator->errors()->add('qualifiers_per_table', match ($type) {
                     CompetitionPhaseType::Semifinal => __(
-                        'Para pasar a semifinales cada tabla necesita al menos 2 equipos, y la más chica solo tiene :available.',
-                        ['available' => $smallestTable]
+                        'Para pasar a semifinales cada tabla necesita al menos :needed equipos, y la más chica solo tiene :available.',
+                        ['needed' => $perTable, 'available' => $smallestTable]
                     ),
                     CompetitionPhaseType::Final => __(
-                        'Para pasar a la final cada tabla necesita al menos 1 equipo, y alguna todavía no tiene ninguno.'
+                        'Para pasar a la final cada tabla necesita al menos :needed equipo(s), y la más chica solo tiene :available.',
+                        ['needed' => $perTable, 'available' => $smallestTable]
                     ),
                     default => __(
                         'La tabla con menos equipos solo tiene :available, no puedes clasificar :count por tabla.',
@@ -127,17 +136,12 @@ class AdvancePhaseRequest extends FormRequest
                 return;
             }
 
-            if (! $isLeague && ! $this->isPowerOfTwo($totalQualifiers)) {
+            if (! $isLeague && ! $eligibilityService->isPowerOfTwo($totalQualifiers)) {
                 $validator->errors()->add('qualifiers_per_table', __(
                     'Para una fase eliminatoria el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) para poder completar los cruces hasta la final. Con esta configuración serían :count.',
                     ['count' => $totalQualifiers]
                 ));
             }
         });
-    }
-
-    private function isPowerOfTwo(int $n): bool
-    {
-        return $n >= 2 && ($n & ($n - 1)) === 0;
     }
 }

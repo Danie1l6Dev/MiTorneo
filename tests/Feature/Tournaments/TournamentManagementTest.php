@@ -118,7 +118,12 @@ class TournamentManagementTest extends TestCase
         $this->get(route('categories.show', $category))->assertOk();
         $this->get(route('categories.edit', $category))->assertOk();
 
-        $this->get(route('categories.phases.create', $category))->assertOk();
+        // categories.phases.create only renders for a category that doesn't
+        // have its first phase yet -- $category already does, so it's
+        // checked against a separate, phase-less category instead.
+        $categoryWithoutPhase = Category::factory()->for($tournament)->create();
+        $this->get(route('categories.phases.create', $categoryWithoutPhase))->assertOk();
+
         $this->get(route('phases.show', $phase))->assertOk();
         $this->get(route('phases.edit', $phase))->assertOk();
 

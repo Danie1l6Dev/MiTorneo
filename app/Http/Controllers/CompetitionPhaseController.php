@@ -11,29 +11,91 @@ use App\Models\CompetitionPhase;
 use App\Models\LeagueSchedule;
 use App\Models\Team;
 use App\Models\TournamentMatch;
+use App\Services\KnockoutBracketService;
+use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class CompetitionPhaseController extends Controller
 {
-    public function create(Category $category): View
+    public function create(Category $category, PhaseEligibilityService $eligibilityService): View|RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        return view('pages.phases.create', compact('category'));
+        if ($redirect = $this->guardFirstPhase($category)) {
+            return $redirect;
+        }
+
+        $typeOptions = $eligibilityService->firstPhaseTypeOptions($category);
+
+        return view('pages.phases.create', compact('category', 'typeOptions'));
     }
 
-    public function store(CompetitionPhaseRequest $request, Category $category): RedirectResponse
+    public function store(CompetitionPhaseRequest $request, Category $category, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        $phase = $category->competitionPhases()->make($request->validated());
-        $phase->tournament_id = $category->tournament_id;
-        $phase->save();
+        if ($redirect = $this->guardFirstPhase($category)) {
+            return $redirect;
+        }
 
-        return to_route('phases.show', $phase);
+        $type = CompetitionPhaseType::from($request->validated('type'));
+
+        if (! $eligibilityService->firstPhaseTypeAllowed($category, $type)) {
+            throw ValidationException::withMessages([
+                'type' => __('Ese tipo de fase no está disponible todavía para esta categoría.'),
+            ]);
+        }
+
+        $phase = DB::transaction(function () use ($category, $request, $type, $bracketService): CompetitionPhase {
+            $phase = new CompetitionPhase;
+            $phase->tournament_id = $category->tournament_id;
+            $phase->category_id = $category->id;
+            $phase->name = (string) $request->validated('name');
+            $phase->type = $type;
+            // Only ever one first phase per category: everything after it is
+            // chained from a finished phase's qualifiers via the advancement
+            // flow, which is what assigns every later phase's order.
+            $phase->order = 1;
+            $phase->save();
+
+            if ($type !== CompetitionPhaseType::League) {
+                $bracketService->generateBracket($phase, $category->teams);
+            }
+
+            return $phase;
+        });
+
+        $redirect = to_route('phases.show', $phase);
+
+        if ($type !== CompetitionPhaseType::League) {
+            // Same single-use flash the advancement flow uses, so a knockout
+            // created straight from a category's team list also gets the
+            // live draw reveal instead of showing its bracket instantly.
+            $redirect->with('drawReveal', true);
+        }
+
+        return $redirect;
+    }
+
+    /**
+     * A category may only ever get its first phase created directly (there's
+     * no standings table yet to draw qualifiers from); every phase after it
+     * is created from an already-finished phase via the advancement flow.
+     */
+    private function guardFirstPhase(Category $category): ?RedirectResponse
+    {
+        if ($category->competitionPhases()->exists()) {
+            return to_route('categories.show', $category)->with('error', __(
+                'Esta categoría ya tiene una fase inicial. Para crear la siguiente, marca su fase de liga como finalizada y define los clasificados desde ahí.'
+            ));
+        }
+
+        return null;
     }
 
     public function show(CompetitionPhase $phase, StandingsService $standingsService): View
@@ -286,20 +348,55 @@ class CompetitionPhaseController extends Controller
         return ['schedule' => $schedule, 'rounds' => $rounds, 'start_round_index' => $startRoundIndex];
     }
 
-    public function edit(CompetitionPhase $phase): View
+    public function edit(CompetitionPhase $phase, PhaseEligibilityService $eligibilityService): View
     {
         $this->authorize('update', $phase);
 
-        return view('pages.phases.edit', compact('phase'));
+        $typeIsLocked = $phase->matches()->exists();
+        $typeOptions = $this->isFirstPhase($phase) ? $eligibilityService->firstPhaseTypeOptions($phase->category) : null;
+
+        return view('pages.phases.edit', compact('phase', 'typeIsLocked', 'typeOptions'));
     }
 
-    public function update(CompetitionPhaseRequest $request, CompetitionPhase $phase): RedirectResponse
+    public function update(CompetitionPhaseRequest $request, CompetitionPhase $phase, PhaseEligibilityService $eligibilityService): RedirectResponse
     {
         $this->authorize('update', $phase);
+
+        $type = CompetitionPhaseType::from($request->validated('type'));
+
+        // Once a schedule or bracket has been generated for this phase, its
+        // type can no longer change: that content was built for the old
+        // type (round-robin fixtures for a league, a single-elimination
+        // bracket otherwise) and swapping types out from under it would
+        // leave matches that no longer match how the phase is played.
+        if ($type !== $phase->type && $phase->matches()->exists()) {
+            throw ValidationException::withMessages([
+                'type' => __('No se puede cambiar el tipo de una fase que ya tiene partidos generados.'),
+            ]);
+        }
+
+        // The category's first phase is still bound by the same sporting
+        // rules it was created under (groups need an independent league,
+        // and a knockout needs a bracket-sized team count).
+        if ($this->isFirstPhase($phase) && ! $eligibilityService->firstPhaseTypeAllowed($phase->category, $type)) {
+            throw ValidationException::withMessages([
+                'type' => __('Ese tipo de fase no está disponible todavía para esta categoría.'),
+            ]);
+        }
 
         $phase->update($request->validated());
 
         return to_route('phases.show', $phase);
+    }
+
+    /**
+     * Whether $phase is the category's first phase -- the only one created
+     * directly rather than chained from a previous phase's qualifiers, and
+     * so the only one still bound by categories.phases' eligibility rules.
+     */
+    private function isFirstPhase(CompetitionPhase $phase): bool
+    {
+        return $phase->order === 1;
     }
 
     public function destroy(CompetitionPhase $phase): RedirectResponse

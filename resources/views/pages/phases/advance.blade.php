@@ -74,11 +74,19 @@
                 </div>
 
                 <div x-show="type === '{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}'" x-cloak>
-                    <flux:callout variant="secondary" icon="information-circle" :heading="__('Clasifican 2 equipos de cada tabla, automáticamente.')" />
+                    @if ($fixedPerTable[\App\Enums\CompetitionPhaseType::Semifinal->value] === null)
+                        <flux:callout variant="danger" icon="exclamation-circle" :heading="__('No se pueden repartir 4 clasificados en partes iguales entre las tablas actuales.')" />
+                    @else
+                        <flux:callout variant="secondary" icon="information-circle" :heading="trans_choice('Clasifica :count equipo de cada tabla, automáticamente (4 en total).|Clasifican :count equipos de cada tabla, automáticamente (4 en total).', $fixedPerTable[\App\Enums\CompetitionPhaseType::Semifinal->value], ['count' => $fixedPerTable[\App\Enums\CompetitionPhaseType::Semifinal->value]])" />
+                    @endif
                 </div>
 
                 <div x-show="type === '{{ \App\Enums\CompetitionPhaseType::Final->value }}'" x-cloak>
-                    <flux:callout variant="secondary" icon="information-circle" :heading="__('Clasifica 1 equipo de cada tabla, automáticamente.')" />
+                    @if ($fixedPerTable[\App\Enums\CompetitionPhaseType::Final->value] === null)
+                        <flux:callout variant="danger" icon="exclamation-circle" :heading="__('No se pueden repartir 2 clasificados en partes iguales entre las tablas actuales.')" />
+                    @else
+                        <flux:callout variant="secondary" icon="information-circle" :heading="trans_choice('Clasifica :count equipo de cada tabla, automáticamente (2 en total).|Clasifican :count equipos de cada tabla, automáticamente (2 en total).', $fixedPerTable[\App\Enums\CompetitionPhaseType::Final->value], ['count' => $fixedPerTable[\App\Enums\CompetitionPhaseType::Final->value]])" />
+                    @endif
                 </div>
 
                 <flux:text class="text-sm text-zinc-500">

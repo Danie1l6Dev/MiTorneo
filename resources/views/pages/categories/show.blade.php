@@ -164,14 +164,19 @@
             <div class="flex items-center justify-between">
                 <flux:heading size="lg">{{ __('Fases') }}</flux:heading>
 
-                <flux:button :href="route('categories.phases.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
-                    {{ __('Nueva fase') }}
-                </flux:button>
+                @if ($category->competitionPhases->isEmpty())
+                    <flux:button :href="route('categories.phases.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
+                        {{ __('Nueva fase') }}
+                    </flux:button>
+                @endif
             </div>
 
             @if ($category->competitionPhases->isEmpty())
                 <x-ui.empty-state icon="calendar-days" :message="__('Todavía no hay fases definidas.')" />
             @else
+                <flux:text class="text-sm text-zinc-500">
+                    {{ __('Las siguientes fases se crean desde una fase de liga ya finalizada, definiendo sus clasificados.') }}
+                </flux:text>
                 <div class="flex flex-wrap justify-center gap-4">
                     @foreach ($category->competitionPhases->sortBy('order') as $phase)
                         <x-ui.entity-card
