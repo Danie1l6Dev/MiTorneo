@@ -1,12 +1,19 @@
-# --- Stage 1: build frontend assets ---
+# --- Stage 1: install PHP dependencies (needed by both the asset build and the app) ---
+FROM composer:2 AS vendor
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --prefer-dist --ignore-platform-reqs
+
+# --- Stage 2: build frontend assets ---
 FROM node:22-slim AS node-build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+COPY --from=vendor /app/vendor ./vendor
 RUN npm run build
 
-# --- Stage 2: PHP application ---
+# --- Stage 3: PHP application ---
 FROM php:8.4-cli-alpine AS app
 WORKDIR /var/www/html
 
@@ -19,9 +26,7 @@ RUN apk add --no-cache \
     && docker-php-ext-install pdo_mysql mbstring zip gd bcmath
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
-
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
+COPY --from=vendor /app/vendor ./vendor
 
 COPY . .
 COPY --from=node-build /app/public/build ./public/build
