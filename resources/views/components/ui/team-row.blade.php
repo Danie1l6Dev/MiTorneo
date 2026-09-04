@@ -1,7 +1,7 @@
 @props(['team'])
 
 <div {{ $attributes->class('flex items-center justify-between gap-3 px-4 py-3') }}>
-    <div class="flex min-w-0 items-center gap-3">
+    <a href="{{ route('teams.show', $team) }}" wire:navigate class="flex min-w-0 flex-1 items-center gap-3">
         <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-content/15 text-xs font-bold uppercase text-accent-content">
             {{ \Illuminate\Support\Str::substr($team->short_name ?: $team->name, 0, 2) }}
         </div>
@@ -13,7 +13,7 @@
                 <div class="truncate text-xs text-zinc-500 dark:text-white/50">{{ $team->short_name }}</div>
             @endif
         </div>
-    </div>
+    </a>
 
     <div class="flex shrink-0 items-center gap-1">
         {{ $actions ?? '' }}

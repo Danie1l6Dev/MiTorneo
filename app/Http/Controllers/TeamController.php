@@ -23,6 +23,22 @@ class TeamController extends Controller
         return view('pages.teams.create', compact('category', 'lockedGroup'));
     }
 
+    public function show(Team $team): View
+    {
+        $this->authorize('view', $team);
+
+        $team->load([
+            'category',
+            'group',
+            'coach',
+            'players' => fn ($query) => $query->orderByDesc('is_active')->orderBy('jersey_number'),
+        ]);
+
+        $activePlayersCount = $team->players->where('is_active', true)->count();
+
+        return view('pages.teams.show', compact('team', 'activePlayersCount'));
+    }
+
     public function store(TeamRequest $request, Category $category): RedirectResponse
     {
         $this->authorize('create', [Team::class, $category]);

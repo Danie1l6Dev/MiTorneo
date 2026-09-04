@@ -1,12 +1,14 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CoachController;
 use App\Http\Controllers\CompetitionPhaseController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchResultController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
+use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -32,7 +34,29 @@ Route::middleware(['auth'])->group(function () {
 
     Route::resource('categories.teams', TeamController::class)
         ->shallow()
-        ->except(['index', 'show']);
+        ->except(['index']);
+
+    Route::resource('teams.players', PlayerController::class)
+        ->shallow()
+        ->except(['index', 'show', 'destroy']);
+
+    Route::patch('players/{player}/toggle-active', [PlayerController::class, 'toggleActive'])
+        ->name('players.toggle-active');
+
+    Route::get('teams/{team}/coach/create', [CoachController::class, 'create'])
+        ->name('teams.coach.create');
+
+    Route::post('teams/{team}/coach', [CoachController::class, 'store'])
+        ->name('teams.coach.store');
+
+    Route::get('coaches/{coach}/edit', [CoachController::class, 'edit'])
+        ->name('coaches.edit');
+
+    Route::put('coaches/{coach}', [CoachController::class, 'update'])
+        ->name('coaches.update');
+
+    Route::patch('coaches/{coach}/toggle-active', [CoachController::class, 'toggleActive'])
+        ->name('coaches.toggle-active');
 
     Route::resource('phases.matches', TournamentMatchController::class)
         ->shallow()

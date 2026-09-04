@@ -210,11 +210,37 @@ class DatabaseSeeder extends Seeder
 
     private function createTeam(Category $category, Tournament $tournament, string $name, ?Group $group = null): Team
     {
-        return $category->teams()->forceCreate([
+        $team = $category->teams()->forceCreate([
             'tournament_id' => $tournament->id,
             'group_id' => $group?->id,
             'name' => $name,
         ]);
+
+        $this->seedPlayersForTeam($team);
+
+        return $team;
+    }
+
+    /**
+     * A realistic-sized squad (14-18 players) with sequential jersey numbers
+     * (1..N, guaranteed unique within the team) so every team this seeder
+     * creates is immediately ready to explore the roster feature, instead of
+     * registering players by hand. Jersey numbers are assigned directly
+     * rather than via PlayerFactory's own random draw: that draw is unique
+     * per Faker instance across the *whole* seeder run, and would exhaust
+     * its 1-99 pool well before all ~20 teams are seeded.
+     */
+    private function seedPlayersForTeam(Team $team): void
+    {
+        $squadSize = random_int(14, 18);
+
+        for ($jerseyNumber = 1; $jerseyNumber <= $squadSize; $jerseyNumber++) {
+            $team->players()->create([
+                'full_name' => fake()->name(),
+                'document_number' => (string) fake()->unique()->numberBetween(10_000_000, 99_999_999),
+                'jersey_number' => $jerseyNumber,
+            ]);
+        }
     }
 
     /**
