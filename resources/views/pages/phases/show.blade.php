@@ -54,7 +54,7 @@
             {{-- Landing back on 'calendario' after registering a match result (see MatchResultController's
                  #calendario redirect) beats always resetting to the table, since that's usually where the
                  user wants to keep going -- e.g. to register the next match's result. --}}
-            <div x-data="{ section: window.location.hash === '#calendario' ? 'calendario' : 'tabla' }">
+            <div x-data="{ section: window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla' }">
                 {{-- Selector de sección: en el futuro puede sumarse aquí una pestaña de estadísticas (goleadores, asistencias, tarjetas). --}}
                 <x-ui.section-tabs :tabs="[
                     ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
@@ -66,7 +66,19 @@
                 x-cloak
                 class="mt-4 space-y-4"
                 x-data="{
-                    activeGroup: 0,
+                    // MatchResultController redirects back with the group id
+                    // in the hash (e.g. #calendario-grupo-4) so registering a
+                    // result lands back on that same group's tab instead of
+                    // always resetting to the first one.
+                    activeGroup: (() => {
+                        const match = window.location.hash.match(/^#calendario-grupo-(\d+)$/);
+
+                        if (! match) return 0;
+
+                        const index = {{ \Illuminate\Support\Js::from($schedules->pluck('schedule.group.id')->values()) }}.indexOf(parseInt(match[1], 10));
+
+                        return index === -1 ? 0 : index;
+                    })(),
                     startRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
                     currentRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
                 }"

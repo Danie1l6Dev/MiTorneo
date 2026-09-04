@@ -38,7 +38,16 @@ class MatchResultController extends Controller
 
         $bracketService->resolveWinner($match);
 
-        return redirect(route('phases.show', $match->competitionPhase).($isKnockoutMatch ? '#cuadro' : '#calendario'))
+        // Land back on the same group's calendar tab, not just the calendar
+        // section in general -- otherwise registering results one after
+        // another for group B keeps bouncing the view back to group A.
+        $hash = match (true) {
+            $isKnockoutMatch => '#cuadro',
+            $match->group_id !== null => "#calendario-grupo-{$match->group_id}",
+            default => '#calendario',
+        };
+
+        return redirect(route('phases.show', $match->competitionPhase).$hash)
             ->with('status', __('Resultado registrado correctamente.'));
     }
 }
