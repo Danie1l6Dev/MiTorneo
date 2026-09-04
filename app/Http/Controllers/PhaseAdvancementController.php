@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\DrawMethod;
 use App\Http\Requests\AdvancePhaseRequest;
 use App\Models\CompetitionPhase;
 use App\Services\KnockoutBracketService;
@@ -76,7 +77,9 @@ class PhaseAdvancementController extends Controller
             abort(422);
         }
 
-        $qualifiers = $standingsService->topQualifiers($tables, $perTable);
+        $qualifiers = $isLeague
+            ? $standingsService->topQualifiers($tables, $perTable)
+            : $standingsService->seedQualifiers($tables, $perTable, DrawMethod::from($request->validated('draw_method')));
 
         $newPhase = DB::transaction(function () use ($phase, $request, $type, $qualifiers, $isLeague, $bracketService): CompetitionPhase {
             $newPhase = new CompetitionPhase;
@@ -104,9 +107,11 @@ class PhaseAdvancementController extends Controller
 
         // Flag a single-use flash so the destination page can play the live
         // draw reveal animation once, using the matches this request just
-        // created, instead of showing them instantly.
+        // created, instead of showing them instantly. The source phase's id
+        // travels along so the reveal can also render the standings tables
+        // the qualifiers came from.
         if (! $isLeague) {
-            $redirect->with('drawReveal', true);
+            $redirect->with('drawReveal', $phase->id);
         }
 
         return $redirect;

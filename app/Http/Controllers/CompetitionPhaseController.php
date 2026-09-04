@@ -64,7 +64,9 @@ class CompetitionPhaseController extends Controller
             $phase->save();
 
             if ($type !== CompetitionPhaseType::League) {
-                $bracketService->generateBracket($phase, $category->teams);
+                // No standings to seed by yet -- a category's first phase is
+                // drawn straight from its team list, so this is always random.
+                $bracketService->generateBracket($phase, $category->teams->shuffle());
             }
 
             return $phase;
@@ -138,9 +140,24 @@ class CompetitionPhaseController extends Controller
 
         $canDeclareChampion = $eligibilityService->canDeclareChampion($phase, $tableCount);
 
+        $drawReveal = null;
+
+        // The flash is either an int (the league phase the qualifiers came
+        // from, so its standings tables can be shown alongside the reveal)
+        // or plain `true` (a category's first phase, drawn straight from its
+        // team list -- there's no standings table to show for that).
+        if ($rawDrawReveal = session('drawReveal')) {
+            $sourcePhase = is_int($rawDrawReveal) ? CompetitionPhase::find($rawDrawReveal) : null;
+
+            $drawReveal = [
+                'matches' => $phase->matches()->where('round_number', 1)->with(['homeTeam', 'awayTeam'])->orderBy('id')->get(),
+                'tables' => $sourcePhase ? $standingsService->tablesForPhase($sourcePhase) : [],
+            ];
+        }
+
         return view('pages.phases.show', compact(
             'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize',
-            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion'
+            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal'
         ));
     }
 
