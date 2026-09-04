@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tournaments;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\DrawMethod;
 use App\Enums\MatchStatus;
 use App\Enums\ScheduleFormat;
 use App\Models\Category;
@@ -47,6 +48,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -90,6 +92,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 3,
         ]);
 
@@ -144,6 +147,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 2,
         ]);
 
@@ -178,6 +182,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 5,
         ]);
 
@@ -204,6 +209,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Semifinal->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
@@ -232,6 +238,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Final',
             'type' => CompetitionPhaseType::Final->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
@@ -254,6 +261,7 @@ class PhaseAdvancementTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ])->assertRedirect();
 
@@ -269,6 +277,7 @@ class PhaseAdvancementTest extends TestCase
         $storeResponse = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Otra eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -282,6 +291,7 @@ class PhaseAdvancementTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Otra eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ])->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'Otra eliminatoria')->firstOrFail()));
     }
@@ -298,6 +308,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Semifinal->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 2,
         ]);
 
@@ -321,6 +332,7 @@ class PhaseAdvancementTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Semifinal->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $response->assertSessionHasErrors('qualifiers_per_table');
@@ -342,6 +354,7 @@ class PhaseAdvancementTest extends TestCase
         $this->actingAs($intruder)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 2,
         ])->assertForbidden();
     }
@@ -394,5 +407,69 @@ class PhaseAdvancementTest extends TestCase
         $standings = $response->viewData('standings');
         $this->assertCount(1, $standings);
         $this->assertCount(4, $standings[0]['rows']);
+    }
+
+    public function test_seeded_draw_pairs_the_best_qualifier_against_the_worst(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['name' => 'Fase de Liga', 'type' => CompetitionPhaseType::League, 'order' => 0]);
+        $teams = Team::factory()->for($tournament)->for($category)->count(4)->create();
+        [$first, $second, $third, $fourth] = $teams->all();
+
+        // First: 3 wins (9 pts). Second: 2 wins (6 pts). Third: 1 win (3 pts). Fourth: 0 wins.
+        $this->finishedMatch($phase, $first, $second);
+        $this->finishedMatch($phase, $first, $third);
+        $this->finishedMatch($phase, $first, $fourth);
+        $this->finishedMatch($phase, $second, $third);
+        $this->finishedMatch($phase, $second, $fourth);
+        $this->finishedMatch($phase, $third, $fourth);
+
+        $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+            'name' => 'Semifinales',
+            'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Seeded->value,
+            'qualifiers_per_table' => 4,
+        ]);
+
+        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $round1 = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
+
+        $this->assertSame([$first->id, $fourth->id], [$round1[0]->home_team_id, $round1[0]->away_team_id]);
+        $this->assertSame([$second->id, $third->id], [$round1[1]->home_team_id, $round1[1]->away_team_id]);
+    }
+
+    public function test_seeded_draw_crosses_the_best_of_one_group_with_the_worst_of_the_other(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => true]);
+        $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['name' => 'Fase de Liga', 'type' => CompetitionPhaseType::League, 'order' => 0]);
+        $groupA = Group::factory()->for($tournament)->for($category)->create(['name' => 'Grupo A']);
+        $groupB = Group::factory()->for($tournament)->for($category)->create(['name' => 'Grupo B']);
+        $teamsA = Team::factory()->for($tournament)->for($category)->for($groupA)->count(2)->create();
+        $teamsB = Team::factory()->for($tournament)->for($category)->for($groupB)->count(2)->create();
+        [$a1, $a2] = $teamsA->all();
+        [$b1, $b2] = $teamsB->all();
+
+        $this->finishedMatch($phase, $a1, $a2, $groupA);
+        $this->finishedMatch($phase, $b1, $b2, $groupB);
+
+        $this->actingAs($user)->post(route('phases.advance.store', $phase), [
+            'name' => 'Semifinales',
+            'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Seeded->value,
+            'qualifiers_per_table' => 2,
+        ]);
+
+        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $round1 = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
+
+        // Group A's winner (a1) against group B's runner-up (b2), and
+        // group B's winner (b1) against group A's runner-up (a2) -- neither
+        // match pits two teams from the same group against each other.
+        $this->assertSame([$a1->id, $b2->id], [$round1[0]->home_team_id, $round1[0]->away_team_id]);
+        $this->assertSame([$a2->id, $b1->id], [$round1[1]->home_team_id, $round1[1]->away_team_id]);
     }
 }

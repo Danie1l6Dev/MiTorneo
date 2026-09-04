@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tournaments;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\DrawMethod;
 use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
@@ -53,6 +54,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Cuartos',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 8,
         ]);
 
@@ -90,6 +92,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -144,6 +147,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -185,6 +189,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -369,6 +374,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -399,6 +405,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Final',
             'type' => CompetitionPhaseType::Final->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
@@ -455,6 +462,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 
@@ -521,6 +529,7 @@ class KnockoutBracketProgressionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
 

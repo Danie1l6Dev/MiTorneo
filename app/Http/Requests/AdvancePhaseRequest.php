@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\DrawMethod;
 use App\Models\CompetitionPhase;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
@@ -33,6 +34,7 @@ class AdvancePhaseRequest extends FormRequest
     {
         $type = CompetitionPhaseType::tryFrom((string) $this->input('type'));
         $requiresCount = $type !== null && in_array($type, self::TYPES_REQUIRING_QUALIFIER_COUNT, true);
+        $isLeague = $type === CompetitionPhaseType::League;
 
         return [
             'name' => ['required', 'string', 'max:255'],
@@ -41,6 +43,10 @@ class AdvancePhaseRequest extends FormRequest
                 $requiresCount ? 'required' : 'prohibited',
                 'integer',
                 'min:1',
+            ],
+            'draw_method' => [
+                $isLeague ? 'prohibited' : 'required',
+                Rule::enum(DrawMethod::class),
             ],
         ];
     }
@@ -55,6 +61,8 @@ class AdvancePhaseRequest extends FormRequest
             'qualifiers_per_table.required' => __('Indica cuántos equipos clasifican de cada tabla.'),
             'qualifiers_per_table.integer' => __('La cantidad de equipos que clasifican debe ser un número entero.'),
             'qualifiers_per_table.min' => __('Debe clasificar al menos 1 equipo por tabla.'),
+            'draw_method.prohibited' => __('Una fase de liga no tiene sorteo de cruces; no envíes este campo.'),
+            'draw_method.required' => __('Indica cómo se sortearán los cruces.'),
         ];
     }
 

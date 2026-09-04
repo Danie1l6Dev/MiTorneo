@@ -1,8 +1,9 @@
 <x-layouts::app :title="$phase->name">
-    @if (session('drawReveal'))
+    @if ($drawReveal)
         @include('pages.phases._draw-reveal', [
             'phase' => $phase,
-            'matches' => $phase->matches()->where('round_number', 1)->with(['homeTeam', 'awayTeam'])->orderBy('id')->get(),
+            'matches' => $drawReveal['matches'],
+            'tables' => $drawReveal['tables'],
         ])
     @endif
 

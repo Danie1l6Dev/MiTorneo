@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tournaments;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\DrawMethod;
 use App\Enums\MatchStatus;
 use App\Enums\ScheduleFormat;
 use App\Models\Category;
@@ -121,6 +122,7 @@ class PhaseChampionTest extends TestCase
         $advanceResponse = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 2,
         ]);
         $advanceResponse->assertRedirect(route('phases.show', $phase));
@@ -169,6 +171,7 @@ class PhaseChampionTest extends TestCase
         $knockoutResponse = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
         $knockoutResponse->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'Eliminatoria')->firstOrFail()));
@@ -245,6 +248,7 @@ class PhaseChampionTest extends TestCase
         $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
         $nextPhase = CompetitionPhase::where('name', 'Eliminatoria')->firstOrFail();

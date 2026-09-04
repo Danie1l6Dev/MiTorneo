@@ -99,8 +99,32 @@
                     @endif
                 </div>
 
+                <template x-if="type !== '{{ \App\Enums\CompetitionPhaseType::League->value }}'">
+                    <div class="space-y-1.5">
+                        {{--
+                            A league phase submits no draw_method at all (the
+                            server rejects it if present), so this has to be
+                            removed from the DOM -- not just hidden -- when
+                            "Liga" is picked: Flux's radio is a form-associated
+                            custom element, and x-show + x-bind:disabled left
+                            its hidden internal input still submitting its
+                            last-checked value.
+                        --}}
+                        <flux:radio.group name="draw_method" label="{{ __('¿Cómo se sortean los cruces?') }}">
+                            @foreach (\App\Enums\DrawMethod::cases() as $method)
+                                <flux:radio
+                                    value="{{ $method->value }}"
+                                    label="{{ $method->label() }}"
+                                    description="{{ $method->description() }}"
+                                    :checked="old('draw_method', \App\Enums\DrawMethod::Random->value) === $method->value"
+                                />
+                            @endforeach
+                        </flux:radio.group>
+                    </div>
+                </template>
+
                 <flux:text class="text-sm text-zinc-500">
-                    {{ __('Si eliges eliminación directa, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) y los cruces se sortearán al azar entre todos los clasificados, sin importar de qué grupo vengan. Si eliges liga, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
+                    {{ __('Si eliges eliminación directa, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...). Si eliges liga, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
                 </flux:text>
 
                 <flux:button type="submit" variant="primary">{{ __('Continuar') }}</flux:button>

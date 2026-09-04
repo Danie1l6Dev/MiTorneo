@@ -15,9 +15,11 @@ class KnockoutBracketService
 {
     /**
      * Build a full single-elimination bracket for a knockout-style phase: a
-     * live draw randomly pairs every qualifier for round 1, and every round
-     * after that, up to the final, is pre-created with its two sides left
-     * pending -- each wired to "the winner of" a round-1 match via a
+     * live draw pairs every qualifier for round 1 in the order given (index 0
+     * vs 1, 2 vs 3, ...) -- the caller decides that order (random shuffle or
+     * seeded by standings, see StandingsService::seedQualifiers) -- and every
+     * round after that, up to the final, is pre-created with its two sides
+     * left pending -- each wired to "the winner of" a round-1 match via a
      * MatchParticipant -- so the bracket already exists end to end instead of
      * being built one round at a time.
      *
@@ -26,7 +28,6 @@ class KnockoutBracketService
     public function generateBracket(CompetitionPhase $phase, Collection $qualifiers): void
     {
         $pool = $qualifiers->all();
-        shuffle($pool);
 
         $previousRound = collect();
 

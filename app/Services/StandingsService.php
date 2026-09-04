@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\DrawMethod;
 use App\Enums\MatchStatus;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
@@ -66,6 +67,62 @@ class StandingsService
         }
 
         return collect($teams);
+    }
+
+    /**
+     * Order the qualifiers for a knockout draw's round 1, according to the
+     * chosen method -- the result is meant to be consumed two at a time (index
+     * 0 vs 1, 2 vs 3, ...), each pair being one round-1 match.
+     *
+     * Random just shuffles the flat pool. Seeded pairs the best qualifier
+     * against the worst, the second-best against the second-worst, and so on
+     * -- within a single table when only one feeds the draw, or across each
+     * pair of tables (taken in their given order, so e.g. group A pairs with
+     * group B, group C with group D) when two or more do, so that a table's
+     * own qualifiers never face each other in the first round. A lone
+     * leftover table (only possible when just one table feeds the draw, since
+     * every other case is guaranteed an even table count -- an odd one could
+     * never produce a qualifier total that's a power of two) falls back to
+     * seeding within itself.
+     *
+     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>  $tables
+     * @return Collection<int, Team>
+     */
+    public function seedQualifiers(array $tables, int $perTable, DrawMethod $method): Collection
+    {
+        $tablesWithTeams = collect($tables)->filter(fn (array $table): bool => count($table['rows']) > 0)->values();
+
+        if ($method === DrawMethod::Random) {
+            $pool = $this->topQualifiers($tablesWithTeams->all(), $perTable)->all();
+            shuffle($pool);
+
+            return collect($pool);
+        }
+
+        $ordered = collect();
+
+        foreach ($tablesWithTeams->chunk(2) as $pair) {
+            if ($pair->count() === 2) {
+                [$first, $second] = $pair->values()->all();
+                $bestFirst = array_slice($first['rows'], 0, $perTable);
+                $bestSecond = array_slice($second['rows'], 0, $perTable);
+
+                for ($i = 0; $i < $perTable; $i++) {
+                    $ordered->push($bestFirst[$i]['team']);
+                    $ordered->push($bestSecond[$perTable - 1 - $i]['team']);
+                }
+            } else {
+                $rows = array_slice($pair->first()['rows'], 0, $perTable);
+                $count = count($rows);
+
+                for ($i = 0; $i < intdiv($count, 2); $i++) {
+                    $ordered->push($rows[$i]['team']);
+                    $ordered->push($rows[$count - 1 - $i]['team']);
+                }
+            }
+        }
+
+        return $ordered;
     }
 
     /**

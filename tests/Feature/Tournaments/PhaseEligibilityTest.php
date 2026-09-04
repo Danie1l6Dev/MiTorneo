@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tournaments;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\DrawMethod;
 use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
@@ -41,6 +42,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('categories.phases.store', $category), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $response->assertSessionHasErrors('type');
@@ -57,6 +59,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('categories.phases.store', $category), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $response->assertSessionHasErrors('type');
@@ -73,6 +76,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('categories.phases.store', $category), [
             'name' => 'Eliminatoria',
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $phase = CompetitionPhase::where('name', 'Eliminatoria')->firstOrFail();
@@ -119,6 +123,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->put(route('phases.update', $phase), [
             'name' => $phase->name,
             'type' => CompetitionPhaseType::Knockout->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $response->assertSessionHasErrors('type');
@@ -162,6 +167,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Semifinal->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
@@ -184,6 +190,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Final',
             'type' => CompetitionPhaseType::Final->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
@@ -209,6 +216,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Semifinal->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $response->assertSessionHasErrors('qualifiers_per_table');
@@ -236,6 +244,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',
             'type' => CompetitionPhaseType::Semifinal->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
@@ -265,6 +274,7 @@ class PhaseEligibilityTest extends TestCase
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Final',
             'type' => CompetitionPhaseType::Final->value,
+            'draw_method' => DrawMethod::Random->value,
         ]);
 
         $response->assertSessionHasErrors('qualifiers_per_table');

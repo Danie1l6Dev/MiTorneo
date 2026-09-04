@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Services;
 
+use App\Enums\DrawMethod;
 use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\Team;
@@ -216,5 +217,69 @@ class StandingsServiceTest extends TestCase
         ]));
 
         $this->assertCount(4, $rows);
+    }
+
+    /**
+     * @param  Collection<int, Team>  $teams  already in rank order, best first
+     * @return array<int, array{team: Team}>
+     */
+    private function ranked(Collection $teams): array
+    {
+        return $teams->map(fn (Team $team): array => ['team' => $team])->all();
+    }
+
+    public function test_seeded_draw_from_a_single_table_pairs_the_best_against_the_worst(): void
+    {
+        $teams = $this->makeTeams(4);
+        [$first, $second, $third, $fourth] = $teams->all();
+
+        $tables = [['label' => 'Liga', 'rows' => $this->ranked($teams)]];
+
+        $ordered = $this->service->seedQualifiers($tables, 4, DrawMethod::Seeded);
+
+        $this->assertSame([$first->id, $fourth->id, $second->id, $third->id], $ordered->pluck('id')->all());
+    }
+
+    public function test_seeded_draw_from_two_tables_crosses_the_best_of_one_with_the_worst_of_the_other(): void
+    {
+        $groupA = $this->makeTeams(2);
+        $groupB = $this->makeTeams(2);
+        [$a1, $a2] = $groupA->all();
+        [$b1, $b2] = $groupB->all();
+
+        $tables = [
+            ['label' => 'Grupo A', 'rows' => $this->ranked($groupA)],
+            ['label' => 'Grupo B', 'rows' => $this->ranked($groupB)],
+        ];
+
+        $ordered = $this->service->seedQualifiers($tables, 2, DrawMethod::Seeded);
+
+        // A's best vs B's worst, then A's worst vs B's best.
+        $this->assertSame([$a1->id, $b2->id, $a2->id, $b1->id], $ordered->pluck('id')->all());
+    }
+
+    public function test_seeded_draw_only_takes_the_qualifying_rows_per_table(): void
+    {
+        $teams = $this->makeTeams(3);
+        [$first, $second, $third] = $teams->all();
+
+        $tables = [['label' => 'Liga', 'rows' => $this->ranked($teams)]];
+
+        $ordered = $this->service->seedQualifiers($tables, 2, DrawMethod::Seeded);
+
+        // Only the top 2 qualify: the 3rd-place team must not appear at all.
+        $this->assertSame([$first->id, $second->id], $ordered->pluck('id')->all());
+        $this->assertNotContains($third->id, $ordered->pluck('id')->all());
+    }
+
+    public function test_random_draw_includes_every_qualifier_exactly_once(): void
+    {
+        $teams = $this->makeTeams(4);
+
+        $tables = [['label' => 'Liga', 'rows' => $this->ranked($teams)]];
+
+        $ordered = $this->service->seedQualifiers($tables, 4, DrawMethod::Random);
+
+        $this->assertEqualsCanonicalizing($teams->pluck('id')->all(), $ordered->pluck('id')->all());
     }
 }
