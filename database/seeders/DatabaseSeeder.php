@@ -217,6 +217,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->seedPlayersForTeam($team);
+        $this->seedCoachForTeam($team);
 
         return $team;
     }
@@ -241,6 +242,18 @@ class DatabaseSeeder extends Seeder
                 'jersey_number' => $jerseyNumber,
             ]);
         }
+    }
+
+    /**
+     * One active head coach per team, so the DT card/quick-add row is
+     * immediately populated instead of showing "No registrado" everywhere.
+     */
+    private function seedCoachForTeam(Team $team): void
+    {
+        $team->coaches()->create([
+            'full_name' => fake()->name(),
+            'document_number' => (string) fake()->unique()->numberBetween(10_000_000, 99_999_999),
+        ]);
     }
 
     /**

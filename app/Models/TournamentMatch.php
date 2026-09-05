@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MatchEventType;
 use App\Enums\MatchParticipantSide;
 use App\Enums\MatchStatus;
 use Database\Factories\TournamentMatchFactory;
@@ -167,5 +168,52 @@ class TournamentMatch extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Every event (goal, assist, yellow/red card) recorded for this match,
+     * for either team. These are a complementary, informational record --
+     * they never feed back into home_score/away_score, which remain the
+     * only source of truth for the result, standings, and bracket
+     * progression. See goals()/assists()/yellowCards()/redCards() to scope
+     * to one type.
+     *
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(MatchEvent::class, 'match_id');
+    }
+
+    /**
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function goals(): HasMany
+    {
+        return $this->events()->where('type', MatchEventType::Goal);
+    }
+
+    /**
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function assists(): HasMany
+    {
+        return $this->events()->where('type', MatchEventType::Assist);
+    }
+
+    /**
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function yellowCards(): HasMany
+    {
+        return $this->events()->where('type', MatchEventType::YellowCard);
+    }
+
+    /**
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function redCards(): HasMany
+    {
+        return $this->events()->where('type', MatchEventType::RedCard);
     }
 }

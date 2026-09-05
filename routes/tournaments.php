@@ -5,6 +5,7 @@ use App\Http\Controllers\CoachController;
 use App\Http\Controllers\CompetitionPhaseController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
+use App\Http\Controllers\MatchEventController;
 use App\Http\Controllers\MatchResultController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
@@ -61,6 +62,17 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('phases.matches', TournamentMatchController::class)
         ->shallow()
         ->only(['edit', 'update', 'destroy']);
+
+    // No edit/update -- events are intentionally not editable in place; a
+    // user who wants a different type/subject deletes the event and
+    // registers the correct one, so there's only ever one path (creation)
+    // that has to stay consistent with the goal/assist/card rules below.
+    Route::resource('matches.events', MatchEventController::class)
+        ->shallow()
+        ->except(['index', 'show', 'edit', 'update']);
+
+    Route::post('matches/{match}/events/batch', [MatchEventController::class, 'storeBatch'])
+        ->name('matches.events.batch-store');
 
     Route::post('phases/{phase}/schedule', [LeagueScheduleController::class, 'store'])
         ->name('phases.schedule.store');

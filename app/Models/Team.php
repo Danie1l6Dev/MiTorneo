@@ -97,4 +97,14 @@ class Team extends Model
     {
         return $this->hasOne(Coach::class)->where('is_active', true);
     }
+
+    /**
+     * Every match event recorded for this team's players, across every match.
+     *
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(MatchEvent::class);
+    }
 }

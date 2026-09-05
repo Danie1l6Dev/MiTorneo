@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\MatchEventType;
 use Database\Factories\CoachFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -44,5 +46,32 @@ class Coach extends Model
     public function team(): BelongsTo
     {
         return $this->belongsTo(Team::class);
+    }
+
+    /**
+     * Match events this coach was shown -- only ever cards (yellow/red): a
+     * coach never scores a goal or gives an assist.
+     *
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function events(): HasMany
+    {
+        return $this->hasMany(MatchEvent::class);
+    }
+
+    /**
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function yellowCards(): HasMany
+    {
+        return $this->events()->where('type', MatchEventType::YellowCard);
+    }
+
+    /**
+     * @return HasMany<MatchEvent, $this>
+     */
+    public function redCards(): HasMany
+    {
+        return $this->events()->where('type', MatchEventType::RedCard);
     }
 }

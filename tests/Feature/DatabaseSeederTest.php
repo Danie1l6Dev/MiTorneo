@@ -23,4 +23,17 @@ class DatabaseSeederTest extends TestCase
             $this->assertGreaterThanOrEqual(14, $team->players_count, "Team [{$team->name}] has too few players.");
         }
     }
+
+    public function test_every_seeded_team_has_an_active_coach(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $teams = Team::query()->get();
+
+        $this->assertGreaterThan(0, $teams->count());
+
+        foreach ($teams as $team) {
+            $this->assertNotNull($team->coach, "Team [{$team->name}] has no active coach.");
+        }
+    }
 }
