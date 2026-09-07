@@ -3,18 +3,22 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
+use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
 use App\Enums\ScheduleFormat;
+use App\Enums\StatisticsPhaseScope;
 use App\Http\Requests\CompetitionPhaseRequest;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\LeagueSchedule;
 use App\Models\Team;
 use App\Models\TournamentMatch;
+use App\Services\CompetitionStatisticsService;
 use App\Services\KnockoutBracketService;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -100,11 +104,17 @@ class CompetitionPhaseController extends Controller
         return null;
     }
 
-    public function show(CompetitionPhase $phase, StandingsService $standingsService, PhaseEligibilityService $eligibilityService): View
-    {
+    public function show(
+        Request $request,
+        CompetitionPhase $phase,
+        StandingsService $standingsService,
+        PhaseEligibilityService $eligibilityService,
+        CompetitionStatisticsService $statisticsService,
+    ): View {
         $this->authorize('view', $phase);
 
         $category = $phase->category;
+        $category->load('groups');
 
         $schedules = $phase->leagueSchedules()
             ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam', 'matches.goals'])
@@ -155,9 +165,42 @@ class CompetitionPhaseController extends Controller
             ];
         }
 
+        // Player statistics (goleadores/asistidores/amarillas/rojas) are
+        // reached from this same tab bar (see section-tabs in the view), but
+        // -- unlike the table/calendar it sits beside -- always reflect the
+        // whole category, not just this one phase: "toda la competición"
+        // wouldn't mean anything scoped to a single phase. Only offered on a
+        // league-type phase's page, matching where the tab bar itself
+        // already lives.
+        $statistics = null;
+
+        if ($phase->type === CompetitionPhaseType::League) {
+            $activeStatType = MatchEventType::tryFrom((string) $request->query('view'));
+
+            if ($activeStatType !== null) {
+                // Never a raw Group::find() -- resolving through the
+                // category's own relation makes a group id from another
+                // category simply not match anything, instead of needing a
+                // separate ownership check.
+                $activeGroup = $category->uses_groups
+                    ? $category->groups->firstWhere('id', $request->integer('group'))
+                    : null;
+
+                $activePhaseScope = StatisticsPhaseScope::tryFrom((string) $request->query('phase'))
+                    ?? StatisticsPhaseScope::League;
+
+                $statistics = [
+                    'type' => $activeStatType,
+                    'group' => $activeGroup,
+                    'phaseScope' => $activePhaseScope,
+                    'rows' => $statisticsService->leaderboard($category, $activeStatType, $activeGroup, $activePhaseScope),
+                ];
+            }
+        }
+
         return view('pages.phases.show', compact(
             'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize',
-            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal'
+            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal', 'statistics'
         ));
     }
 

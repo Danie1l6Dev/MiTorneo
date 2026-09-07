@@ -77,4 +77,49 @@ enum MatchEventType: string
             self::RedCard => 'text-red-500',
         };
     }
+
+    /**
+     * The plural noun for a competition-wide leaderboard row's count (e.g.
+     * "8 goles") -- a separate method from label() because label() is
+     * singular and used for a single event ("Gol"), while a leaderboard
+     * count is always plural and needs its own gender agreement ("goles
+     * registrados" vs "asistencias registradas").
+     */
+    public function statisticNoun(): string
+    {
+        return match ($this) {
+            self::Goal => 'goles',
+            self::Assist => 'asistencias',
+            self::YellowCard => 'amarillas',
+            self::RedCard => 'rojas',
+        };
+    }
+
+    /**
+     * Heading for a category's leaderboard of this type (e.g. "Goleadores").
+     */
+    public function leaderboardTitle(): string
+    {
+        return match ($this) {
+            self::Goal => 'Goleadores',
+            self::Assist => 'Asistidores',
+            self::YellowCard => 'Tarjetas amarillas',
+            self::RedCard => 'Tarjetas rojas',
+        };
+    }
+
+    /**
+     * Empty-state copy for a leaderboard with no matching rows yet -- written
+     * out per type instead of interpolated from statisticNoun() so Spanish
+     * gender agreement ("registrados" vs "registradas") stays correct.
+     */
+    public function emptyStatisticsMessage(): string
+    {
+        return match ($this) {
+            self::Goal => 'Ningún jugador tiene goles registrados para este filtro.',
+            self::Assist => 'Ningún jugador tiene asistencias registradas para este filtro.',
+            self::YellowCard => 'Ningún jugador tiene tarjetas amarillas registradas para este filtro.',
+            self::RedCard => 'Ningún jugador tiene tarjetas rojas registradas para este filtro.',
+        };
+    }
 }
