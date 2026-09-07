@@ -259,15 +259,15 @@
                             @csrf
                             @method('PATCH')
 
-                            <div class="flex flex-wrap items-end justify-center gap-4">
+                            <div class="flex flex-nowrap items-end justify-center gap-4">
                                 <flux:input
                                     name="home_score"
                                     type="number"
                                     min="0"
-                                    label="{{ $match->homeTeam->name }}"
+                                    label="{{ __('Local') }}"
                                     x-model="homeScore"
                                     error:message=""
-                                    class="w-24"
+                                    class="w-20"
                                 />
 
                                 <div class="pb-2.5 text-lg text-zinc-400 dark:text-white/30">&ndash;</div>
@@ -276,10 +276,10 @@
                                     name="away_score"
                                     type="number"
                                     min="0"
-                                    label="{{ $match->awayTeam->name }}"
+                                    label="{{ __('Visitante') }}"
                                     x-model="awayScore"
                                     error:message=""
-                                    class="w-24"
+                                    class="w-20"
                                 />
                             </div>
 
