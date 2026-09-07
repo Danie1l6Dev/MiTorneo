@@ -107,7 +107,7 @@ class CompetitionPhaseController extends Controller
         $category = $phase->category;
 
         $schedules = $phase->leagueSchedules()
-            ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam'])
+            ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam', 'matches.goals'])
             ->get()
             ->map(fn (LeagueSchedule $schedule): array => $this->buildScheduleView($schedule, $phase));
 
@@ -269,7 +269,7 @@ class CompetitionPhaseController extends Controller
     private function buildBracketRounds(CompetitionPhase $phase): array
     {
         return $phase->matches()
-            ->with(['homeTeam', 'awayTeam'])
+            ->with(['homeTeam', 'awayTeam', 'goals'])
             ->orderBy('round_number')
             ->orderBy('id')
             ->get()

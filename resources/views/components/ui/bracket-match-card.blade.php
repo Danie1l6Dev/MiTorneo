@@ -46,44 +46,58 @@
         : 'text-zinc-400 dark:text-white/40';
 @endphp
 
-<{{ $tag }}
-    @if ($href && ! $pending) href="{{ $href }}" wire:navigate @endif
-    @if ($tiebreakTitle) title="{{ $tiebreakTitle }}" @endif
-    {{ $attributes->class('hover-lift group relative block w-full overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-white/10 glass-panel ' . $cardClass . ($href && ! $pending ? ' cursor-pointer' : '')) }}
->
-    {{-- Status accent: once the match is finished, split it so the top half
-         (home) and bottom half (away) each show green for the winner, red
-         for the loser, instead of one uniform color for the whole card. --}}
-    @if ($finished && $winnerTeamId !== null)
-        <div class="absolute inset-y-0 left-0 flex w-1 flex-col">
-            <span class="h-1/2 {{ $homeWinner ? 'bg-green-500' : 'bg-red-500' }}"></span>
-            <span class="h-1/2 {{ $awayWinner ? 'bg-green-500' : 'bg-red-500' }}"></span>
+<div {{ $attributes->class('relative w-full ' . $cardClass) }}>
+    <{{ $tag }}
+        @if ($href && ! $pending) href="{{ $href }}" wire:navigate @endif
+        @if ($tiebreakTitle) title="{{ $tiebreakTitle }}" @endif
+        class="hover-lift group relative block h-full w-full overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-white/10 glass-panel {{ $href && ! $pending ? 'cursor-pointer' : '' }}"
+    >
+        {{-- Status accent: once the match is finished, split it so the top half
+             (home) and bottom half (away) each show green for the winner, red
+             for the loser, instead of one uniform color for the whole card. --}}
+        @if ($finished && $winnerTeamId !== null)
+            <div class="absolute inset-y-0 left-0 flex w-1 flex-col">
+                <span class="h-1/2 {{ $homeWinner ? 'bg-green-500' : 'bg-red-500' }}"></span>
+                <span class="h-1/2 {{ $awayWinner ? 'bg-green-500' : 'bg-red-500' }}"></span>
+            </div>
+        @else
+            <div class="absolute inset-y-0 left-0 w-1 {{ $accentBarClasses }}"></div>
+        @endif
+
+        <div class="{{ $rowClass }} flex items-center justify-between gap-2 px-3">
+            <span class="truncate {{ $textClass }} {{ $rowClasses($homeWinner) }}">
+                {{ $match->homeTeam?->name ?? __('Por definir') }}
+            </span>
+            <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($homeWinner) }}">
+                {{ $homeDisplayScore ?? '–' }}
+                @if ($wentToPenalties)
+                    <span class="text-[0.65em] font-normal opacity-70">({{ $match->home_penalty_score }})</span>
+                @endif
+            </span>
         </div>
-    @else
-        <div class="absolute inset-y-0 left-0 w-1 {{ $accentBarClasses }}"></div>
+
+        <div class="{{ $rowClass }} flex items-center justify-between gap-2 border-t border-zinc-100 px-3 dark:border-white/5">
+            <span class="truncate {{ $textClass }} {{ $rowClasses($awayWinner) }}">
+                {{ $match->awayTeam?->name ?? __('Por definir') }}
+            </span>
+            <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($awayWinner) }}">
+                {{ $awayDisplayScore ?? '–' }}
+                @if ($wentToPenalties)
+                    <span class="text-[0.65em] font-normal opacity-70">({{ $match->away_penalty_score }})</span>
+                @endif
+            </span>
+        </div>
+    </{{ $tag }}>
+
+    {{-- Sits outside the <a> on purpose -- nested inside it, hovering the
+         icon just previews the "click to open this match" affordance
+         (cursor + hover-lift) instead of a tooltip, since the whole card is
+         one big link. --}}
+    @if ($finished && $match->hasGoalMismatch())
+        <flux:tooltip :content="__('Los goles registrados como eventos no coinciden con el marcador.')">
+            <div class="absolute right-1 top-1 flex size-4 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
+                <flux:icon.exclamation-triangle variant="mini" class="size-2.5 text-amber-500 dark:text-amber-400" />
+            </div>
+        </flux:tooltip>
     @endif
-
-    <div class="{{ $rowClass }} flex items-center justify-between gap-2 px-3">
-        <span class="truncate {{ $textClass }} {{ $rowClasses($homeWinner) }}">
-            {{ $match->homeTeam?->name ?? __('Por definir') }}
-        </span>
-        <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($homeWinner) }}">
-            {{ $homeDisplayScore ?? '–' }}
-            @if ($wentToPenalties)
-                <span class="text-[0.65em] font-normal opacity-70">({{ $match->home_penalty_score }})</span>
-            @endif
-        </span>
-    </div>
-
-    <div class="{{ $rowClass }} flex items-center justify-between gap-2 border-t border-zinc-100 px-3 dark:border-white/5">
-        <span class="truncate {{ $textClass }} {{ $rowClasses($awayWinner) }}">
-            {{ $match->awayTeam?->name ?? __('Por definir') }}
-        </span>
-        <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($awayWinner) }}">
-            {{ $awayDisplayScore ?? '–' }}
-            @if ($wentToPenalties)
-                <span class="text-[0.65em] font-normal opacity-70">({{ $match->away_penalty_score }})</span>
-            @endif
-        </span>
-    </div>
-</{{ $tag }}>
+</div>

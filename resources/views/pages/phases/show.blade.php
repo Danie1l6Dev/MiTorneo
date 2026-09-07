@@ -133,56 +133,68 @@
                             @if (count($rounds) === 0)
                                 <x-ui.empty-state icon="calendar-days" :message="__('Esta tabla todavía no tiene partidos.')" />
                             @else
-                                <div class="relative flex items-center justify-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        icon="chevron-left"
-                                        @click="currentRound[{{ $index }}] = Math.max(0, currentRound[{{ $index }}] - 1)"
-                                        x-bind:disabled="currentRound[{{ $index }}] <= 0"
-                                    />
+                                {{-- Wrapped together, and spaced with a fixed mb-6 on the pager
+                                     bar instead of a shared space-y-* utility, because Tailwind's
+                                     space-y-* only skips margin on the DOM's actual :last-child,
+                                     not on whichever sibling x-show currently hides/shows -- with
+                                     the round divs as space-y-6 siblings (nested or not), the round
+                                     with the highest round_number (always last in the @foreach)
+                                     permanently lost its bottom margin whenever it was the one
+                                     visible. That margin doesn't just vanish: with no border/padding
+                                     of its own, this wrapper doesn't stop margin collapsing, so a
+                                     surviving trailing margin on an earlier round quietly bubbles up
+                                     and lands on the panel's own overflow-hidden edge instead --
+                                     shifting the panel's rendered height per round. A fixed mb-6
+                                     that doesn't depend on sibling position sidesteps both. --}}
+                                <div>
+                                    <div class="relative mb-6 flex items-center justify-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="chevron-left"
+                                            @click="currentRound[{{ $index }}] = Math.max(0, currentRound[{{ $index }}] - 1)"
+                                            x-bind:disabled="currentRound[{{ $index }}] <= 0"
+                                        />
 
-                                    <div class="flex items-center gap-2">
-                                        <flux:icon.calendar-days variant="micro" class="size-4 text-accent-content" />
-                                        <flux:text class="w-28 text-center text-sm font-semibold text-zinc-700 dark:text-white/85" x-text="'{{ __('Jornada') }} ' + (currentRound[{{ $index }}] + 1) + ' {{ __('de') }} {{ count($rounds) }}'"></flux:text>
+                                        <div class="flex items-center gap-2">
+                                            <flux:icon.calendar-days variant="micro" class="size-4 text-accent-content" />
+                                            <flux:text class="w-28 text-center text-sm font-semibold text-zinc-700 dark:text-white/85" x-text="'{{ __('Jornada') }} ' + (currentRound[{{ $index }}] + 1) + ' {{ __('de') }} {{ count($rounds) }}'"></flux:text>
+                                        </div>
+
+                                        <flux:button
+                                            variant="ghost"
+                                            size="sm"
+                                            icon="chevron-right"
+                                            @click="currentRound[{{ $index }}] = Math.min({{ $lastRoundIndex }}, currentRound[{{ $index }}] + 1)"
+                                            x-bind:disabled="currentRound[{{ $index }}] >= {{ $lastRoundIndex }}"
+                                        />
                                     </div>
 
-                                    <flux:button
-                                        variant="ghost"
-                                        size="sm"
-                                        icon="chevron-right"
-                                        @click="currentRound[{{ $index }}] = Math.min({{ $lastRoundIndex }}, currentRound[{{ $index }}] + 1)"
-                                        x-bind:disabled="currentRound[{{ $index }}] >= {{ $lastRoundIndex }}"
-                                    />
+                                    @foreach ($rounds as $roundIdx => $round)
+                                        <div
+                                            x-show="currentRound[{{ $index }}] === {{ $roundIdx }}"
+                                            x-cloak
+                                            class="relative"
+                                        >
+                                            <div class="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                                {{ __('Jornada :number', ['number' => $round['round_number']]) }}
+                                                @if ($schedule->format === \App\Enums\ScheduleFormat::HomeAndAway)
+                                                    — {{ $round['leg'] === 1 ? __('Primera vuelta') : __('Segunda vuelta') }}
+                                                @endif
+                                            </div>
+
+                                            <div class="flex flex-wrap justify-center gap-4">
+                                                @foreach ($round['matches'] as $match)
+                                                    <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
+                                                @endforeach
+
+                                                @if ($round['resting_team'])
+                                                    <x-ui.match-card :resting="$round['resting_team']->name" />
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endforeach
                                 </div>
-
-                                @foreach ($rounds as $roundIdx => $round)
-                                    <div
-                                        x-show="currentRound[{{ $index }}] === {{ $roundIdx }}"
-                                        x-cloak
-                                        x-transition:enter="transition ease-out duration-250"
-                                        x-transition:enter-start="opacity-0 translate-x-3"
-                                        x-transition:enter-end="opacity-100 translate-x-0"
-                                        class="relative"
-                                    >
-                                        <div class="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
-                                            {{ __('Jornada :number', ['number' => $round['round_number']]) }}
-                                            @if ($schedule->format === \App\Enums\ScheduleFormat::HomeAndAway)
-                                                — {{ $round['leg'] === 1 ? __('Primera vuelta') : __('Segunda vuelta') }}
-                                            @endif
-                                        </div>
-
-                                        <div class="flex flex-wrap justify-center gap-4">
-                                            @foreach ($round['matches'] as $match)
-                                                <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
-                                            @endforeach
-
-                                            @if ($round['resting_team'])
-                                                <x-ui.match-card :resting="$round['resting_team']->name" />
-                                            @endif
-                                        </div>
-                                    </div>
-                                @endforeach
                             @endif
                         </div>
                     @endforeach

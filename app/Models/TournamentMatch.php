@@ -216,4 +216,22 @@ class TournamentMatch extends Model
     {
         return $this->events()->where('type', MatchEventType::RedCard);
     }
+
+    /**
+     * True once the match is finished and either team's tally of logged goal
+     * events disagrees with its final score -- purely informational, mirrors
+     * the callout on the match edit screen so the discrepancy is visible from
+     * calendar/bracket cards too, without needing to open the match.
+     */
+    public function hasGoalMismatch(): bool
+    {
+        if ($this->status !== MatchStatus::Finished || $this->home_score === null || $this->away_score === null) {
+            return false;
+        }
+
+        $goals = $this->relationLoaded('goals') ? $this->goals : $this->goals()->get();
+
+        return $goals->where('team_id', $this->home_team_id)->count() !== $this->home_score
+            || $goals->where('team_id', $this->away_team_id)->count() !== $this->away_score;
+    }
 }
