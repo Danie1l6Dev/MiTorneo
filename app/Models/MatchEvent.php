@@ -84,6 +84,36 @@ class MatchEvent extends Model
     }
 
     /**
+     * Whether some player's assist tally in this list exceeds the goals
+     * credited to the REST of the team -- a player can never assist their
+     * own goal, so their assists can only ever cover goals scored by
+     * someone else. There's no per-goal link recorded between a goal and
+     * its assist, so this is the closest verifiable proxy: it doesn't
+     * confirm a valid assignment exists, but it does rule out the batches
+     * that can't possibly have one (e.g. one player with 2 goals and 1
+     * assist and nobody else on the scoresheet -- that assist has no goal
+     * left to belong to). Callers are expected to also check
+     * count($assistPlayerIds) > count($goalPlayerIds) separately, since
+     * that's a simpler violation with its own, more specific message.
+     *
+     * @param  list<int>  $goalPlayerIds
+     * @param  list<int>  $assistPlayerIds
+     */
+    public static function someAssisterOutpacesTeammateGoals(array $goalPlayerIds, array $assistPlayerIds): bool
+    {
+        $goalCountsByPlayer = array_count_values($goalPlayerIds);
+        $totalGoals = count($goalPlayerIds);
+
+        foreach (array_count_values($assistPlayerIds) as $playerId => $assistCount) {
+            if ($assistCount > $totalGoals - ($goalCountsByPlayer[$playerId] ?? 0)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Display name for whoever this event is actually about, prefixed to
      * make a coach card visually distinct from a player's in a shared list.
      */

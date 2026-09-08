@@ -253,6 +253,29 @@ class MatchEventManagementTest extends TestCase
         $this->assertDatabaseMissing('match_events', ['player_id' => $homePlayer->id, 'type' => 'assist']);
     }
 
+    public function test_an_assist_cannot_be_registered_when_all_goals_belong_to_the_same_assisting_player(): void
+    {
+        // Same imbalance as the batch equivalent above, but built one
+        // request at a time through the dedicated create form instead of
+        // the quick-add batch endpoint.
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+
+        MatchEvent::factory()->count(2)->create([
+            'match_id' => $match->id,
+            'team_id' => $homePlayer->team_id,
+            'player_id' => $homePlayer->id,
+            'type' => MatchEventType::Goal,
+        ]);
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'assist',
+            'player_id' => $homePlayer->id,
+        ])->assertSessionHasErrors('type');
+
+        $this->assertDatabaseMissing('match_events', ['player_id' => $homePlayer->id, 'type' => 'assist']);
+    }
+
     public function test_an_assist_can_be_deleted(): void
     {
         $user = User::factory()->create();
@@ -438,6 +461,55 @@ class MatchEventManagementTest extends TestCase
         ])->assertSessionHasErrors('type');
 
         $this->assertSame(1, MatchEvent::query()->where('player_id', $homePlayer->id)->where('type', 'red_card')->count());
+    }
+
+    public function test_a_player_with_a_straight_red_can_still_receive_a_yellow_card(): void
+    {
+        // Deliberate: minute isn't tracked, so the app can't tell whether
+        // this yellow happened before or after the red chronologically --
+        // e.g. backfilling an earlier caution after already recording a
+        // later straight red for an unrelated, more serious incident.
+        // Blocking it would force users to enter events in real-time order,
+        // which the quick-add/backfill workflow doesn't require.
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+
+        MatchEvent::factory()->create([
+            'match_id' => $match->id,
+            'team_id' => $homePlayer->team_id,
+            'player_id' => $homePlayer->id,
+            'type' => MatchEventType::RedCard,
+        ]);
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'yellow_card',
+            'player_id' => $homePlayer->id,
+        ])->assertSessionDoesntHaveErrors('type');
+
+        $this->assertSame(1, MatchEvent::query()->where('player_id', $homePlayer->id)->where('type', 'yellow_card')->count());
+    }
+
+    public function test_a_player_with_a_red_card_can_still_score_a_goal_or_register_an_assist(): void
+    {
+        // Same reasoning as above: a red card doesn't imply every other
+        // event for that player must have already happened, so goals/
+        // assists entered afterward aren't rejected either.
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+
+        MatchEvent::factory()->create([
+            'match_id' => $match->id,
+            'team_id' => $homePlayer->team_id,
+            'player_id' => $homePlayer->id,
+            'type' => MatchEventType::RedCard,
+        ]);
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'goal',
+            'player_id' => $homePlayer->id,
+        ])->assertSessionDoesntHaveErrors('type');
+
+        $this->assertDatabaseHas('match_events', ['player_id' => $homePlayer->id, 'type' => 'goal']);
     }
 
     public function test_a_batch_cannot_register_a_third_yellow_card_for_the_same_player(): void
@@ -695,6 +767,26 @@ class MatchEventManagementTest extends TestCase
         ])->assertSessionHasErrors('events.1.type');
 
         $this->assertDatabaseMissing('match_events', ['player_id' => $homePlayer->id]);
+    }
+
+    public function test_a_batch_cannot_register_two_goals_and_an_assist_all_for_the_same_player(): void
+    {
+        // Total assists (1) <= total goals (2) here, so the simpler
+        // "more assists than goals" check alone would wrongly accept this --
+        // both goals belong to the same player as the assist, so there's no
+        // teammate goal left for that assist to cover.
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => [
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'assist', 'player_id' => $homePlayer->id],
+            ],
+        ])->assertSessionHasErrors('events.2.type');
+
+        $this->assertDatabaseMissing('match_events', ['player_id' => $homePlayer->id, 'type' => 'assist']);
     }
 
     public function test_a_rejected_batch_repopulates_the_pending_queue_instead_of_losing_it(): void

@@ -142,14 +142,13 @@ class MatchEventBatchRequest extends FormRequest
                     $team = Team::find($teamId);
 
                     $validator->errors()->add("events.$index.type", __('No puede haber más asistencias que goles registrados para :team.', ['team' => $team?->name ?? '']));
-                } elseif (count($goalPlayerIds) === 1 && count($assistPlayerIds) === 1 && $goalPlayerIds[0] === $assistPlayerIds[0]) {
-                    // With no per-goal link between a goal and its assist,
-                    // this is only ever certain in the trivial
-                    // 1-goal-1-assist case: that single assist can only be
-                    // for that single goal, so it can't also be the scorer.
+                } elseif (MatchEvent::someAssisterOutpacesTeammateGoals($goalPlayerIds, $assistPlayerIds)) {
+                    // A player can't assist their own goal, so their
+                    // assists can only ever cover goals scored by
+                    // teammates.
                     $team = Team::find($teamId);
 
-                    $validator->errors()->add("events.$index.type", __('El único gol y la única asistencia de :team no pueden ser del mismo jugador.', ['team' => $team?->name ?? '']));
+                    $validator->errors()->add("events.$index.type", __('Algún jugador de :team tiene más asistencias que goles anotados por sus compañeros.', ['team' => $team?->name ?? '']));
                 }
             }
 

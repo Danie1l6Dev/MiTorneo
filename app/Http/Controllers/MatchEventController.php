@@ -121,20 +121,23 @@ class MatchEventController extends Controller
      */
     private function deletingWouldLeaveTooManyAssists(MatchEvent $goalEvent): bool
     {
-        $remainingGoals = MatchEvent::query()
+        $remainingGoalPlayerIds = MatchEvent::query()
             ->where('match_id', $goalEvent->match_id)
             ->where('team_id', $goalEvent->team_id)
             ->where('type', MatchEventType::Goal)
             ->where('id', '!=', $goalEvent->id)
-            ->count();
+            ->pluck('player_id')
+            ->all();
 
-        $assists = MatchEvent::query()
+        $assistPlayerIds = MatchEvent::query()
             ->where('match_id', $goalEvent->match_id)
             ->where('team_id', $goalEvent->team_id)
             ->where('type', MatchEventType::Assist)
-            ->count();
+            ->pluck('player_id')
+            ->all();
 
-        return $assists > $remainingGoals;
+        return count($assistPlayerIds) > count($remainingGoalPlayerIds)
+            || MatchEvent::someAssisterOutpacesTeammateGoals($remainingGoalPlayerIds, $assistPlayerIds);
     }
 
     /**
