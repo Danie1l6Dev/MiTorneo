@@ -18,8 +18,24 @@
                 ]" />
             </x-slot:breadcrumbs>
 
-            <div class="mt-1 flex items-center gap-2">
+            <div class="mt-1 flex flex-wrap items-center gap-2">
                 <flux:badge size="sm" :color="$phase->type->color()">{{ $phase->type->label() }}</flux:badge>
+
+                {{-- Quick navigation to whichever phase this one was
+                     advanced from/into -- lets the user step through a
+                     category's phase chain without detouring back through
+                     the category page every time. --}}
+                @if ($previousPhase)
+                    <flux:button :href="route('phases.show', $previousPhase)" variant="ghost" size="sm" icon="chevron-left" wire:navigate>
+                        {{ $previousPhase->name }}
+                    </flux:button>
+                @endif
+
+                @if ($nextPhase)
+                    <flux:button :href="route('phases.show', $nextPhase)" variant="ghost" size="sm" icon:trailing="chevron-right" wire:navigate>
+                        {{ $nextPhase->name }}
+                    </flux:button>
+                @endif
             </div>
 
             <flux:text class="mt-2 text-sm text-zinc-500">
@@ -365,11 +381,19 @@
                     @endif
                 </div>
             @elseif ($phase->allMatchesFinished() && $isAlreadyResolved)
-                <div class="mt-4 space-y-1 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
-                    <flux:heading size="sm">{{ __('Esta fase ya fue avanzada') }}</flux:heading>
-                    <flux:text class="text-zinc-500">
-                        {{ __('Ya se creó una fase siguiente a partir de esta liga. Elimínala si quieres volver a definir los clasificados.') }}
-                    </flux:text>
+                <div class="mt-4 space-y-3 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                    <div class="space-y-1">
+                        <flux:heading size="sm">{{ __('Esta fase ya fue avanzada') }}</flux:heading>
+                        <flux:text class="text-zinc-500">
+                            {{ __('Ya se creó una fase siguiente a partir de esta liga. Elimínala si quieres volver a definir los clasificados.') }}
+                        </flux:text>
+                    </div>
+
+                    @if ($nextPhase)
+                        <flux:button :href="route('phases.show', $nextPhase)" variant="primary" size="sm" icon:trailing="chevron-right" wire:navigate>
+                            {{ __('Ir a :name', ['name' => $nextPhase->name]) }}
+                        </flux:button>
+                    @endif
                 </div>
             @endif
             </div>

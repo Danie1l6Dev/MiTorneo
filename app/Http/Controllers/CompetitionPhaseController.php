@@ -150,6 +150,12 @@ class CompetitionPhaseController extends Controller
 
         $canDeclareChampion = $eligibilityService->canDeclareChampion($phase, $tableCount);
 
+        // Lets the page offer direct "previous/next phase" navigation
+        // instead of forcing a detour back through the category page for
+        // every step between phases.
+        $previousPhase = $eligibilityService->previousPhase($phase);
+        $nextPhase = $eligibilityService->nextPhase($phase);
+
         $drawReveal = null;
 
         // The flash is either an int (the league phase the qualifiers came
@@ -200,7 +206,8 @@ class CompetitionPhaseController extends Controller
 
         return view('pages.phases.show', compact(
             'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize',
-            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal', 'statistics'
+            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal', 'statistics',
+            'previousPhase', 'nextPhase'
         ));
     }
 

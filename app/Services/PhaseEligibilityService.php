@@ -117,10 +117,38 @@ class PhaseEligibilityService
      */
     public function hasNextPhase(CompetitionPhase $phase): bool
     {
+        return $this->nextPhase($phase) !== null;
+    }
+
+    /**
+     * The phase $phase was advanced into, if any -- null while it hasn't
+     * been (or its next phase was deleted). A category's phases chain in a
+     * single line (each one's `order` is the previous phase's `order + 1`),
+     * so there's at most one of these.
+     */
+    public function nextPhase(CompetitionPhase $phase): ?CompetitionPhase
+    {
         return CompetitionPhase::query()
             ->where('category_id', $phase->category_id)
             ->where('order', '>', $phase->order)
-            ->exists();
+            ->orderBy('order')
+            ->first();
+    }
+
+    /**
+     * The phase $phase was advanced FROM, if any -- null for a category's
+     * first phase, which was created directly rather than chained from a
+     * previous phase's qualifiers. Deliberately no `order <= 1` shortcut: a
+     * first phase's actual `order` value isn't guaranteed to be 1 (seeded
+     * fixtures use 0), so whether one exists is left entirely to the query.
+     */
+    public function previousPhase(CompetitionPhase $phase): ?CompetitionPhase
+    {
+        return CompetitionPhase::query()
+            ->where('category_id', $phase->category_id)
+            ->where('order', '<', $phase->order)
+            ->orderByDesc('order')
+            ->first();
     }
 
     /**
