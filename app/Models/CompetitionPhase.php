@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchStatus;
+use App\Enums\ScheduleFormat;
 use Database\Factories\CompetitionPhaseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,12 +20,13 @@ use Illuminate\Support\Carbon;
  * @property int $category_id
  * @property string $name
  * @property CompetitionPhaseType $type
+ * @property ScheduleFormat|null $knockout_format
  * @property int $order
  * @property int|null $champion_team_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'type', 'order'])]
+#[Fillable(['name', 'type', 'knockout_format', 'order'])]
 class CompetitionPhase extends Model
 {
     /** @use HasFactory<CompetitionPhaseFactory> */
@@ -34,6 +36,7 @@ class CompetitionPhase extends Model
     {
         return [
             'type' => CompetitionPhaseType::class,
+            'knockout_format' => ScheduleFormat::class,
         ];
     }
 

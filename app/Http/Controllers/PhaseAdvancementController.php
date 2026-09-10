@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
 use App\Enums\DrawMethod;
+use App\Enums\ScheduleFormat;
 use App\Http\Requests\AdvancePhaseRequest;
 use App\Models\CompetitionPhase;
 use App\Services\KnockoutBracketService;
@@ -87,6 +88,7 @@ class PhaseAdvancementController extends Controller
             $newPhase->category_id = $phase->category_id;
             $newPhase->name = (string) $request->validated('name');
             $newPhase->type = $type;
+            $newPhase->knockout_format = $isLeague ? null : ScheduleFormat::from($request->validated('knockout_format') ?? ScheduleFormat::SingleRound->value);
             $newPhase->order = $phase->order + 1;
             $newPhase->save();
 

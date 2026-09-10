@@ -209,9 +209,129 @@ class StandingsService
             ];
         }
 
+        return $this->order($rows, $matches);
+    }
+
+    /**
+     * Order rows by the organizer's confirmed tie-break criteria, in this
+     * exact sequence and no others: points, goal difference, goals for, and
+     * -- only once every team sharing all three of those is grouped together
+     * -- the head-to-head result among just that tied group (a mini-table
+     * built from the matches they played against EACH OTHER, not their
+     * whole schedule, ranked by the same points/goal-difference/goals-for
+     * order). This is what lets it resolve correctly whether exactly 2 teams
+     * are tied or a larger cluster is.
+     *
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>  $rows
+     * @param  Collection<int, TournamentMatch>  $matches
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>
+     */
+    private function order(array $rows, Collection $matches): array
+    {
         usort($rows, fn (array $a, array $b): int => [$b['points'], $b['goal_difference'], $b['goals_for']]
             <=> [$a['points'], $a['goal_difference'], $a['goals_for']]);
 
-        return $rows;
+        $ordered = [];
+        $count = count($rows);
+        $i = 0;
+
+        while ($i < $count) {
+            $j = $i;
+
+            while ($j + 1 < $count && $this->tiedOnPrimaryCriteria($rows[$i], $rows[$j + 1])) {
+                $j++;
+            }
+
+            $cluster = array_slice($rows, $i, $j - $i + 1);
+
+            if (count($cluster) > 1) {
+                $cluster = $this->breakTieByHeadToHead($cluster, $matches);
+            }
+
+            array_push($ordered, ...$cluster);
+            $i = $j + 1;
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param  array{team: Team, points: int, goal_difference: int, goals_for: int}  $a
+     * @param  array{team: Team, points: int, goal_difference: int, goals_for: int}  $b
+     */
+    private function tiedOnPrimaryCriteria(array $a, array $b): bool
+    {
+        return $a['points'] === $b['points']
+            && $a['goal_difference'] === $b['goal_difference']
+            && $a['goals_for'] === $b['goals_for'];
+    }
+
+    /**
+     * Rank a cluster of teams tied on points/goal difference/goals for by
+     * "resultado entre ellos": a mini-table counting only the matches played
+     * among the cluster's own teams (ignoring every match against a team
+     * outside it), ordered by the same points/goal-difference/goals-for
+     * sequence. Teams that remain tied even after this keep their relative
+     * order from the input (stable) -- no further criteria are applied.
+     *
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>  $cluster
+     * @param  Collection<int, TournamentMatch>  $matches
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>
+     */
+    private function breakTieByHeadToHead(array $cluster, Collection $matches): array
+    {
+        $clusterTeamIds = array_flip(array_map(fn (array $row): int => $row['team']->id, $cluster));
+
+        /** @var array<int, array{points: int, goal_difference: int, goals_for: int}> $miniStats */
+        $miniStats = [];
+
+        foreach (array_keys($clusterTeamIds) as $teamId) {
+            $miniStats[$teamId] = ['points' => 0, 'goal_difference' => 0, 'goals_for' => 0];
+        }
+
+        foreach ($matches as $match) {
+            if ($match->status !== MatchStatus::Finished || $match->home_score === null || $match->away_score === null) {
+                continue;
+            }
+
+            $homeId = $match->home_team_id;
+            $awayId = $match->away_team_id;
+
+            if ($homeId === null || $awayId === null || ! isset($clusterTeamIds[$homeId], $clusterTeamIds[$awayId])) {
+                continue;
+            }
+
+            $home = $miniStats[$homeId];
+            $away = $miniStats[$awayId];
+
+            $home['goals_for'] += $match->home_score;
+            $home['goal_difference'] += $match->home_score - $match->away_score;
+            $away['goals_for'] += $match->away_score;
+            $away['goal_difference'] += $match->away_score - $match->home_score;
+
+            if ($match->home_score > $match->away_score) {
+                $home['points'] += 3;
+            } elseif ($match->home_score < $match->away_score) {
+                $away['points'] += 3;
+            } else {
+                $home['points']++;
+                $away['points']++;
+            }
+
+            $miniStats[$homeId] = $home;
+            $miniStats[$awayId] = $away;
+        }
+
+        usort($cluster, fn (array $a, array $b): int => [
+            $miniStats[$b['team']->id]['points'],
+            $miniStats[$b['team']->id]['goal_difference'],
+            $miniStats[$b['team']->id]['goals_for'],
+        ] <=> [
+            $miniStats[$a['team']->id]['points'],
+            $miniStats[$a['team']->id]['goal_difference'],
+            $miniStats[$a['team']->id]['goals_for'],
+        ]);
+
+        return $cluster;
     }
 }

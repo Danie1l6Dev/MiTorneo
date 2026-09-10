@@ -25,6 +25,9 @@ class TournamentMatchController extends Controller
             // collected right now (see MatchEventRequest), so it's null for
             // most events and wouldn't produce a meaningful chronology.
             'events' => fn ($query) => $query->with(['player', 'coach'])->orderBy('id'),
+            // Only populated for the second leg of a two-legged knockout
+            // cross -- the edit page reads it to show the aggregate context.
+            'firstLeg',
         ]);
 
         // Purely informational -- the scoreboard stays the source of truth

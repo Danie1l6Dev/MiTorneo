@@ -100,26 +100,41 @@
                 </div>
 
                 <template x-if="type !== '{{ \App\Enums\CompetitionPhaseType::League->value }}'">
-                    <div class="space-y-1.5">
+                    <div class="space-y-6">
                         {{--
-                            A league phase submits no draw_method at all (the
-                            server rejects it if present), so this has to be
-                            removed from the DOM -- not just hidden -- when
-                            "Liga" is picked: Flux's radio is a form-associated
-                            custom element, and x-show + x-bind:disabled left
-                            its hidden internal input still submitting its
-                            last-checked value.
+                            A league phase submits no draw_method/knockout_format
+                            at all (the server rejects either if present), so
+                            this has to be removed from the DOM -- not just
+                            hidden -- when "Liga" is picked: Flux's radio is a
+                            form-associated custom element, and x-show +
+                            x-bind:disabled left its hidden internal input
+                            still submitting its last-checked value.
                         --}}
-                        <flux:radio.group name="draw_method" label="{{ __('¿Cómo se sortean los cruces?') }}">
-                            @foreach (\App\Enums\DrawMethod::cases() as $method)
-                                <flux:radio
-                                    value="{{ $method->value }}"
-                                    label="{{ $method->label() }}"
-                                    description="{{ $method->description() }}"
-                                    :checked="old('draw_method', \App\Enums\DrawMethod::Random->value) === $method->value"
-                                />
-                            @endforeach
-                        </flux:radio.group>
+                        <div class="space-y-1.5">
+                            <flux:radio.group name="draw_method" label="{{ __('¿Cómo se sortean los cruces?') }}">
+                                @foreach (\App\Enums\DrawMethod::cases() as $method)
+                                    <flux:radio
+                                        value="{{ $method->value }}"
+                                        label="{{ $method->label() }}"
+                                        description="{{ $method->description() }}"
+                                        :checked="old('draw_method', \App\Enums\DrawMethod::Random->value) === $method->value"
+                                    />
+                                @endforeach
+                            </flux:radio.group>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <flux:radio.group name="knockout_format" label="{{ __('Formato de los cruces') }}">
+                                @foreach (\App\Enums\ScheduleFormat::cases() as $format)
+                                    <flux:radio
+                                        value="{{ $format->value }}"
+                                        label="{{ $format === \App\Enums\ScheduleFormat::HomeAndAway ? __('Ida y vuelta') : __('Partido único') }}"
+                                        description="{{ $format === \App\Enums\ScheduleFormat::HomeAndAway ? __('Cada cruce se juega en dos partidos; el resultado global decide quién avanza.') : __('Un solo partido decide el cruce.') }}"
+                                        :checked="old('knockout_format', \App\Enums\ScheduleFormat::SingleRound->value) === $format->value"
+                                    />
+                                @endforeach
+                            </flux:radio.group>
+                        </div>
                     </div>
                 </template>
 

@@ -206,6 +206,133 @@ class StandingsServiceTest extends TestCase
         $this->assertSame($c->id, $rows[2]['team']->id);
     }
 
+    public function test_ties_are_broken_by_points_first(): void
+    {
+        $teams = $this->makeTeams(3);
+        [$a, $b, $c] = $teams->all();
+
+        // A wins big (5-0) but loses to B: 3 pts, GD +4, 5 goals for.
+        // B wins twice narrowly (1-0 each): 6 pts, GD +2, 2 goals for.
+        // B must rank first purely on points despite the worse GD/goals for.
+        $rows = $this->service->calculate($teams, collect([
+            $this->finishedMatch($a, $c, 5, 0),
+            $this->finishedMatch($b, $c, 1, 0),
+            $this->finishedMatch($a, $b, 0, 1),
+        ]));
+
+        $keyed = $this->keyByTeamId($rows);
+        $this->assertSame(3, $keyed[$a->id]['points']);
+        $this->assertSame(6, $keyed[$b->id]['points']);
+        $this->assertGreaterThan($keyed[$b->id]['goal_difference'], $keyed[$a->id]['goal_difference']);
+
+        $this->assertSame($b->id, $rows[0]['team']->id);
+        $this->assertSame($a->id, $rows[1]['team']->id);
+        $this->assertSame($c->id, $rows[2]['team']->id);
+    }
+
+    public function test_ties_on_points_are_broken_by_goal_difference(): void
+    {
+        $teams = $this->makeTeams(2);
+        [$a, $b] = $teams->all();
+
+        // Both have exactly 3 points (1 win each), but A's win is by a
+        // bigger margin, so it must rank first purely on goal difference.
+        $rows = $this->service->calculate($teams, collect([
+            $this->finishedMatch($a, $b, 5, 0),
+            $this->finishedMatch($b, $a, 1, 0),
+        ]));
+
+        $this->assertSame($a->id, $rows[0]['team']->id);
+        $this->assertSame(3, $rows[0]['points']);
+        $this->assertSame(3, $rows[1]['points']);
+        $this->assertGreaterThan($rows[1]['goal_difference'], $rows[0]['goal_difference']);
+    }
+
+    public function test_ties_on_points_and_goal_difference_are_broken_by_goals_for(): void
+    {
+        $teamsThree = $this->makeTeams(3);
+        [$x, $y, $z] = $teamsThree->all();
+
+        // Every match is a high-scoring draw, so all three teams end up tied
+        // on points (2, one draw each) and goal difference (0) -- only the
+        // total goals scored (5, 4, 3 respectively) tells them apart.
+        $rows = $this->service->calculate($teamsThree, collect([
+            $this->finishedMatch($x, $z, 3, 3),
+            $this->finishedMatch($x, $y, 1, 1),
+            $this->finishedMatch($y, $z, 2, 2),
+        ]));
+
+        $keyed = $this->keyByTeamId($rows);
+        $this->assertSame(2, $keyed[$x->id]['points']);
+        $this->assertSame(2, $keyed[$y->id]['points']);
+        $this->assertSame(2, $keyed[$z->id]['points']);
+        $this->assertSame(0, $keyed[$x->id]['goal_difference']);
+        $this->assertSame(0, $keyed[$y->id]['goal_difference']);
+        $this->assertSame(0, $keyed[$z->id]['goal_difference']);
+
+        $this->assertSame($z->id, $rows[0]['team']->id);
+        $this->assertSame($x->id, $rows[1]['team']->id);
+        $this->assertSame($y->id, $rows[2]['team']->id);
+    }
+
+    public function test_a_tie_between_exactly_two_teams_is_broken_by_the_head_to_head_result(): void
+    {
+        $teams = $this->makeTeams(3);
+        [$a, $b, $c] = $teams->all();
+
+        // B beats A 3-0, A beats C 3-2, C beats B 5-0: every team has
+        // exactly 1 win and 1 loss (3 points each), but by design A and B
+        // land on the exact same goal difference (-2) and goals for (3) --
+        // only their own head-to-head match (B beat A) tells them apart. C
+        // has a clearly better goal difference (+4) and ranks first on its
+        // own, untouched by the tie-break between the other two.
+        //
+        // B is deliberately made the head-to-head winner even though A was
+        // declared (and so stored/iterated) first: a buggy implementation
+        // that fails to actually apply the tie-break (silently falling back
+        // to input order) would wrongly rank A above B instead.
+        $rows = $this->service->calculate($teams, collect([
+            $this->finishedMatch($b, $a, 3, 0),
+            $this->finishedMatch($a, $c, 3, 2),
+            $this->finishedMatch($c, $b, 5, 0),
+        ]));
+
+        $keyed = $this->keyByTeamId($rows);
+        $this->assertSame(3, $keyed[$a->id]['points']);
+        $this->assertSame(3, $keyed[$b->id]['points']);
+        $this->assertSame($keyed[$a->id]['goal_difference'], $keyed[$b->id]['goal_difference']);
+        $this->assertSame($keyed[$a->id]['goals_for'], $keyed[$b->id]['goals_for']);
+
+        $this->assertSame($c->id, $rows[0]['team']->id);
+        $this->assertSame($b->id, $rows[1]['team']->id);
+        $this->assertSame($a->id, $rows[2]['team']->id);
+    }
+
+    public function test_a_larger_tied_cluster_is_resolved_by_a_mini_table_among_just_those_teams(): void
+    {
+        $teams = $this->makeTeams(3);
+        [$a, $b, $c] = $teams->all();
+
+        // All three are tied on points (3), goal difference (0) and goals
+        // for (1) after a perfect round-robin cycle (A beats B, B beats C, C
+        // beats A, each 1-0). The head-to-head mini-table among the three of
+        // them is itself perfectly cyclical, so none of them can be
+        // separated by it either -- they must simply keep their original
+        // relative order rather than the tie-break looping or crashing.
+        $rows = $this->service->calculate($teams, collect([
+            $this->finishedMatch($a, $b, 1, 0),
+            $this->finishedMatch($b, $c, 1, 0),
+            $this->finishedMatch($c, $a, 1, 0),
+        ]));
+
+        $keyed = $this->keyByTeamId($rows);
+        $this->assertSame(3, $keyed[$a->id]['points']);
+        $this->assertSame(3, $keyed[$b->id]['points']);
+        $this->assertSame(3, $keyed[$c->id]['points']);
+        $this->assertCount(3, $rows);
+        $this->assertEqualsCanonicalizing([$a->id, $b->id, $c->id], collect($rows)->pluck('team.id')->all());
+    }
+
     public function test_a_category_without_groups_calculates_a_single_table_from_its_teams(): void
     {
         $teams = $this->makeTeams(4);

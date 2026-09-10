@@ -126,7 +126,7 @@
             $pending = $match->home_team_id === null || $match->away_team_id === null;
             $homeInitials = $match->homeTeam ? \Illuminate\Support\Str::substr($match->homeTeam->short_name ?: $match->homeTeam->name, 0, 2) : '?';
             $awayInitials = $match->awayTeam ? \Illuminate\Support\Str::substr($match->awayTeam->short_name ?: $match->awayTeam->name, 0, 2) : '?';
-            $isKnockoutMatch = $match->competitionPhase->type !== \App\Enums\CompetitionPhaseType::League;
+            $isDecisiveLeg = $match->isDecisiveKnockoutLeg();
 
             $resultErrorKeys = ['home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score'];
             $resultErrorMessage = collect($resultErrorKeys)->map(fn ($key) => $errors->first($key))->first(fn ($message) => $message !== '');
@@ -233,12 +233,21 @@
                             x-data="{
                                 homeScore: '{{ old('home_score', $match->home_score ?? '') }}',
                                 awayScore: '{{ old('away_score', $match->away_score ?? '') }}',
+                                // For the decisive leg of a two-legged cross, what matters is
+                                // the AGGREGATE (this leg's score plus the first leg's, mapped
+                                // onto this leg's sides -- sides swap between legs) being level,
+                                // not this leg's own score alone. Null/0 for every other match.
+                                firstLegHomeCarry: {{ $match->first_leg_match_id !== null && $match->firstLeg->away_score !== null ? $match->firstLeg->away_score : 'null' }},
+                                firstLegAwayCarry: {{ $match->first_leg_match_id !== null && $match->firstLeg->home_score !== null ? $match->firstLeg->home_score : 'null' }},
                                 wentToExtraTime: {{ \Illuminate\Support\Js::from(old('home_extra_time_score', $match->home_extra_time_score) !== null) }},
                                 homeExtraTime: '{{ old('home_extra_time_score', $match->home_extra_time_score ?? '') }}',
                                 awayExtraTime: '{{ old('away_extra_time_score', $match->away_extra_time_score ?? '') }}',
                                 wentToPenalties: {{ \Illuminate\Support\Js::from(old('home_penalty_score', $match->home_penalty_score) !== null) }},
                                 get regulationIsDraw() {
-                                    return this.homeScore !== '' && this.awayScore !== '' && Number(this.homeScore) === Number(this.awayScore);
+                                    if (this.homeScore === '' || this.awayScore === '') return false;
+                                    const home = Number(this.homeScore) + (this.firstLegHomeCarry ?? 0);
+                                    const away = Number(this.awayScore) + (this.firstLegAwayCarry ?? 0);
+                                    return home === away;
                                 },
                                 get extraTimeIsDraw() {
                                     return this.homeExtraTime !== '' && this.awayExtraTime !== '' && Number(this.homeExtraTime) === Number(this.awayExtraTime);
@@ -283,7 +292,21 @@
                                 />
                             </div>
 
-                            @if ($isKnockoutMatch)
+                            @if ($match->first_leg_match_id !== null)
+                                <flux:callout variant="secondary" icon="information-circle" class="mx-auto max-w-sm"
+                                    :heading="__('Partido de vuelta -- decide el cruce')"
+                                    :text="$match->firstLeg->home_score !== null
+                                        ? __('Ida: :home-:away. El resultado global (ida + vuelta) es lo que define quién avanza.', ['home' => $match->firstLeg->home_score, 'away' => $match->firstLeg->away_score])
+                                        : null"
+                                />
+                            @elseif ($match->isFirstLegOfTwoLeggedTie())
+                                <flux:callout variant="secondary" icon="information-circle" class="mx-auto max-w-sm"
+                                    :heading="__('Partido de ida')"
+                                    :text="__('Cualquier resultado, incluido un empate, es válido: el cruce se decide con el resultado global una vez jugada la vuelta.')"
+                                />
+                            @endif
+
+                            @if ($isDecisiveLeg)
                                 <div class="mx-auto max-w-sm space-y-4 rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 dark:border-white/10 dark:bg-white/5">
                                     <div class="space-y-1">
                                         <flux:checkbox

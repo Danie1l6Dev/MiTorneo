@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Enums\CompetitionPhaseType;
 use App\Enums\DrawMethod;
+use App\Enums\ScheduleFormat;
 use App\Models\CompetitionPhase;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
@@ -48,6 +49,9 @@ class AdvancePhaseRequest extends FormRequest
                 $isLeague ? 'prohibited' : 'required',
                 Rule::enum(DrawMethod::class),
             ],
+            // Ignored (and stored as null) for a league phase either way,
+            // and defaults to a single match per cross when omitted.
+            'knockout_format' => ['nullable', Rule::enum(ScheduleFormat::class)],
         ];
     }
 

@@ -418,8 +418,13 @@
                                 </div>
 
                                 <div class="flex flex-wrap justify-center gap-4">
-                                    @foreach ($round['matches'] as $match)
-                                        <x-ui.match-card :match="$match" :href="route('matches.edit', $match)" />
+                                    @foreach ($round['matches'] as $cross)
+                                        {{-- A two-legged cross shows both its legs, each with its own
+                                             link -- that's also the only place in the bracket view
+                                             where a first leg's own edit page is reachable. --}}
+                                        @foreach ($cross as $legMatch)
+                                            <x-ui.match-card :match="$legMatch" :href="route('matches.edit', $legMatch)" />
+                                        @endforeach
                                     @endforeach
                                 </div>
                             </div>
@@ -459,10 +464,20 @@
                                     </div>
 
                                     <div class="flex flex-1 flex-col {{ $column['side'] === 'final' ? 'justify-center' : 'justify-around' }}">
+                                        {{--
+                                            Each slot in the bracket geometry below is one CROSS, not one
+                                            match -- for a two-legged phase that's 2 matches, but only the
+                                            decisive one (the last of the cross: the only match for a
+                                            single-leg cross, the second leg otherwise) is what this
+                                            desktop view shows, since it's what tieWinnerTeamId() /
+                                            aggregate score already reflect. Editing a first leg is only
+                                            done from the mobile/tablet stacked view or the calendar.
+                                        --}}
                                         @if ($column['side'] === 'final')
+                                            @php $decisive = $column['matches']->first()->last(); @endphp
                                             <x-ui.bracket-match-card
-                                                :match="$column['matches']->first()"
-                                                :href="route('matches.edit', $column['matches']->first())"
+                                                :match="$decisive"
+                                                :href="route('matches.edit', $decisive)"
                                                 :card-class="$bracketSize['card']"
                                                 :row-class="$bracketSize['row']"
                                                 :text-class="$bracketSize['text']"
@@ -474,11 +489,12 @@
                                                         {{-- Each card gets its own short stub reaching the shared vertical
                                                              bar above; it must live on this plain wrapper (not the card
                                                              itself) since the card's own overflow-hidden would clip it. --}}
-                                                        @foreach ($pair as $match)
+                                                        @foreach ($pair as $cross)
+                                                            @php $decisive = $cross->last(); @endphp
                                                             <div class="{{ $column['side'] === 'left' ? $bracketSize['cardStubLeft'] : $bracketSize['cardStubRight'] }}">
                                                                 <x-ui.bracket-match-card
-                                                                    :match="$match"
-                                                                    :href="route('matches.edit', $match)"
+                                                                    :match="$decisive"
+                                                                    :href="route('matches.edit', $decisive)"
                                                                     :card-class="$bracketSize['card']"
                                                                     :row-class="$bracketSize['row']"
                                                                     :text-class="$bracketSize['text']"
@@ -487,10 +503,11 @@
                                                         @endforeach
                                                     </div>
                                                 @else
+                                                    @php $decisive = $pair->first()->last(); @endphp
                                                     <div class="{{ $column['side'] === 'left' ? $bracketSize['singleStubLeft'] : $bracketSize['singleStubRight'] }}">
                                                         <x-ui.bracket-match-card
-                                                            :match="$pair->first()"
-                                                            :href="route('matches.edit', $pair->first())"
+                                                            :match="$decisive"
+                                                            :href="route('matches.edit', $decisive)"
                                                             :card-class="$bracketSize['card']"
                                                             :row-class="$bracketSize['row']"
                                                             :text-class="$bracketSize['text']"

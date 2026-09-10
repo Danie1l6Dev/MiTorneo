@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchEventType;
 use App\Enums\MatchParticipantSide;
 use App\Enums\MatchStatus;
@@ -24,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property int $tournament_id
  * @property int $category_id
  * @property int $competition_phase_id
+ * @property int|null $first_leg_match_id
  * @property int|null $group_id
  * @property int|null $league_schedule_id
  * @property int|null $home_team_id
@@ -85,6 +87,30 @@ class TournamentMatch extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    /**
+     * The first leg of this match's two-legged knockout cross, when this
+     * match is the second (decisive) leg -- null for a league match, a
+     * single-match knockout cross, or the first leg itself.
+     *
+     * @return BelongsTo<TournamentMatch, $this>
+     */
+    public function firstLeg(): BelongsTo
+    {
+        return $this->belongsTo(TournamentMatch::class, 'first_leg_match_id');
+    }
+
+    /**
+     * The second leg of this match's two-legged knockout cross, when this
+     * match is the first leg -- null for a league match or a single-match
+     * knockout cross.
+     *
+     * @return HasOne<TournamentMatch, $this>
+     */
+    public function secondLeg(): HasOne
+    {
+        return $this->hasOne(TournamentMatch::class, 'first_leg_match_id');
     }
 
     /**
@@ -158,6 +184,101 @@ class TournamentMatch extends Model
 
         $homeTotal = $this->home_score + ($this->home_extra_time_score ?? 0);
         $awayTotal = $this->away_score + ($this->away_extra_time_score ?? 0);
+
+        if ($homeTotal !== $awayTotal) {
+            return $homeTotal > $awayTotal ? $this->home_team_id : $this->away_team_id;
+        }
+
+        if ($this->home_penalty_score !== null && $this->away_penalty_score !== null && $this->home_penalty_score !== $this->away_penalty_score) {
+            return $this->home_penalty_score > $this->away_penalty_score ? $this->home_team_id : $this->away_team_id;
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether this match is the first leg of a two-legged knockout cross --
+     * i.e. its result alone doesn't decide who advances, a second leg does.
+     * False for a league match, a single-match knockout cross, or the
+     * second leg itself.
+     */
+    public function isFirstLegOfTwoLeggedTie(): bool
+    {
+        return $this->relationLoaded('secondLeg') ? $this->secondLeg !== null : $this->secondLeg()->exists();
+    }
+
+    /**
+     * Whether this match's own result (aggregated with a first leg, if any)
+     * is what decides who advances out of its knockout cross: false for a
+     * league match or a first leg still awaiting its second, true for a
+     * single-match knockout cross or the second (decisive) leg of a
+     * two-legged one.
+     */
+    public function isDecisiveKnockoutLeg(): bool
+    {
+        return $this->competitionPhase->type !== CompetitionPhaseType::League
+            && ! $this->isFirstLegOfTwoLeggedTie();
+    }
+
+    /**
+     * This match's own regular-time score, aggregated with the first leg's
+     * (mapped onto this leg's sides, which swap between legs -- the first
+     * leg's away score is this leg's home team's other total) when this is
+     * a second leg. Null while a score this needs hasn't been recorded yet.
+     *
+     * @return array{home: int, away: int}|null
+     */
+    public function regularTimeAggregate(): ?array
+    {
+        if ($this->home_score === null || $this->away_score === null) {
+            return null;
+        }
+
+        if ($this->first_leg_match_id === null) {
+            return ['home' => $this->home_score, 'away' => $this->away_score];
+        }
+
+        $firstLeg = $this->firstLeg;
+
+        if ($firstLeg->home_score === null || $firstLeg->away_score === null) {
+            return null;
+        }
+
+        return [
+            'home' => $this->home_score + $firstLeg->away_score,
+            'away' => $this->away_score + $firstLeg->home_score,
+        ];
+    }
+
+    /**
+     * The id of the team that won this match's whole knockout cross: for a
+     * league match or a single-match cross, exactly winnerTeamId(); for the
+     * second leg of a two-legged cross, the aggregate (regular-time) score
+     * across both legs, falling back -- when that aggregate is still level
+     * -- to this (decisive) leg's own extra-time/penalty tie-break, the
+     * exact same fields and mechanism a single-match cross already uses (no
+     * away-goals rule or other new tie-break is introduced). Null while the
+     * cross isn't decided yet, including while the first leg hasn't been
+     * played.
+     */
+    public function tieWinnerTeamId(): ?int
+    {
+        if ($this->first_leg_match_id === null) {
+            return $this->winnerTeamId();
+        }
+
+        if ($this->status !== MatchStatus::Finished || $this->firstLeg->status !== MatchStatus::Finished) {
+            return null;
+        }
+
+        $aggregate = $this->regularTimeAggregate();
+
+        if ($aggregate === null) {
+            return null;
+        }
+
+        $homeTotal = $aggregate['home'] + ($this->home_extra_time_score ?? 0);
+        $awayTotal = $aggregate['away'] + ($this->away_extra_time_score ?? 0);
 
         if ($homeTotal !== $awayTotal) {
             return $homeTotal > $awayTotal ? $this->home_team_id : $this->away_team_id;

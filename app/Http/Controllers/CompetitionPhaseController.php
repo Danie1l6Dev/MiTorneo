@@ -61,6 +61,9 @@ class CompetitionPhaseController extends Controller
             $phase->category_id = $category->id;
             $phase->name = (string) $request->validated('name');
             $phase->type = $type;
+            $phase->knockout_format = $type === CompetitionPhaseType::League
+                ? null
+                : ScheduleFormat::from($request->validated('knockout_format') ?? ScheduleFormat::SingleRound->value);
             // Only ever one first phase per category: everything after it is
             // chained from a finished phase's qualifiers via the advancement
             // flow, which is what assigns every later phase's order.
@@ -166,7 +169,10 @@ class CompetitionPhaseController extends Controller
             $sourcePhase = is_int($rawDrawReveal) ? CompetitionPhase::find($rawDrawReveal) : null;
 
             $drawReveal = [
-                'matches' => $phase->matches()->where('round_number', 1)->with(['homeTeam', 'awayTeam'])->orderBy('id')->get(),
+                // Only each cross's first leg: a two-legged round 1 also has
+                // a second leg per cross (same two teams, sides swapped),
+                // which would otherwise show every cross twice.
+                'matches' => $phase->matches()->where('round_number', 1)->whereNull('first_leg_match_id')->with(['homeTeam', 'awayTeam'])->orderBy('id')->get(),
                 'tables' => $sourcePhase ? $standingsService->tablesForPhase($sourcePhase) : [],
             ];
         }
@@ -279,10 +285,11 @@ class CompetitionPhaseController extends Controller
     }
 
     /**
-     * The winner of the bracket's final match, once it's been played -- null
-     * while the phase has no bracket at all, or its final hasn't finished yet.
+     * The winner of the bracket's final cross, once it's been decided -- null
+     * while the phase has no bracket at all, or its final hasn't been
+     * decided yet (for a two-legged final, that means both legs finished).
      *
-     * @param  array<int, array{round_number: int, label: string, matches: Collection<int, TournamentMatch>}>  $bracketRounds
+     * @param  array<int, array{round_number: int, label: string, matches: Collection<int, Collection<int, TournamentMatch>>}>  $bracketRounds
      */
     private function championFor(array $bracketRounds): ?Team
     {
@@ -290,48 +297,90 @@ class CompetitionPhaseController extends Controller
             return null;
         }
 
-        $final = end($bracketRounds)['matches']->first();
+        $finalCross = end($bracketRounds)['matches']->first();
 
-        if (! $final instanceof TournamentMatch) {
+        if (! $finalCross instanceof Collection) {
             return null;
         }
 
-        $winnerTeamId = $final->winnerTeamId();
+        // The decisive leg: the only match in a single-match cross, the
+        // second (and last-created) one in a two-legged cross.
+        $decisive = $finalCross->last();
+
+        if (! $decisive instanceof TournamentMatch) {
+            return null;
+        }
+
+        $winnerTeamId = $decisive->tieWinnerTeamId();
 
         if ($winnerTeamId === null) {
             return null;
         }
 
-        return $winnerTeamId === $final->home_team_id ? $final->homeTeam : $final->awayTeam;
+        return $winnerTeamId === $decisive->home_team_id ? $decisive->homeTeam : $decisive->awayTeam;
     }
 
     /**
-     * Group a knockout-style phase's matches by round, labeling each round by
-     * its traditional bracket name (derived purely from how many matches it
-     * has: a round with 1 match is the final, 2 is the semifinal, 4 is the
-     * quarterfinal, and so on) rather than by the phase's own type -- a
+     * Group a knockout-style phase's matches by round and then by cross (a
+     * cross is either one match, or -- for a two-legged phase -- a first leg
+     * paired with its second), labeling each round by its traditional
+     * bracket name (derived purely from how many CROSSES it has: a round
+     * with 1 cross is the final, 2 is the semifinal, 4 is the quarterfinal,
+     * and so on -- never from the raw match count, which would double for a
+     * two-legged phase) rather than by the phase's own type -- a
      * "Semifinal"-type phase already starts at its semifinal round, and a
      * "Knockout"-type phase can start anywhere depending on how many teams
      * qualified.
      *
-     * @return array<int, array{round_number: int, label: string, matches: Collection<int, TournamentMatch>}>
+     * @return array<int, array{round_number: int, label: string, matches: Collection<int, Collection<int, TournamentMatch>>}>
      */
     private function buildBracketRounds(CompetitionPhase $phase): array
     {
         return $phase->matches()
-            ->with(['homeTeam', 'awayTeam', 'goals'])
+            ->with(['homeTeam', 'awayTeam', 'goals', 'firstLeg'])
             ->orderBy('round_number')
             ->orderBy('id')
             ->get()
             ->groupBy('round_number')
             ->sortKeys()
-            ->map(fn (Collection $roundMatches, int $roundNumber): array => [
-                'round_number' => $roundNumber,
-                'label' => $this->knockoutRoundLabel($roundMatches->count()),
-                'matches' => $roundMatches->values(),
-            ])
+            ->map(function (Collection $roundMatches, int $roundNumber): array {
+                $crosses = $this->groupIntoCrosses($roundMatches);
+
+                return [
+                    'round_number' => $roundNumber,
+                    'label' => $this->knockoutRoundLabel($crosses->count()),
+                    'matches' => $crosses,
+                ];
+            })
             ->values()
             ->all();
+    }
+
+    /**
+     * Pair up one round's matches into their crosses: every first leg (its
+     * first_leg_match_id is null) paired with its second leg, if any -- a
+     * single-match cross just stays alone. Order is preserved (both a
+     * cross's own legs, leg1 before leg2, and the crosses themselves) since
+     * $roundMatches already arrives ordered by id and a first leg is always
+     * created before its second.
+     *
+     * @param  Collection<int, TournamentMatch>  $roundMatches
+     * @return Collection<int, Collection<int, TournamentMatch>>
+     */
+    private function groupIntoCrosses(Collection $roundMatches): Collection
+    {
+        $secondLegsByFirstLegId = $roundMatches
+            ->filter(fn (TournamentMatch $match): bool => $match->first_leg_match_id !== null)
+            ->keyBy('first_leg_match_id');
+
+        return $roundMatches
+            ->reject(fn (TournamentMatch $match): bool => $match->first_leg_match_id !== null)
+            ->map(function (TournamentMatch $firstLeg) use ($secondLegsByFirstLegId): Collection {
+                $secondLeg = $secondLegsByFirstLegId->get($firstLeg->id);
+
+                return $secondLeg !== null ? collect([$firstLeg, $secondLeg]) : collect([$firstLeg]);
+            })
+            ->values();
     }
 
     private function knockoutRoundLabel(int $matchesInRound): string
@@ -355,8 +404,8 @@ class CompetitionPhaseController extends Controller
      * ordered outside-in on the left, then the single final column, then the
      * same rounds mirrored outside-in on the right.
      *
-     * @param  array<int, array{round_number: int, label: string, matches: Collection<int, TournamentMatch>}>  $bracketRounds
-     * @return array<int, array{side: string, label: string, matches: Collection<int, TournamentMatch>}>
+     * @param  array<int, array{round_number: int, label: string, matches: Collection<int, Collection<int, TournamentMatch>>}>  $bracketRounds
+     * @return array<int, array{side: string, label: string, matches: Collection<int, Collection<int, TournamentMatch>>}>
      */
     private function buildBracketColumns(array $bracketRounds): array
     {
@@ -468,6 +517,14 @@ class CompetitionPhaseController extends Controller
         }
 
         $phase->update($request->validated());
+        // Explicitly nulled rather than left to validated()'s merge: a
+        // 'prohibited' field absent from the request simply isn't present
+        // in validated() at all, which would otherwise leave a stale format
+        // behind when switching a still-matchless phase back to League.
+        $phase->knockout_format = $type === CompetitionPhaseType::League
+            ? null
+            : ScheduleFormat::from($request->validated('knockout_format') ?? ScheduleFormat::SingleRound->value);
+        $phase->save();
 
         return to_route('phases.show', $phase);
     }
