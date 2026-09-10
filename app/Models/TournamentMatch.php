@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property int $competition_phase_id
  * @property int|null $first_leg_match_id
  * @property int|null $group_id
+ * @property int|null $referee_id
  * @property int|null $league_schedule_id
  * @property int|null $home_team_id
  * @property int|null $away_team_id
@@ -43,7 +44,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Table('matches')]
-#[Fillable(['group_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at'])]
+#[Fillable(['group_id', 'referee_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at'])]
 class TournamentMatch extends Model
 {
     /** @use HasFactory<TournamentMatchFactory> */
@@ -87,6 +88,17 @@ class TournamentMatch extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    /**
+     * The referee assigned to direct this match -- optional, since a match
+     * can exist (and even be played) before one is recorded.
+     *
+     * @return BelongsTo<Referee, $this>
+     */
+    public function referee(): BelongsTo
+    {
+        return $this->belongsTo(Referee::class);
     }
 
     /**

@@ -10,6 +10,7 @@ use App\Http\Controllers\MatchResultController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\PlayerController;
+use App\Http\Controllers\RefereeController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -17,6 +18,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
     Route::resource('tournaments', TournamentController::class)->except('index');
+
+    // Referees are global to the organizer, not nested under a tournament --
+    // this is a standalone top-level resource, same as tournaments.
+    Route::resource('referees', RefereeController::class)->except('destroy');
 
     Route::resource('tournaments.categories', CategoryController::class)
         ->shallow()

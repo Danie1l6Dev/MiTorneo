@@ -8,6 +8,7 @@ use App\Http\Requests\TournamentMatchRequest;
 use App\Models\TournamentMatch;
 use App\Services\KnockoutBracketService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class TournamentMatchController extends Controller
@@ -56,8 +57,10 @@ class TournamentMatchController extends Controller
         // whichever entry actually got rejected.
         $oldQueuedEvents = $this->reconstructQueuedEvents($match, (array) old('events', []));
 
+        $referees = Auth::user()->referees()->orderBy('full_name')->get();
+
         return view('pages.matches.edit', compact(
-            'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds', 'oldQueuedEvents'
+            'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds', 'oldQueuedEvents', 'referees'
         ));
     }
 

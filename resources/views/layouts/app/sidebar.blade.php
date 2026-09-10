@@ -30,6 +30,10 @@
                         <flux:sidebar.item icon="trophy" :href="route('dashboard')" :current="request()->routeIs('dashboard', 'tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
                             {{ __('Mis torneos') }}
                         </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="flag" :href="route('referees.index')" :current="request()->routeIs('referees.*')" wire:navigate>
+                            {{ __('Árbitros') }}
+                        </flux:sidebar.item>
                     @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>

@@ -12,6 +12,7 @@ use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\LeagueSchedule;
+use App\Models\Referee;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
@@ -46,6 +47,12 @@ class DatabaseSeeder extends Seeder
             'email' => 'demo@mitorneo.test',
         ]);
 
+        // Global referees, created once for Daniel and reused across every
+        // finished match seeded below -- spanning more than one tournament,
+        // so the referee list/detail pages have real data (match counts,
+        // match history) to show immediately instead of an empty state.
+        $referees = $this->seedReferees($daniel);
+
         // Demo tournaments so there's always something ready to click through
         // right after logging in, covering the states that are otherwise
         // tedious to set up by hand: one waiting on "Generar calendario", one
@@ -53,8 +60,21 @@ class DatabaseSeeder extends Seeder
         // one with a full 8-team league already played out end to end so the
         // knockout bracket (cuartos -> semifinal -> final) can be tried too.
         $this->seedReadyForScheduleTournament($daniel);
-        $this->seedReadyForDrawTournament($daniel);
-        $this->seedReadyForKnockoutBracketTournament($daniel);
+        $this->seedReadyForDrawTournament($daniel, $referees);
+        $this->seedReadyForKnockoutBracketTournament($daniel, $referees);
+    }
+
+    /**
+     * @return Collection<int, Referee>
+     */
+    private function seedReferees(User $user): Collection
+    {
+        return collect([
+            ['full_name' => 'Roberto Fernández', 'document_number' => '30111222'],
+            ['full_name' => 'Marta Gómez', 'document_number' => '30111333'],
+            ['full_name' => 'Luis Herrera', 'document_number' => '30111444'],
+            ['full_name' => 'Patricia Núñez', 'document_number' => '30111555'],
+        ])->map(fn (array $attributes): Referee => $user->referees()->create($attributes));
     }
 
     /**
@@ -117,8 +137,10 @@ class DatabaseSeeder extends Seeder
      * finished, with real (varied) results, so its standings are ready and
      * "Definir clasificados" can be used immediately to try the live
      * knockout draw without first having to play out a whole league phase.
+     *
+     * @param  Collection<int, Referee>  $referees
      */
-    private function seedReadyForDrawTournament(User $user): void
+    private function seedReadyForDrawTournament(User $user, Collection $referees): void
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Copa Relámpago 2026',
@@ -166,8 +188,8 @@ class DatabaseSeeder extends Seeder
 
         // Deliberately varied scores (wins, a draw, different margins) so the
         // standings tables have a clear, non-trivial ranking to look at.
-        $this->generateFinishedSchedule($phase, $teamsA, [[2, 1], [0, 0], [3, 1]], $groupA);
-        $this->generateFinishedSchedule($phase, $teamsB, [[1, 1], [2, 0], [1, 2]], $groupB);
+        $this->generateFinishedSchedule($phase, $teamsA, [[2, 1], [0, 0], [3, 1]], $groupA, $referees);
+        $this->generateFinishedSchedule($phase, $teamsB, [[1, 1], [2, 0], [1, 2]], $groupB, $referees);
     }
 
     /**
@@ -177,8 +199,10 @@ class DatabaseSeeder extends Seeder
      * for "Definir clasificados" -> Eliminación directa with all 8 teams,
      * exercising the full cuartos -> semifinal -> final bracket cascade
      * without first having to play a league out by hand.
+     *
+     * @param  Collection<int, Referee>  $referees
      */
-    private function seedReadyForKnockoutBracketTournament(User $user): void
+    private function seedReadyForKnockoutBracketTournament(User $user, Collection $referees): void
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Liga Profesional 2026',
@@ -205,7 +229,7 @@ class DatabaseSeeder extends Seeder
             'Estrella del Pacífico', 'Halcones United', 'Titanes FC', 'Rayo Andino',
         ])->map(fn (string $name): Team => $this->createTeam($primera, $tournament, $name));
 
-        $this->generateFinishedSchedule($phase, $teams);
+        $this->generateFinishedSchedule($phase, $teams, referees: $referees);
     }
 
     private function createTeam(Category $category, Tournament $tournament, string $name, ?Group $group = null): Team
@@ -265,8 +289,10 @@ class DatabaseSeeder extends Seeder
      *
      * @param  Collection<int, Team>  $teams
      * @param  array<int, array{0: int, 1: int}>  $scores
+     * @param  Collection<int, Referee>|null  $referees  Cycled across fixtures when given; every 5th fixture is
+     *                                                   deliberately left without one, so "Sin árbitro asignado" also has real matches to show.
      */
-    private function generateFinishedSchedule(CompetitionPhase $phase, Collection $teams, array $scores = [], ?Group $group = null): void
+    private function generateFinishedSchedule(CompetitionPhase $phase, Collection $teams, array $scores = [], ?Group $group = null, ?Collection $referees = null): void
     {
         $schedule = new LeagueSchedule;
         $schedule->tournament_id = $phase->tournament_id;
@@ -281,7 +307,6 @@ class DatabaseSeeder extends Seeder
         foreach (app(LeagueScheduleService::class)->generate($teams, ScheduleFormat::SingleRound) as $round) {
             foreach ($round['fixtures'] as $fixture) {
                 [$homeScore, $awayScore] = $scores[$fixtureIndex] ?? [random_int(0, 4), random_int(0, 4)];
-                $fixtureIndex++;
 
                 $match = new TournamentMatch;
                 $match->tournament_id = $phase->tournament_id;
@@ -295,7 +320,14 @@ class DatabaseSeeder extends Seeder
                 $match->home_score = $homeScore;
                 $match->away_score = $awayScore;
                 $match->status = MatchStatus::Finished;
+
+                if ($referees !== null && $referees->isNotEmpty() && $fixtureIndex % 5 !== 4) {
+                    $match->referee_id = $referees[$fixtureIndex % $referees->count()]->id;
+                }
+
                 $match->save();
+
+                $fixtureIndex++;
             }
         }
     }

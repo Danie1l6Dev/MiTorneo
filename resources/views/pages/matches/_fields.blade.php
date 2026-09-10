@@ -35,3 +35,13 @@
     label="{{ __('Fecha y hora (opcional)') }}"
     value="{{ old('scheduled_at', $match->scheduled_at?->format('Y-m-d\TH:i')) }}"
 />
+
+<flux:select name="referee_id" label="{{ __('Árbitro (opcional)') }}" placeholder="{{ __('Sin árbitro asignado') }}">
+    @php $currentReferee = old('referee_id', $match->referee_id ?? ''); @endphp
+
+    @foreach ($referees as $referee)
+        <flux:select.option value="{{ $referee->id }}" :selected="(string) $referee->id === (string) $currentReferee">
+            {{ $referee->full_name }}
+        </flux:select.option>
+    @endforeach
+</flux:select>

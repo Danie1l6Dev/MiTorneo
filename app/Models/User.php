@@ -63,6 +63,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * @return HasMany<Referee, $this>
+     */
+    public function referees(): HasMany
+    {
+        return $this->hasMany(Referee::class);
+    }
+
+    /**
      * Get the user's initials
      */
     public function initials(): string
