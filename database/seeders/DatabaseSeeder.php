@@ -4,20 +4,27 @@ namespace Database\Seeders;
 
 use App\Enums\CategoryStatus;
 use App\Enums\CompetitionPhaseType;
+use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
+use App\Enums\SanctionStatus;
 use App\Enums\ScheduleFormat;
 use App\Enums\TournamentStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
+use App\Models\Coach;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\LeagueSchedule;
+use App\Models\MatchEvent;
+use App\Models\Player;
 use App\Models\Referee;
+use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
 use App\Services\LeagueScheduleService;
+use App\Services\SanctionService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
@@ -229,7 +236,14 @@ class DatabaseSeeder extends Seeder
             'Estrella del Pacífico', 'Halcones United', 'Titanes FC', 'Rayo Andino',
         ])->map(fn (string $name): Team => $this->createTeam($primera, $tournament, $name));
 
-        $this->generateFinishedSchedule($phase, $teams, referees: $referees);
+        $matches = $this->generateFinishedSchedule($phase, $teams, referees: $referees);
+
+        // Layered on top of the goals/assists every finished match already
+        // got -- one guaranteed example of every sanction state the
+        // feature supports, so the Sanciones section has real, varied data
+        // immediately instead of depending on the random scores/lineup
+        // above happening to produce one.
+        $this->seedSanctionScenarios($matches);
     }
 
     private function createTeam(Category $category, Tournament $tournament, string $name, ?Group $group = null): Team
@@ -285,14 +299,20 @@ class DatabaseSeeder extends Seeder
      * itself uses), optionally scoped to one group, and immediately mark
      * every fixture as finished. Explicit scores can be given in generation
      * order; any fixture beyond the given list (or all of them, if none are
-     * given at all) gets a random scoreline instead.
+     * given at all) gets a random scoreline instead. Each finished match
+     * also gets goal/assist MatchEvent rows matching its own scoreline (see
+     * seedGoalEvents()), so the "Eventos del partido" section and any
+     * goleadores/asistencias leaderboards have real data everywhere, not
+     * just wherever a scenario below happens to add cards by hand.
      *
      * @param  Collection<int, Team>  $teams
      * @param  array<int, array{0: int, 1: int}>  $scores
      * @param  Collection<int, Referee>|null  $referees  Cycled across fixtures when given; every 5th fixture is
      *                                                   deliberately left without one, so "Sin árbitro asignado" also has real matches to show.
+     * @return Collection<int, TournamentMatch> Every match just created, in generation order -- lets a caller
+     *                                          (see seedSanctionScenarios()) target a specific round_number afterward.
      */
-    private function generateFinishedSchedule(CompetitionPhase $phase, Collection $teams, array $scores = [], ?Group $group = null, ?Collection $referees = null): void
+    private function generateFinishedSchedule(CompetitionPhase $phase, Collection $teams, array $scores = [], ?Group $group = null, ?Collection $referees = null): Collection
     {
         $schedule = new LeagueSchedule;
         $schedule->tournament_id = $phase->tournament_id;
@@ -303,6 +323,7 @@ class DatabaseSeeder extends Seeder
         $schedule->save();
 
         $fixtureIndex = 0;
+        $matches = collect();
 
         foreach (app(LeagueScheduleService::class)->generate($teams, ScheduleFormat::SingleRound) as $round) {
             foreach ($round['fixtures'] as $fixture) {
@@ -327,8 +348,162 @@ class DatabaseSeeder extends Seeder
 
                 $match->save();
 
+                $this->seedGoalEvents($match, $match->home_team_id, $homeScore);
+                $this->seedGoalEvents($match, $match->away_team_id, $awayScore);
+
+                $matches->push($match);
                 $fixtureIndex++;
             }
         }
+
+        return $matches;
+    }
+
+    /**
+     * One goal MatchEvent per goal in the scoreline, each scored by a
+     * random squad player -- and, for roughly half of them, an assist from
+     * a DIFFERENT teammate. Tying each assist to a specific goal (even
+     * though the row itself doesn't record that link) is what keeps this
+     * naturally within MatchEventRequest's "can't out-assist your
+     * teammates' goals" rule, without having to duplicate that math here.
+     */
+    private function seedGoalEvents(TournamentMatch $match, int $teamId, int $goalCount): void
+    {
+        if ($goalCount === 0) {
+            return;
+        }
+
+        $players = Player::query()->where('team_id', $teamId)->get();
+
+        if ($players->isEmpty()) {
+            return;
+        }
+
+        for ($i = 0; $i < $goalCount; $i++) {
+            $scorer = $players->random();
+
+            MatchEvent::query()->create([
+                'match_id' => $match->id,
+                'team_id' => $teamId,
+                'player_id' => $scorer->id,
+                'type' => MatchEventType::Goal,
+            ]);
+
+            if ($players->count() > 1 && random_int(1, 100) <= 50) {
+                $assister = $players->where('id', '!=', $scorer->id)->random();
+
+                MatchEvent::query()->create([
+                    'match_id' => $match->id,
+                    'team_id' => $teamId,
+                    'player_id' => $assister->id,
+                    'type' => MatchEventType::Assist,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Layers one guaranteed example of every sanction state the feature
+     * supports on top of the goals/assists every match already got --
+     * picked by round_number (reliably set by LeagueScheduleService, and
+     * what Sanction::teamMatchSequence() itself sorts by), so how many
+     * fechas end up already "served" by the end of seeding is deliberate,
+     * not left to chance:
+     *
+     * - Round 1: resolved for 1 fecha, with 6 later rounds already
+     *   finished -- long since "Sanción cumplida".
+     * - Round 5: resolved for 3 fechas, with only rounds 6-7 left to serve
+     *   them in -- still actively suspended when seeding ends.
+     * - Round 7 (the last): left Pending -- no committee decision yet.
+     * - Round 3: a DT sent off, resolved with fechas AND a fine.
+     * - Round 2: the same player shown two separate yellows -- auto
+     *   -resolved as a double_yellow, no committee step at all.
+     *
+     * @param  Collection<int, TournamentMatch>  $matches
+     */
+    private function seedSanctionScenarios(Collection $matches): void
+    {
+        $sanctions = app(SanctionService::class);
+
+        $this->seedRedCardSanction($matches->firstWhere('round_number', 1), $sanctions, matchesBanned: 1, resolutionNotes: 'Agresión a un rival tras el pitazo final.');
+        $this->seedRedCardSanction($matches->firstWhere('round_number', 5), $sanctions, matchesBanned: 3, resolutionNotes: 'Reacción violenta tras una falta cobrada en contra.', useAwayTeam: true);
+        $this->seedRedCardSanction($matches->firstWhere('round_number', 7), $sanctions, matchesBanned: null, useAwayTeam: true);
+        $this->seedCoachRedCardSanction($matches->firstWhere('round_number', 3), $sanctions);
+        $this->seedDoubleYellowSanction($matches->firstWhere('round_number', 2), $sanctions);
+    }
+
+    private function seedRedCardSanction(?TournamentMatch $match, SanctionService $sanctions, ?int $matchesBanned, ?string $resolutionNotes = null, bool $useAwayTeam = false): void
+    {
+        if ($match === null) {
+            return;
+        }
+
+        $teamId = $useAwayTeam ? $match->away_team_id : $match->home_team_id;
+        $player = Player::query()->where('team_id', $teamId)->inRandomOrder()->first();
+
+        if ($player === null) {
+            return;
+        }
+
+        $subject = ['team_id' => $teamId, 'player_id' => $player->id, 'coach_id' => null];
+
+        MatchEvent::query()->create([...$subject, 'match_id' => $match->id, 'type' => MatchEventType::RedCard]);
+        $sanctions->syncForSubject($match, $subject);
+
+        if ($matchesBanned === null) {
+            return;
+        }
+
+        Sanction::query()->where('match_id', $match->id)->where('player_id', $player->id)->first()?->update([
+            'status' => SanctionStatus::Resolved,
+            'matches_banned' => $matchesBanned,
+            'resolution_notes' => $resolutionNotes,
+            'resolved_at' => now(),
+        ]);
+    }
+
+    private function seedCoachRedCardSanction(?TournamentMatch $match, SanctionService $sanctions): void
+    {
+        if ($match === null) {
+            return;
+        }
+
+        $coach = Coach::query()->where('team_id', $match->home_team_id)->first();
+
+        if ($coach === null) {
+            return;
+        }
+
+        $subject = ['team_id' => $match->home_team_id, 'player_id' => null, 'coach_id' => $coach->id];
+
+        MatchEvent::query()->create([...$subject, 'match_id' => $match->id, 'type' => MatchEventType::RedCard]);
+        $sanctions->syncForSubject($match, $subject);
+
+        Sanction::query()->where('match_id', $match->id)->where('coach_id', $coach->id)->first()?->update([
+            'status' => SanctionStatus::Resolved,
+            'matches_banned' => 2,
+            'fine_amount' => 25000,
+            'resolution_notes' => 'Conducta antideportiva hacia el árbitro.',
+            'resolved_at' => now(),
+        ]);
+    }
+
+    private function seedDoubleYellowSanction(?TournamentMatch $match, SanctionService $sanctions): void
+    {
+        if ($match === null) {
+            return;
+        }
+
+        $player = Player::query()->where('team_id', $match->away_team_id)->inRandomOrder()->first();
+
+        if ($player === null) {
+            return;
+        }
+
+        $subject = ['team_id' => $match->away_team_id, 'player_id' => $player->id, 'coach_id' => null];
+
+        MatchEvent::query()->create([...$subject, 'match_id' => $match->id, 'type' => MatchEventType::YellowCard]);
+        MatchEvent::query()->create([...$subject, 'match_id' => $match->id, 'type' => MatchEventType::YellowCard]);
+        $sanctions->syncForSubject($match, $subject);
     }
 }
