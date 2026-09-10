@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchEventType;
 use App\Http\Requests\TournamentMatchRequest;
+use App\Models\Sanction;
+use App\Models\Team;
 use App\Models\TournamentMatch;
 use App\Services\KnockoutBracketService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -59,9 +62,43 @@ class TournamentMatchController extends Controller
 
         $referees = Auth::user()->referees()->orderBy('full_name')->get();
 
+        // A player/coach still serving a sanction (from ANY earlier match,
+        // any phase -- suspensions follow the person across the whole
+        // tournament, not just the phase they were carded in) shouldn't be
+        // offered goal/assist/card buttons for a DIFFERENT match. The match
+        // where the card itself was shown is excluded on purpose: they
+        // played that one, the suspension only affects the ones after it.
+        $homeUnavailableSanctions = $this->unavailableSanctions($match, $match->homeTeam);
+        $awayUnavailableSanctions = $this->unavailableSanctions($match, $match->awayTeam);
+
         return view('pages.matches.edit', compact(
-            'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds', 'oldQueuedEvents', 'referees'
+            'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds',
+            'oldQueuedEvents', 'referees', 'homeUnavailableSanctions', 'awayUnavailableSanctions'
         ));
+    }
+
+    /**
+     * @return Collection<int, Sanction>
+     */
+    private function unavailableSanctions(TournamentMatch $match, ?Team $team): Collection
+    {
+        if ($team === null) {
+            return new Collection;
+        }
+
+        // Sanction::blocksMatch() is what actually decides "does this
+        // specific sanction keep its subject out of THIS match" -- it
+        // accounts for the team's real match order (so a fixture from
+        // BEFORE the sanction was ever handed out is never flagged) and,
+        // once resolved, for exactly how many of the following matches the
+        // fechas cover (so nothing needs to be marked "served" manually).
+        return Sanction::query()
+            ->where('team_id', $team->id)
+            ->with(['player', 'coach'])
+            ->latest('id')
+            ->get()
+            ->filter(fn (Sanction $sanction): bool => $sanction->blocksMatch($match->id))
+            ->values();
     }
 
     /**

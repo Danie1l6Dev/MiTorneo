@@ -128,6 +128,18 @@
             $awayInitials = $match->awayTeam ? \Illuminate\Support\Str::substr($match->awayTeam->short_name ?: $match->awayTeam->name, 0, 2) : '?';
             $isDecisiveLeg = $match->isDecisiveKnockoutLeg();
 
+            // Players/coach still serving a sanction from an earlier match
+            // don't get quick-add buttons for THIS match -- they're pulled
+            // out of the actionable roster and shown in
+            // x-ui.match-unavailable-players instead (see
+            // TournamentMatchController::edit()'s unavailableSanctions()).
+            $homeUnavailablePlayerIds = $homeUnavailableSanctions->pluck('player_id')->filter();
+            $awayUnavailablePlayerIds = $awayUnavailableSanctions->pluck('player_id')->filter();
+            $homeCoachUnavailable = $match->homeTeam?->coach && $homeUnavailableSanctions->contains('coach_id', $match->homeTeam->coach->id);
+            $awayCoachUnavailable = $match->awayTeam?->coach && $awayUnavailableSanctions->contains('coach_id', $match->awayTeam->coach->id);
+            $homeAvailablePlayers = $match->homeTeam?->players->whereNotIn('id', $homeUnavailablePlayerIds);
+            $awayAvailablePlayers = $match->awayTeam?->players->whereNotIn('id', $awayUnavailablePlayerIds);
+
             $resultErrorKeys = ['home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score'];
             $resultErrorMessage = collect($resultErrorKeys)->map(fn ($key) => $errors->first($key))->first(fn ($message) => $message !== '');
 
@@ -165,8 +177,9 @@
         ])>
             @unless ($pending)
                 <div class="space-y-4 lg:order-1">
-                    <x-ui.match-roster-panel :team="$match->homeTeam" :players="$match->homeTeam->players" />
+                    <x-ui.match-roster-panel :team="$match->homeTeam" :players="$homeAvailablePlayers" :hide-coach="$homeCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->home_team_id" />
+                    <x-ui.match-unavailable-players :sanctions="$homeUnavailableSanctions" :match-id="$match->id" />
                 </div>
             @endunless
 
@@ -410,8 +423,9 @@
 
             @unless ($pending)
                 <div class="space-y-4 lg:order-3">
-                    <x-ui.match-roster-panel :team="$match->awayTeam" :players="$match->awayTeam->players" />
+                    <x-ui.match-roster-panel :team="$match->awayTeam" :players="$awayAvailablePlayers" :hide-coach="$awayCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->away_team_id" />
+                    <x-ui.match-unavailable-players :sanctions="$awayUnavailableSanctions" :match-id="$match->id" />
                 </div>
             @endunless
         </div>

@@ -34,6 +34,10 @@
                         <flux:sidebar.item icon="flag" :href="route('referees.index')" :current="request()->routeIs('referees.*')" wire:navigate>
                             {{ __('Árbitros') }}
                         </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="shield-exclamation" :href="route('sanctions.index')" :current="request()->routeIs('sanctions.*')" wire:navigate>
+                            {{ __('Sanciones') }}
+                        </flux:sidebar.item>
                     @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>

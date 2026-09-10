@@ -351,6 +351,16 @@ class TournamentMatch extends Model
     }
 
     /**
+     * Every disciplinary Sanction that originated from a card in this match.
+     *
+     * @return HasMany<Sanction, $this>
+     */
+    public function sanctions(): HasMany
+    {
+        return $this->hasMany(Sanction::class, 'match_id');
+    }
+
+    /**
      * True once the match is finished and either team's tally of logged goal
      * events disagrees with its final score -- purely informational, mirrors
      * the callout on the match edit screen so the discrepancy is visible from

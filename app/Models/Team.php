@@ -107,4 +107,15 @@ class Team extends Model
     {
         return $this->hasMany(MatchEvent::class);
     }
+
+    /**
+     * Every disciplinary Sanction recorded for this team's players/coaches,
+     * across every match.
+     *
+     * @return HasMany<Sanction, $this>
+     */
+    public function sanctions(): HasMany
+    {
+        return $this->hasMany(Sanction::class);
+    }
 }

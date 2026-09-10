@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\MatchEventType;
 use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\Sanction;
 use App\Models\TournamentMatch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -100,6 +101,21 @@ class MatchEventRequest extends FormRequest
             }
 
             if ($match === null) {
+                return;
+            }
+
+            // A subject still serving a sanction from an earlier match (any
+            // phase -- suspensions follow the person across the whole
+            // tournament) can't get a NEW event here, whatever its type --
+            // they shouldn't have been on the pitch/bench for this match at
+            // all. The match that originated the sanction itself is never
+            // blocked: see Sanction::currentlyBlocks().
+            $subjectColumn = $hasCoach ? 'coach_id' : 'player_id';
+            $subjectId = (int) $this->input($subjectColumn);
+
+            if (Sanction::currentlyBlocks($subjectColumn, $subjectId, $match->id)) {
+                $validator->errors()->add($subjectColumn, __('Este jugador o director técnico tiene una sanción vigente y no puede registrar eventos en este partido.'));
+
                 return;
             }
 

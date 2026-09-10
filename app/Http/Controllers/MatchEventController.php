@@ -8,7 +8,9 @@ use App\Http\Requests\MatchEventRequest;
 use App\Models\Coach;
 use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\Sanction;
 use App\Models\TournamentMatch;
+use App\Services\SanctionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +33,7 @@ class MatchEventController extends Controller
         ]);
     }
 
-    public function store(MatchEventRequest $request, TournamentMatch $match): RedirectResponse
+    public function store(MatchEventRequest $request, TournamentMatch $match, SanctionService $sanctions): RedirectResponse
     {
         $this->authorize('create', [MatchEvent::class, $match]);
 
@@ -40,12 +42,18 @@ class MatchEventController extends Controller
         }
 
         $minute = $request->validated('minute') !== null ? (int) $request->validated('minute') : null;
+        $subject = $this->resolveSubject($request->validated('player_id'), $request->validated('coach_id'));
+        $type = MatchEventType::from($request->validated('type'));
 
         $match->events()->create([
-            ...$this->resolveSubject($request->validated('player_id'), $request->validated('coach_id')),
-            'type' => $request->validated('type'),
+            ...$subject,
+            'type' => $type,
             'minute' => $minute,
         ]);
+
+        if (in_array($type, [MatchEventType::YellowCard, MatchEventType::RedCard], true)) {
+            $sanctions->syncForSubject($match, $subject);
+        }
 
         return to_route('matches.edit', $match)->with('status', __('Evento registrado correctamente.'));
     }
@@ -60,7 +68,7 @@ class MatchEventController extends Controller
      * either -- the client simply queues an extra independent yellow + red
      * pair, so this always just creates one plain row per queued item.
      */
-    public function storeBatch(MatchEventBatchRequest $request, TournamentMatch $match): RedirectResponse
+    public function storeBatch(MatchEventBatchRequest $request, TournamentMatch $match, SanctionService $sanctions): RedirectResponse
     {
         $this->authorize('create', [MatchEvent::class, $match]);
 
@@ -72,16 +80,34 @@ class MatchEventController extends Controller
         $players = Player::query()->whereIn('id', $events->pluck('player_id')->filter()->unique())->get()->keyBy('id');
         $coaches = Coach::query()->whereIn('id', $events->pluck('coach_id')->filter()->unique())->get()->keyBy('id');
 
-        DB::transaction(function () use ($match, $events, $players, $coaches): void {
+        // Keyed by "player:{id}"/"coach:{id}" so every subject that
+        // received a card in this batch only gets synced once, after all
+        // of the batch's events are actually saved -- SanctionService
+        // always recomputes from the DB, so syncing mid-batch would just
+        // redo the same work for nothing.
+        $cardSubjects = [];
+
+        DB::transaction(function () use ($match, $events, $players, $coaches, $sanctions, &$cardSubjects): void {
             foreach ($events as $eventData) {
                 $subject = ! empty($eventData['coach_id'])
                     ? $this->resolveSubject(null, $coaches->get($eventData['coach_id']))
                     : $this->resolveSubject($players->get($eventData['player_id']), null);
 
+                $type = MatchEventType::from($eventData['type']);
+
                 $match->events()->create([
                     ...$subject,
-                    'type' => $eventData['type'],
+                    'type' => $type,
                 ]);
+
+                if (in_array($type, [MatchEventType::YellowCard, MatchEventType::RedCard], true)) {
+                    $key = $subject['coach_id'] !== null ? "coach:{$subject['coach_id']}" : "player:{$subject['player_id']}";
+                    $cardSubjects[$key] = $subject;
+                }
+            }
+
+            foreach ($cardSubjects as $subject) {
+                $sanctions->syncForSubject($match, $subject);
             }
         });
 
@@ -92,7 +118,7 @@ class MatchEventController extends Controller
         ));
     }
 
-    public function destroy(MatchEvent $event): RedirectResponse
+    public function destroy(MatchEvent $event, SanctionService $sanctions): RedirectResponse
     {
         $this->authorize('delete', $event);
 
@@ -105,12 +131,51 @@ class MatchEventController extends Controller
             ));
         }
 
-        DB::transaction(function () use ($event): void {
+        if ($this->deletingWouldOrphanAProtectedSanction($event, $sanctions)) {
+            return to_route('matches.edit', $match)->with('error', __(
+                'No se puede eliminar esta tarjeta: ya tiene una sanción resuelta por el Comité Directivo. Editá o eliminá la sanción primero.'
+            ));
+        }
+
+        $isCardEvent = in_array($event->type, [MatchEventType::YellowCard, MatchEventType::RedCard], true);
+        $subject = ['team_id' => $event->team_id, 'player_id' => $event->player_id, 'coach_id' => $event->coach_id];
+
+        DB::transaction(function () use ($event, $sanctions, $isCardEvent, $subject, $match): void {
             $this->cascadeCardDeletion($event);
             $event->delete();
+
+            if ($isCardEvent) {
+                $sanctions->syncForSubject($match, $subject);
+            }
         });
 
         return to_route('matches.edit', $match)->with('status', __('Evento eliminado correctamente.'));
+    }
+
+    /**
+     * A Sanction SanctionService itself would refuse to touch (a resolved
+     * red_card, or anything with a fecha already marked served) is a real
+     * administrative record -- deleting the card event behind it would
+     * silently orphan that record instead of the post-delete sync just
+     * cleaning it up. Blocked the same way an unsafe goal deletion already
+     * is, above. Only relevant for yellow/red events; a goal/assist can
+     * never have a Sanction tied to it.
+     */
+    private function deletingWouldOrphanAProtectedSanction(MatchEvent $event, SanctionService $sanctions): bool
+    {
+        if (! in_array($event->type, [MatchEventType::YellowCard, MatchEventType::RedCard], true)) {
+            return false;
+        }
+
+        $subjectColumn = $event->coach_id !== null ? 'coach_id' : 'player_id';
+        $subjectId = $event->coach_id ?? $event->player_id;
+
+        $sanction = Sanction::query()
+            ->where('match_id', $event->match_id)
+            ->where($subjectColumn, $subjectId)
+            ->first();
+
+        return $sanction !== null && ! $sanctions->isAutoManageable($sanction);
     }
 
     /**

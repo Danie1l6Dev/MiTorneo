@@ -11,6 +11,7 @@ use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\RefereeController;
+use App\Http\Controllers\SanctionController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -78,6 +79,16 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('matches/{match}/events/batch', [MatchEventController::class, 'storeBatch'])
         ->name('matches.events.batch-store');
+
+    // Sanctions are only ever created by SanctionService, from card events
+    // -- no create/store/destroy routes, this resource is read + resolve
+    // only. How many fechas have been served is always computed from the
+    // team's own match calendar (see Sanction::matchesServedCount()),
+    // never a manual step, so there's no "mark served" route either.
+    Route::resource('sanctions', SanctionController::class)->only(['index', 'show']);
+
+    Route::patch('sanctions/{sanction}/resolve', [SanctionController::class, 'resolve'])
+        ->name('sanctions.resolve');
 
     Route::post('phases/{phase}/schedule', [LeagueScheduleController::class, 'store'])
         ->name('phases.schedule.store');

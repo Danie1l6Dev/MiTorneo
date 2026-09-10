@@ -6,6 +6,7 @@ use App\Enums\MatchEventType;
 use App\Models\Coach;
 use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\TournamentMatch;
 use Illuminate\Foundation\Http\FormRequest;
@@ -95,6 +96,17 @@ class MatchEventBatchRequest extends FormRequest
                         continue;
                     }
 
+                    // A coach still serving a sanction from an earlier
+                    // match can't get a new event in a different one -- see
+                    // MatchEventRequest for the same rule and
+                    // Sanction::currentlyBlocks() for why the originating
+                    // match itself is never blocked.
+                    if (Sanction::currentlyBlocks('coach_id', $coachId, $match->id)) {
+                        $validator->errors()->add("events.$index.coach_id", __('Este director técnico tiene una sanción vigente y no puede registrar eventos en este partido.'));
+
+                        continue;
+                    }
+
                     if (in_array($type, ['yellow_card', 'red_card'], true)) {
                         $key = "coach:$coachId";
                         $newCardCountsBySubject[$key][$type] = ($newCardCountsBySubject[$key][$type] ?? 0) + 1;
@@ -108,6 +120,12 @@ class MatchEventBatchRequest extends FormRequest
 
                 if ($player === null) {
                     $validator->errors()->add("events.$index.player_id", __('Uno de los jugadores seleccionados no pertenece a ninguno de los dos equipos de este partido.'));
+
+                    continue;
+                }
+
+                if (Sanction::currentlyBlocks('player_id', $player->id, $match->id)) {
+                    $validator->errors()->add("events.$index.player_id", __('Este jugador tiene una sanción vigente y no puede registrar eventos en este partido.'));
 
                     continue;
                 }

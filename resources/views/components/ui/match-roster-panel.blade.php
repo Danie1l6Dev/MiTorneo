@@ -1,6 +1,12 @@
 @props([
     'team',
     'players',
+    // True when the team's active coach is currently serving a sanction --
+    // suppresses just the DT row (still shown, with its full roster, when
+    // the team simply has no coach registered) so no card/goal buttons are
+    // offered for someone already suspended. See
+    // x-ui.match-unavailable-players for where they show up instead.
+    'hideCoach' => false,
 ])
 
 {{--
@@ -22,7 +28,7 @@
          never a goal or assist -- only 2 buttons here, and addYellow/addRed
          are called with subjectType 'coach' instead of 'player'. Nothing
          renders if the team has no active DT registered. --}}
-    @if ($team->coach)
+    @if ($team->coach && ! $hideCoach)
         @php $coachLabel = \Illuminate\Support\Js::from(__('DT').': '.$team->coach->full_name); @endphp
 
         <div class="flex items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50/50 px-4 py-2.5 dark:border-white/10 dark:bg-white/[0.03]">

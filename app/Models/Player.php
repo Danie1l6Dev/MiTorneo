@@ -92,4 +92,32 @@ class Player extends Model
     {
         return $this->events()->where('type', MatchEventType::RedCard);
     }
+
+    /**
+     * Every disciplinary Sanction on record for this player, across every
+     * match -- see Sanction's own docblock for how this differs from a
+     * plain card event.
+     *
+     * @return HasMany<Sanction, $this>
+     */
+    public function sanctions(): HasMany
+    {
+        return $this->hasMany(Sanction::class);
+    }
+
+    /**
+     * Whether this player currently owes fechas on ANY sanction -- a
+     * red card is treated as suspending them from the moment it's recorded
+     * (the same way being sent off keeps a player out under most
+     * disciplinary codes even before a committee confirms/extends it), so
+     * an unresolved (Pending) sanction counts too, not just a resolved one
+     * still short of matches_banned. This is a general status check, not
+     * "is this player blocked for THIS match" -- see
+     * Sanction::blocksMatch() for that (used by
+     * TournamentMatchController and the MatchEvent* requests).
+     */
+    public function isSuspended(): bool
+    {
+        return $this->sanctions()->get()->contains(fn (Sanction $sanction): bool => $sanction->stillOwesFechas());
+    }
 }

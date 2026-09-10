@@ -74,4 +74,28 @@ class Coach extends Model
     {
         return $this->events()->where('type', MatchEventType::RedCard);
     }
+
+    /**
+     * Every disciplinary Sanction on record for this coach, across every
+     * match -- can include a fine as well as fechas, see Sanction's own
+     * docblock.
+     *
+     * @return HasMany<Sanction, $this>
+     */
+    public function sanctions(): HasMany
+    {
+        return $this->hasMany(Sanction::class);
+    }
+
+    /**
+     * Whether this coach currently owes fechas on ANY sanction -- same
+     * suspended-from-the-moment-of-the-card reasoning as
+     * Player::isSuspended(), which also explains why this is a general
+     * status check rather than "is this coach blocked for THIS match" (see
+     * Sanction::blocksMatch() for that).
+     */
+    public function isSuspended(): bool
+    {
+        return $this->sanctions()->get()->contains(fn (Sanction $sanction): bool => $sanction->stillOwesFechas());
+    }
 }
