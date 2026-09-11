@@ -76,18 +76,55 @@
                  both, for a deep link into a specific leaderboard/filter. Every one of these tabs --
                  the six top-level ones AND each statistics panel's own group/phase-scope filter -- is a
                  pure client-side toggle: every combination is already loaded in the page (see
-                 PhaseBoardService::statisticsPanels()), so nothing here ever reloads. --}}
-            <div x-data="{
-                section: (() => {
-                    const view = new URLSearchParams(window.location.search).get('view');
+                 PhaseBoardService::statisticsPanels()), so nothing here ever reloads.
 
-                    if (['goal', 'assist', 'yellow_card', 'red_card'].includes(view)) return view;
+                 syncUrl() keeps the address bar's own query string/hash matching whichever tab is
+                 currently selected (via replaceState -- it rewrites the CURRENT history entry, it never
+                 pushes a new one, so clicking through tabs doesn't pile up "back" presses). Without this,
+                 opening a match from the calendar and then navigating back would restore whatever
+                 '?view='/hash happened to be in the URL from the page's ORIGINAL load, not whichever tab
+                 the user had actually switched to since -- e.g. landing back on "Goleadores" after
+                 leaving from "Calendario", just because that's what the URL still said. --}}
+            <div
+                x-data="{
+                    section: (() => {
+                        const view = new URLSearchParams(window.location.search).get('view');
 
-                    return window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla';
-                })(),
-                statGroup: new URLSearchParams(window.location.search).get('group') ?? 'all',
-                statScope: new URLSearchParams(window.location.search).get('phase') === 'all' ? 'all' : 'league',
-            }">
+                        if (['goal', 'assist', 'yellow_card', 'red_card'].includes(view)) return view;
+
+                        return window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla';
+                    })(),
+                    statGroup: new URLSearchParams(window.location.search).get('group') ?? 'all',
+                    statScope: new URLSearchParams(window.location.search).get('phase') === 'all' ? 'all' : 'league',
+                    syncUrl() {
+                        const url = new URL(window.location.href);
+                        const isStatType = ['goal', 'assist', 'yellow_card', 'red_card'].includes(this.section);
+
+                        url.searchParams.delete('view');
+                        url.searchParams.delete('group');
+                        url.searchParams.delete('phase');
+
+                        if (isStatType) {
+                            url.searchParams.set('view', this.section);
+                            if (this.statGroup !== 'all') url.searchParams.set('group', this.statGroup);
+                            if (this.statScope !== 'league') url.searchParams.set('phase', this.statScope);
+                            url.hash = '';
+                        } else if (this.section === 'calendario') {
+                            // Leave a more specific hash alone (e.g.
+                            // '#calendario-grupo-4', set by MatchResultController's
+                            // own redirect) -- only fall back to the plain one
+                            // when the address bar doesn't already point at
+                            // calendario at all.
+                            if (!url.hash.startsWith('#calendario')) url.hash = 'calendario';
+                        } else {
+                            url.hash = '';
+                        }
+
+                        history.replaceState(null, '', url);
+                    },
+                }"
+                x-effect="syncUrl()"
+            >
                 <x-ui.section-tabs :tabs="[
                     ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
                     ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
@@ -97,27 +134,88 @@
                     ['key' => \App\Enums\MatchEventType::RedCard->value, 'label' => __(\App\Enums\MatchEventType::RedCard->leaderboardTitle()), 'icon' => 'rectangle-stack'],
                 ]" />
 
+            @php
+                $calendarGroupIds = $schedules->pluck('schedule.group.id')->values();
+                $calendarStartRounds = $schedules->pluck('start_round_index')->values();
+                $calendarRoundNumbers = $schedules->map(fn (array $item) => collect($item['rounds'])->pluck('round_number')->values())->values();
+            @endphp
+
             <div
                 x-show="section === 'calendario'"
                 x-cloak
                 class="mt-4 space-y-4"
                 x-data="{
-                    // MatchResultController redirects back with the group id
-                    // in the hash (e.g. #calendario-grupo-4) so registering a
-                    // result lands back on that same group's tab instead of
-                    // always resetting to the first one.
+                    // Restores the exact group + jornada the user had open
+                    // before navigating away (e.g. into a match), instead of
+                    // always recomputing the 'first unfinished round'
+                    // default -- see syncCalendarHash() below for how this
+                    // hash gets written. MatchResultController's own redirect
+                    // (e.g. #calendario-grupo-4, no jornada) deliberately
+                    // stays on the default-round behavior: landing on the
+                    // next unplayed jornada right after saving a result is
+                    // what this page's outer x-data comment already
+                    // documents as wanted, so a bare group hash (no
+                    // '-ronda-') must keep falling back to startRound.
                     activeGroup: (() => {
-                        const match = window.location.hash.match(/^#calendario-grupo-(\d+)$/);
+                        const match = window.location.hash.match(/^#calendario-grupo-(\d+)/);
 
                         if (! match) return 0;
 
-                        const index = {{ \Illuminate\Support\Js::from($schedules->pluck('schedule.group.id')->values()) }}.indexOf(parseInt(match[1], 10));
+                        const index = {{ \Illuminate\Support\Js::from($calendarGroupIds) }}.indexOf(parseInt(match[1], 10));
 
                         return index === -1 ? 0 : index;
                     })(),
-                    startRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
-                    currentRound: {{ \Illuminate\Support\Js::from($schedules->pluck('start_round_index')->values()) }},
+                    startRound: {{ \Illuminate\Support\Js::from($calendarStartRounds) }},
+                    roundNumbers: {{ \Illuminate\Support\Js::from($calendarRoundNumbers) }},
+                    currentRound: (() => {
+                        const startRoundArr = {{ \Illuminate\Support\Js::from($calendarStartRounds) }};
+                        const roundNumbersArr = {{ \Illuminate\Support\Js::from($calendarRoundNumbers) }};
+                        const groupIds = {{ \Illuminate\Support\Js::from($calendarGroupIds) }};
+                        const roundMatch = window.location.hash.match(/^#calendario(?:-grupo-(\d+))?-ronda-(\d+)$/);
+
+                        if (! roundMatch) return [...startRoundArr];
+
+                        const groupIndex = roundMatch[1] !== undefined
+                            ? groupIds.indexOf(parseInt(roundMatch[1], 10))
+                            : 0;
+                        const requestedRoundNumber = parseInt(roundMatch[2], 10);
+
+                        return startRoundArr.map((defaultIndex, i) => {
+                            if (i !== groupIndex) return defaultIndex;
+
+                            const idx = roundNumbersArr[i].indexOf(requestedRoundNumber);
+
+                            return idx === -1 ? defaultIndex : idx;
+                        });
+                    })(),
+                    // Takes the outer scope's 'section' as an argument (from
+                    // the x-effect call below) rather than reading it as a
+                    // bare identifier -- a plain method body has normal JS
+                    // lexical scope, not Alpine's magic scope-merging, so it
+                    // can't see the outer x-data's properties on its own.
+                    // Without this guard, this effect's OWN first run (which
+                    // fires immediately on init, before the user has touched
+                    // anything) would stamp a calendar hash onto the URL even
+                    // while e.g. 'Tabla' is the tab actually being shown.
+                    syncCalendarHash(activeSection) {
+                        if (activeSection !== 'calendario') return;
+
+                        const groupIds = {{ \Illuminate\Support\Js::from($calendarGroupIds) }};
+                        const roundNumbersArr = {{ \Illuminate\Support\Js::from($calendarRoundNumbers) }};
+                        const groupId = groupIds[this.activeGroup];
+                        const roundNumber = roundNumbersArr[this.activeGroup]?.[this.currentRound[this.activeGroup]];
+                        const url = new URL(window.location.href);
+
+                        url.hash = [
+                            'calendario',
+                            (groupId !== null && groupId !== undefined) ? `grupo-${groupId}` : null,
+                            (roundNumber !== undefined) ? `ronda-${roundNumber}` : null,
+                        ].filter((part) => part !== null).join('-');
+
+                        history.replaceState(null, '', url);
+                    },
                 }"
+                x-effect="syncCalendarHash(section)"
             >
                 <flux:heading size="lg">{{ __('Calendario') }}</flux:heading>
 

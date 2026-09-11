@@ -17,17 +17,46 @@
         <flux:separator variant="subtle" />
 
         @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            <div x-data="{
-                section: (() => {
-                    const view = new URLSearchParams(window.location.search).get('view');
+            {{-- syncUrl() keeps the address bar matching whichever tab is selected (via replaceState,
+                 never a new history entry), so navigating away (e.g. a category/tournament breadcrumb)
+                 and back restores the tab the visitor actually had open instead of whatever '?view='/hash
+                 happened to be in the URL from the page's original load. See phases/show.blade.php (the
+                 admin equivalent) for the full reasoning -- kept identical here on purpose. --}}
+            <div
+                x-data="{
+                    section: (() => {
+                        const view = new URLSearchParams(window.location.search).get('view');
 
-                    if (['goal', 'assist', 'yellow_card', 'red_card'].includes(view)) return view;
+                        if (['goal', 'assist', 'yellow_card', 'red_card'].includes(view)) return view;
 
-                    return window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla';
-                })(),
-                statGroup: new URLSearchParams(window.location.search).get('group') ?? 'all',
-                statScope: new URLSearchParams(window.location.search).get('phase') === 'all' ? 'all' : 'league',
-            }">
+                        return window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla';
+                    })(),
+                    statGroup: new URLSearchParams(window.location.search).get('group') ?? 'all',
+                    statScope: new URLSearchParams(window.location.search).get('phase') === 'all' ? 'all' : 'league',
+                    syncUrl() {
+                        const url = new URL(window.location.href);
+                        const isStatType = ['goal', 'assist', 'yellow_card', 'red_card'].includes(this.section);
+
+                        url.searchParams.delete('view');
+                        url.searchParams.delete('group');
+                        url.searchParams.delete('phase');
+
+                        if (isStatType) {
+                            url.searchParams.set('view', this.section);
+                            if (this.statGroup !== 'all') url.searchParams.set('group', this.statGroup);
+                            if (this.statScope !== 'league') url.searchParams.set('phase', this.statScope);
+                            url.hash = '';
+                        } else if (this.section === 'calendario') {
+                            if (!url.hash.startsWith('#calendario')) url.hash = 'calendario';
+                        } else {
+                            url.hash = '';
+                        }
+
+                        history.replaceState(null, '', url);
+                    },
+                }"
+                x-effect="syncUrl()"
+            >
                 <x-ui.section-tabs :tabs="[
                     ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
                     ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
