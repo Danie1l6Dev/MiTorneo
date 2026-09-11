@@ -35,14 +35,56 @@
             </x-slot:actions>
         </x-ui.page-header>
 
-        <x-ui.copy-link
-            :url="route('public.tournaments.show', $tournament)"
-            :label="__('Enlace público')"
-        >
-            <x-slot:description>
-                {{ __('Compártelo con los equipos o el público: cualquiera puede consultar el torneo con este enlace, sin iniciar sesión.') }}
-            </x-slot:description>
-        </x-ui.copy-link>
+        @if (session('status'))
+            <flux:callout variant="success" icon="check-circle" :heading="session('status')" />
+        @endif
+
+        @if ($tournament->slug)
+            <x-ui.copy-link
+                :url="route('public.tournaments.show', $tournament)"
+                :label="__('Enlace público')"
+            >
+                <x-slot:description>
+                    {{ __('Compártelo con los equipos o el público: cualquiera puede consultar el torneo con este enlace, sin iniciar sesión.') }}
+                </x-slot:description>
+
+                <x-slot:actions>
+                    <form
+                        method="POST"
+                        action="{{ route('tournaments.regenerate-slug', $tournament) }}"
+                        onsubmit="return confirm('{{ __('¿Regenerar el enlace público? El enlace actual dejará de funcionar de inmediato y tendrás que compartir el nuevo.') }}')"
+                    >
+                        @csrf
+                        @method('PATCH')
+                        <flux:button type="submit" variant="ghost" size="sm" icon="arrow-path">
+                            {{ __('Regenerar enlace') }}
+                        </flux:button>
+                    </form>
+                </x-slot:actions>
+            </x-ui.copy-link>
+        @else
+            {{-- Defensive fallback: store() always sets a slug, so this
+                 shouldn't happen in practice -- but if one somehow ended up
+                 missing (a bad import, manual DB edit, etc.), the organizer
+                 can fix it from here instead of needing tinker/DB access. --}}
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 p-5 dark:border-amber-400/30 glass-panel">
+                <div class="flex items-center gap-2">
+                    <flux:icon.exclamation-triangle variant="micro" class="size-4 shrink-0 text-amber-500" />
+                    <div>
+                        <flux:heading size="sm">{{ __('Sin enlace público') }}</flux:heading>
+                        <flux:text class="text-sm text-zinc-500">{{ __('Este torneo todavía no tiene un enlace público generado.') }}</flux:text>
+                    </div>
+                </div>
+
+                <form method="POST" action="{{ route('tournaments.regenerate-slug', $tournament) }}">
+                    @csrf
+                    @method('PATCH')
+                    <flux:button type="submit" variant="primary" size="sm" icon="link">
+                        {{ __('Generar enlace público') }}
+                    </flux:button>
+                </form>
+            </div>
+        @endif
 
         <div class="space-y-4">
             <div class="flex items-center justify-between">

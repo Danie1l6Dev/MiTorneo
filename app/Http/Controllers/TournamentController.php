@@ -62,4 +62,19 @@ class TournamentController extends Controller
 
         return to_route('dashboard');
     }
+
+    /**
+     * Manual escape hatch for a public link that's broken, leaked, or (in
+     * practice this should never happen, since store() always sets one)
+     * simply missing -- generates a brand new, different slug and saves it
+     * immediately. The previous link stops working the moment this runs.
+     */
+    public function regenerateSlug(Tournament $tournament): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        $tournament->regenerateSlug();
+
+        return back()->with('status', __('Se generó un nuevo enlace público. El enlace anterior ha dejado de funcionar.'));
+    }
 }

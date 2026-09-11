@@ -41,7 +41,10 @@ class Tournament extends Model
      * portal (see routes/public.php's `{tournament:slug}` binding) -- never
      * mass-assignable, and only ever set once at creation time
      * (TournamentController::store()) so a link the organizer already
-     * shared keeps working even after the tournament is renamed.
+     * shared keeps working even after the tournament is renamed. The only
+     * other time it changes is an explicit, manual regenerateSlug() call
+     * (e.g. from the admin "Regenerar enlace" button) -- a deliberate escape
+     * hatch for a broken/leaked link, not something that happens on its own.
      */
     public static function generateUniqueSlug(string $name): string
     {
@@ -55,6 +58,29 @@ class Tournament extends Model
         }
 
         return $slug;
+    }
+
+    /**
+     * Replace this tournament's slug with a fresh, different one and persist
+     * it immediately -- the old public link stops resolving right away. A
+     * random suffix (not just re-deriving from the name) guarantees the new
+     * value actually differs from the current one: re-running
+     * generateUniqueSlug($this->name) here could otherwise hand back this
+     * same slug once it's no longer "taken" by excluding this tournament's
+     * own row, which would defeat the point of a "regenerate" action.
+     */
+    public function regenerateSlug(): string
+    {
+        $base = Str::slug($this->name) ?: 'torneo';
+
+        do {
+            $candidate = $base.'-'.Str::lower(Str::random(5));
+        } while (static::query()->where('slug', $candidate)->where('id', '!=', $this->id)->exists());
+
+        $this->slug = $candidate;
+        $this->save();
+
+        return $candidate;
     }
 
     /**

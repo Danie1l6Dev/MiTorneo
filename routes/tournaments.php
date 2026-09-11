@@ -20,6 +20,9 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth'])->group(function () {
     Route::resource('tournaments', TournamentController::class)->except('index');
 
+    Route::patch('tournaments/{tournament}/regenerate-slug', [TournamentController::class, 'regenerateSlug'])
+        ->name('tournaments.regenerate-slug');
+
     // Referees are global to the organizer, not nested under a tournament --
     // this is a standalone top-level resource, same as tournaments.
     Route::resource('referees', RefereeController::class)->except('destroy');

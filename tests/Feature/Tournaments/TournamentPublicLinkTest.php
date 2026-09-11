@@ -145,4 +145,84 @@ class TournamentPublicLinkTest extends TestCase
             ->get(route('tournaments.show', $tournament))
             ->assertForbidden();
     }
+
+    // ── Regenerar/generar el enlace manualmente ──────────────────────────
+
+    public function test_the_owner_can_regenerate_a_broken_public_link(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create(['slug' => 'enlace-viejo']);
+
+        $this->actingAs($user)
+            ->patch(route('tournaments.regenerate-slug', $tournament))
+            ->assertRedirect();
+
+        $tournament->refresh();
+        $this->assertNotSame('enlace-viejo', $tournament->slug);
+        $this->assertNotNull($tournament->slug);
+
+        // The old link is dead, the new one works.
+        $this->get('/public/torneos/enlace-viejo')->assertNotFound();
+        $this->get(route('public.tournaments.show', $tournament))->assertOk();
+    }
+
+    public function test_regenerating_always_produces_a_different_slug_even_if_the_name_never_changed(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create(['name' => 'Torneo Fijo', 'slug' => 'torneo-fijo']);
+
+        $this->actingAs($user)->patch(route('tournaments.regenerate-slug', $tournament));
+        $firstRegen = $tournament->fresh()->slug;
+
+        $this->actingAs($user)->patch(route('tournaments.regenerate-slug', $tournament));
+        $secondRegen = $tournament->fresh()->slug;
+
+        // Naively re-deriving from the (unchanged) name could hand back a
+        // slug that's "free" again the moment the previous one moved away
+        // from it -- this proves regenerateSlug() doesn't oscillate back to
+        // an earlier value.
+        $this->assertNotSame('torneo-fijo', $firstRegen);
+        $this->assertNotSame($firstRegen, $secondRegen);
+    }
+
+    public function test_a_tournament_missing_a_slug_can_have_one_generated_from_the_admin_page(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create(['slug' => null]);
+
+        $this->actingAs($user)
+            ->get(route('tournaments.show', $tournament))
+            ->assertOk()
+            ->assertSee(__('Sin enlace público'))
+            ->assertSee(__('Generar enlace público'));
+
+        $this->actingAs($user)
+            ->patch(route('tournaments.regenerate-slug', $tournament))
+            ->assertRedirect();
+
+        $this->assertNotNull($tournament->fresh()->slug);
+    }
+
+    public function test_a_user_cannot_regenerate_another_users_tournament_slug(): void
+    {
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $tournament = Tournament::factory()->for($owner)->create(['slug' => 'enlace-protegido']);
+
+        $this->actingAs($otherUser)
+            ->patch(route('tournaments.regenerate-slug', $tournament))
+            ->assertForbidden();
+
+        $this->assertSame('enlace-protegido', $tournament->fresh()->slug);
+    }
+
+    public function test_a_guest_cannot_regenerate_a_tournament_slug(): void
+    {
+        $tournament = Tournament::factory()->create(['slug' => 'enlace-de-nadie']);
+
+        $this->patch(route('tournaments.regenerate-slug', $tournament))
+            ->assertRedirect(route('login'));
+
+        $this->assertSame('enlace-de-nadie', $tournament->fresh()->slug);
+    }
 }

@@ -12,10 +12,16 @@
     needs the same "show it / copy it / open it" trio.
 --}}
 <div {{ $attributes->class('rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel') }}>
-    @if ($label)
-        <div class="mb-1 flex items-center gap-2">
-            <flux:icon.link variant="micro" class="size-4 text-accent-content" />
-            <flux:heading size="sm">{{ $label }}</flux:heading>
+    @if ($label || isset($actions))
+        <div class="mb-1 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <flux:icon.link variant="micro" class="size-4 text-accent-content" />
+                <flux:heading size="sm">{{ $label }}</flux:heading>
+            </div>
+
+            @isset($actions)
+                <div class="shrink-0">{{ $actions }}</div>
+            @endisset
         </div>
     @endif
 
