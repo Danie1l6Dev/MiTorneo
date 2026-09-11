@@ -93,6 +93,7 @@ class DatabaseSeeder extends Seeder
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Campeonato Municipal 2026',
+            'slug' => 'campeonato-municipal-2026',
             'season' => '2026',
             'status' => TournamentStatus::Active,
         ]);
@@ -151,6 +152,7 @@ class DatabaseSeeder extends Seeder
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Copa Relámpago 2026',
+            'slug' => 'copa-relampago-2026',
             'season' => '2026',
             'status' => TournamentStatus::Active,
         ]);
@@ -213,6 +215,7 @@ class DatabaseSeeder extends Seeder
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Liga Profesional 2026',
+            'slug' => 'liga-profesional-2026',
             'season' => '2026',
             'status' => TournamentStatus::Active,
         ]);

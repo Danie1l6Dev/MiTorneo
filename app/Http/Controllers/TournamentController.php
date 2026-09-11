@@ -21,7 +21,9 @@ class TournamentController extends Controller
     {
         $this->authorize('create', Tournament::class);
 
-        $tournament = Auth::user()->tournaments()->create($request->validated());
+        $tournament = Auth::user()->tournaments()->make($request->validated());
+        $tournament->slug = Tournament::generateUniqueSlug($tournament->name);
+        $tournament->save();
 
         return to_route('tournaments.show', $tournament);
     }

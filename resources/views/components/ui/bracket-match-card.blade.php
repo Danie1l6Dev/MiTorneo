@@ -4,6 +4,12 @@
     'cardClass' => 'h-16',
     'rowClass' => 'h-8',
     'textClass' => 'text-sm',
+    // The "¿Ida o vuelta?" picker links straight to matches.edit (an admin,
+    // auth-only route) regardless of $href -- so the public portal's
+    // read-only bracket view (see PublicPhaseController) passes false here
+    // to fall back to a plain, unclickable card instead of ever rendering
+    // that admin link.
+    'allowPicker' => true,
 ])
 
 @php
@@ -61,7 +67,7 @@
     // opens a small picker modal instead (skipped entirely for a
     // single-match cross or a league match, which still just link straight
     // through like before).
-    $opensPicker = $isSecondLeg && ! $pending;
+    $opensPicker = $allowPicker && $isSecondLeg && ! $pending;
     $cardInnerClasses = 'hover-lift group relative block h-full w-full overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-white/10 glass-panel';
 @endphp
 

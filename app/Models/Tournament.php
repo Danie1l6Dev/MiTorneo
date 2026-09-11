@@ -10,11 +10,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
  * @property int $user_id
  * @property string $name
+ * @property string|null $slug
  * @property string|null $description
  * @property string|null $season
  * @property TournamentStatus $status
@@ -32,6 +34,27 @@ class Tournament extends Model
         return [
             'status' => TournamentStatus::class,
         ];
+    }
+
+    /**
+     * A URL-friendly, globally unique identifier used only by the public
+     * portal (see routes/public.php's `{tournament:slug}` binding) -- never
+     * mass-assignable, and only ever set once at creation time
+     * (TournamentController::store()) so a link the organizer already
+     * shared keeps working even after the tournament is renamed.
+     */
+    public static function generateUniqueSlug(string $name): string
+    {
+        $base = Str::slug($name) ?: 'torneo';
+        $slug = $base;
+        $suffix = 2;
+
+        while (static::query()->where('slug', $slug)->exists()) {
+            $slug = "{$base}-{$suffix}";
+            $suffix++;
+        }
+
+        return $slug;
     }
 
     /**
