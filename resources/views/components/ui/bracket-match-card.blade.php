@@ -75,6 +75,16 @@
     // the calendar's x-ui.match-card does.
     $homeRedCards = $match->home_team_id ? $match->redCardCountForTeam($match->home_team_id) : 0;
     $awayRedCards = $match->away_team_id ? $match->redCardCountForTeam($match->away_team_id) : 0;
+
+    // This card only ever shows $match (the decisive/vuelta leg) -- for a
+    // two-legged cross, checking hasGoalMismatch() on just that leg misses
+    // a mismatch that happened in the ida leg entirely (a genuinely
+    // reported gap: the card's own warning badge never lit up for an
+    // ida-only mismatch). Checked independently per leg so the "¿Ida o
+    // vuelta?" picker below can point at exactly which one has it, and the
+    // card's own badge lights up if EITHER leg does.
+    $firstLegGoalMismatch = $isSecondLeg && $match->firstLeg->hasGoalMismatch();
+    $hasAnyGoalMismatch = $match->hasGoalMismatch() || $firstLegGoalMismatch;
 @endphp
 
 @php
@@ -168,12 +178,22 @@
                         @if ($match->firstLeg->home_score !== null)
                             <span class="ml-1 text-zinc-400">({{ $match->firstLeg->home_score }}-{{ $match->firstLeg->away_score }})</span>
                         @endif
+                        @if ($firstLegGoalMismatch)
+                            <span class="ml-1 inline-flex shrink-0" title="{{ __('Los goles registrados como eventos no coinciden con el marcador.') }}">
+                                <flux:icon.exclamation-triangle variant="mini" class="size-3.5 text-amber-500" />
+                            </span>
+                        @endif
                     </flux:button>
 
                     <flux:button :href="route('matches.edit', $match)" wire:navigate variant="primary" class="justify-center">
                         {{ __('Partido de vuelta') }}
                         @if ($match->home_score !== null)
                             <span class="ml-1 opacity-70">({{ $match->home_score }}-{{ $match->away_score }})</span>
+                        @endif
+                        @if ($match->hasGoalMismatch())
+                            <span class="ml-1 inline-flex shrink-0" title="{{ __('Los goles registrados como eventos no coinciden con el marcador.') }}">
+                                <flux:icon.exclamation-triangle variant="mini" class="size-3.5 text-amber-500" />
+                            </span>
                         @endif
                     </flux:button>
                 </div>
@@ -197,7 +217,7 @@
          this card's rows put each team's score flush against the right
          edge -- a corner badge there would sit right on top of the home
          team's goal count instead of beside it. --}}
-    @if ($finished && $match->hasGoalMismatch())
+    @if ($finished && $hasAnyGoalMismatch)
         <flux:tooltip :content="__('Los goles registrados como eventos no coinciden con el marcador.')">
             <div class="absolute -top-1.5 left-1/2 flex size-4 -translate-x-1/2 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
                 <flux:icon.exclamation-triangle variant="mini" class="size-2.5 text-amber-500 dark:text-amber-400" />
