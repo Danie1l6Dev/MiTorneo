@@ -28,6 +28,11 @@
             'red' => 'border-t-red-500/70',
             default => 'border-t-zinc-300 dark:border-t-white/20',
         };
+        // One small red-card icon per expulsion, shown under the team's own
+        // name -- so it's clear at a glance WHICH side had a player sent
+        // off, not just that the match had one.
+        $homeRedCards = $match->home_team_id ? $match->redCardCountForTeam($match->home_team_id) : 0;
+        $awayRedCards = $match->away_team_id ? $match->redCardCountForTeam($match->away_team_id) : 0;
     @endphp
 
     <div {{ $attributes->class('relative ' . $widthClasses) }}>
@@ -48,6 +53,45 @@
 
                 <div class="min-w-0 flex-1 text-left text-base font-semibold truncate text-zinc-800 dark:text-white">
                     {{ $match->awayTeam?->name ?? __('Por definir') }}
+                </div>
+            </div>
+
+            {{-- A separate row below the name/score line -- the name/score
+                 row above is untouched (exactly as it was before this
+                 feature existed). Always rendered, whether or not either
+                 side has a card, at a fixed h-3 height -- so "FINALIZADO"
+                 sits at the exact same spot on every card in the grid,
+                 never dropping just because THIS card happens to have a
+                 marker. The middle cell is an invisible copy of the real
+                 score box, clipped down to that same h-3 (its true height
+                 would otherwise be the score text's own ~28px, dragging
+                 this row's height back up) -- kept only so its WIDTH still
+                 matches the real score box, which is what lands each side's
+                 icons under that team's own name instead of drifting toward
+                 the middle/under the score. --}}
+            <div class="mt-1 flex h-3 items-center gap-2">
+                <div
+                    class="flex flex-1 items-center justify-end gap-0.5"
+                    @if ($homeRedCards > 0) title="{{ trans_choice(':count expulsado|:count expulsados', $homeRedCards, ['count' => $homeRedCards]) }}" @endif
+                >
+                    @for ($i = 0; $i < $homeRedCards; $i++)
+                        <x-dynamic-component :component="\App\Enums\MatchEventType::RedCard->icon()" class="size-3 shrink-0 text-red-500" />
+                    @endfor
+                </div>
+
+                <div class="invisible flex h-3 shrink-0 items-center gap-2 overflow-hidden rounded-xl px-3.5" aria-hidden="true">
+                    <span class="font-display text-xl font-bold tabular-nums">{{ $match->home_score ?? '–' }}</span>
+                    <span>-</span>
+                    <span class="font-display text-xl font-bold tabular-nums">{{ $match->away_score ?? '–' }}</span>
+                </div>
+
+                <div
+                    class="flex flex-1 items-center gap-0.5"
+                    @if ($awayRedCards > 0) title="{{ trans_choice(':count expulsado|:count expulsados', $awayRedCards, ['count' => $awayRedCards]) }}" @endif
+                >
+                    @for ($i = 0; $i < $awayRedCards; $i++)
+                        <x-dynamic-component :component="\App\Enums\MatchEventType::RedCard->icon()" class="size-3 shrink-0 text-red-500" />
+                    @endfor
                 </div>
             </div>
 

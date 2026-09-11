@@ -33,7 +33,7 @@ class PhaseBoardService
     public function scheduleViews(CompetitionPhase $phase): Collection
     {
         return $phase->leagueSchedules()
-            ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam', 'matches.goals'])
+            ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam', 'matches.goals', 'matches.redCards'])
             ->get()
             ->map(fn (LeagueSchedule $schedule): array => $this->buildScheduleView($schedule, $phase));
     }
@@ -98,7 +98,7 @@ class PhaseBoardService
     public function bracketRounds(CompetitionPhase $phase): array
     {
         return $phase->matches()
-            ->with(['homeTeam', 'awayTeam', 'goals', 'firstLeg'])
+            ->with(['homeTeam', 'awayTeam', 'goals', 'redCards', 'firstLeg'])
             ->orderBy('round_number')
             ->orderBy('id')
             ->get()

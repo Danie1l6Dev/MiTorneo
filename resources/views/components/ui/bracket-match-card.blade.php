@@ -69,6 +69,12 @@
     // through like before).
     $opensPicker = $allowPicker && $isSecondLeg && ! $pending;
     $cardInnerClasses = 'hover-lift group relative block h-full w-full overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-white/10 glass-panel';
+
+    // One small red-card icon per expulsion, next to the team's own name --
+    // rows here are too compact (h-6 to h-8) to put it underneath the way
+    // the calendar's x-ui.match-card does.
+    $homeRedCards = $match->home_team_id ? $match->redCardCountForTeam($match->home_team_id) : 0;
+    $awayRedCards = $match->away_team_id ? $match->redCardCountForTeam($match->away_team_id) : 0;
 @endphp
 
 @php
@@ -90,8 +96,17 @@
 @endif
 
 <div class="{{ $rowClass }} flex items-center justify-between gap-2 px-3">
-    <span class="truncate {{ $textClass }} {{ $rowClasses($homeWinner) }}">
-        {{ $match->homeTeam?->name ?? __('Por definir') }}
+    <span class="flex min-w-0 items-center gap-1">
+        <span class="truncate {{ $textClass }} {{ $rowClasses($homeWinner) }}">
+            {{ $match->homeTeam?->name ?? __('Por definir') }}
+        </span>
+        @if ($homeRedCards > 0)
+            <span class="flex shrink-0 items-center gap-0.5" title="{{ trans_choice(':count expulsado|:count expulsados', $homeRedCards, ['count' => $homeRedCards]) }}">
+                @for ($i = 0; $i < $homeRedCards; $i++)
+                    <x-dynamic-component :component="\App\Enums\MatchEventType::RedCard->icon()" class="size-2.5 shrink-0 text-red-500" />
+                @endfor
+            </span>
+        @endif
     </span>
     <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($homeWinner) }}">
         {{ $homeDisplayScore ?? '–' }}
@@ -102,8 +117,17 @@
 </div>
 
 <div class="{{ $rowClass }} flex items-center justify-between gap-2 border-t border-zinc-100 px-3 dark:border-white/5">
-    <span class="truncate {{ $textClass }} {{ $rowClasses($awayWinner) }}">
-        {{ $match->awayTeam?->name ?? __('Por definir') }}
+    <span class="flex min-w-0 items-center gap-1">
+        <span class="truncate {{ $textClass }} {{ $rowClasses($awayWinner) }}">
+            {{ $match->awayTeam?->name ?? __('Por definir') }}
+        </span>
+        @if ($awayRedCards > 0)
+            <span class="flex shrink-0 items-center gap-0.5" title="{{ trans_choice(':count expulsado|:count expulsados', $awayRedCards, ['count' => $awayRedCards]) }}">
+                @for ($i = 0; $i < $awayRedCards; $i++)
+                    <x-dynamic-component :component="\App\Enums\MatchEventType::RedCard->icon()" class="size-2.5 shrink-0 text-red-500" />
+                @endfor
+            </span>
+        @endif
     </span>
     <span class="font-display shrink-0 {{ $textClass }} font-bold tabular-nums {{ $scoreClasses($awayWinner) }}">
         {{ $awayDisplayScore ?? '–' }}

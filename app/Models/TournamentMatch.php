@@ -377,4 +377,33 @@ class TournamentMatch extends Model
         return $goals->where('team_id', $this->home_team_id)->count() !== $this->home_score
             || $goals->where('team_id', $this->away_team_id)->count() !== $this->away_score;
     }
+
+    /**
+     * Whether this match had at least one expulsion (a player or coach red
+     * card, straight or via a second yellow) -- purely informational. Same
+     * relation-or-query fallback as hasGoalMismatch(), and deliberately not
+     * gated on the match being Finished -- unlike a score mismatch, a
+     * recorded expulsion is meaningful the moment it exists.
+     */
+    public function hasRedCard(): bool
+    {
+        $redCards = $this->relationLoaded('redCards') ? $this->redCards : $this->redCards()->get();
+
+        return $redCards->isNotEmpty();
+    }
+
+    /**
+     * How many red cards $teamId's side picked up in this match -- shown as
+     * that many small red-card icons under the team's own name on
+     * calendar/bracket cards, so an expulsion is visible (and attributed to
+     * the right side) without opening the match. Almost always 0 or 1;
+     * technically uncapped since nothing stops two straight reds for the
+     * same team in one match.
+     */
+    public function redCardCountForTeam(int $teamId): int
+    {
+        $redCards = $this->relationLoaded('redCards') ? $this->redCards : $this->redCards()->get();
+
+        return $redCards->where('team_id', $teamId)->count();
+    }
 }
