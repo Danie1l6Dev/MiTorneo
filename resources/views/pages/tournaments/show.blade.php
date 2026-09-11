@@ -23,10 +23,6 @@
             </div>
 
             <x-slot:actions>
-                <flux:button :href="route('public.tournaments.show', $tournament)" variant="ghost" icon="globe-alt" target="_blank">
-                    {{ __('Ver torneo público') }}
-                </flux:button>
-
                 <flux:button :href="route('tournaments.edit', $tournament)" variant="ghost" icon="pencil" wire:navigate>
                     {{ __('Editar') }}
                 </flux:button>
@@ -38,6 +34,15 @@
                 </form>
             </x-slot:actions>
         </x-ui.page-header>
+
+        <x-ui.copy-link
+            :url="route('public.tournaments.show', $tournament)"
+            :label="__('Enlace público')"
+        >
+            <x-slot:description>
+                {{ __('Compártelo con los equipos o el público: cualquiera puede consultar el torneo con este enlace, sin iniciar sesión.') }}
+            </x-slot:description>
+        </x-ui.copy-link>
 
         <div class="space-y-4">
             <div class="flex items-center justify-between">
