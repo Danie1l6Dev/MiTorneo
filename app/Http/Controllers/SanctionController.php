@@ -18,13 +18,21 @@ class SanctionController extends Controller
         $sanctions = Sanction::query()
             ->whereHas('team.tournament', fn ($query) => $query->where('user_id', Auth::id()))
             ->with(['player', 'coach', 'team.tournament', 'match.category'])
-            // 'pending' sorts before 'resolved' alphabetically, which is
-            // also the order that needs the organizer's attention first.
-            ->orderBy('status')
             ->latest('id')
             ->get();
 
-        return view('pages.sanctions.index', compact('sanctions'));
+        // Split into the three states the index page actually shows as
+        // separate sections -- mutually exclusive and exhaustive for every
+        // sanction that isn't in the "shouldn't happen" edge case Sanction's
+        // own docblock calls out (resolved with matches_banned still null),
+        // same reasoning the stat cards above the list already relied on.
+        $pendingSanctions = $sanctions->filter->isPending()->values();
+        $activeSanctions = $sanctions->filter->isActive()->values();
+        $fulfilledSanctions = $sanctions->filter->isFulfilled()->values();
+
+        return view('pages.sanctions.index', compact(
+            'sanctions', 'pendingSanctions', 'activeSanctions', 'fulfilledSanctions'
+        ));
     }
 
     public function show(Sanction $sanction): View
