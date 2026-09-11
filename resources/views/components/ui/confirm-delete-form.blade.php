@@ -5,6 +5,10 @@
     'description' => null,
     'confirmLabel' => null,
     'icon' => 'trash',
+    // 'danger' (red, the default -- an actual deletion) or 'warning' (amber
+    // -- an impactful but non-destructive action, e.g. regenerating a
+    // tournament's public link, which breaks the old one but deletes no data).
+    'variant' => 'danger',
 ])
 
 {{--
@@ -25,6 +29,8 @@
 @php
     $modalName = 'confirm-delete-'.\Illuminate\Support\Str::random(10);
     $confirmLabel ??= __('Eliminar');
+    $iconWrapClasses = $variant === 'warning' ? 'bg-amber-500/15 text-amber-500' : 'bg-red-500/15 text-red-500';
+    $confirmButtonVariant = $variant === 'warning' ? 'primary' : 'danger';
 @endphp
 
 <flux:modal.trigger name="{{ $modalName }}">
@@ -34,7 +40,7 @@
 <flux:modal name="{{ $modalName }}" class="max-w-sm">
     <div class="space-y-5">
         <div class="flex items-start gap-4">
-            <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/15 text-red-500">
+            <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl {{ $iconWrapClasses }}">
                 <flux:icon :icon="$icon" variant="outline" class="size-5" />
             </div>
 
@@ -62,7 +68,7 @@
                     {{ $fields }}
                 @endisset
 
-                <flux:button type="submit" variant="danger">{{ $confirmLabel }}</flux:button>
+                <flux:button type="submit" :variant="$confirmButtonVariant">{{ $confirmLabel }}</flux:button>
             </form>
         </div>
     </div>

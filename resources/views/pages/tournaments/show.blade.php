@@ -51,17 +51,19 @@
                 </x-slot:description>
 
                 <x-slot:actions>
-                    <form
-                        method="POST"
-                        action="{{ route('tournaments.regenerate-slug', $tournament) }}"
-                        onsubmit="return confirm('{{ __('¿Regenerar el enlace público? El enlace actual dejará de funcionar de inmediato y tendrás que compartir el nuevo.') }}')"
+                    <x-ui.confirm-delete-form
+                        :action="route('tournaments.regenerate-slug', $tournament)"
+                        method="PATCH"
+                        variant="warning"
+                        icon="arrow-path"
+                        :heading="__('¿Regenerar el enlace público?')"
+                        :description="__('El enlace actual dejará de funcionar de inmediato y tendrás que compartir el nuevo.')"
+                        :confirm-label="__('Regenerar enlace')"
                     >
-                        @csrf
-                        @method('PATCH')
-                        <flux:button type="submit" variant="ghost" size="sm" icon="arrow-path">
+                        <flux:button variant="ghost" size="sm" icon="arrow-path">
                             {{ __('Regenerar enlace') }}
                         </flux:button>
-                    </form>
+                    </x-ui.confirm-delete-form>
                 </x-slot:actions>
             </x-ui.copy-link>
         @else
