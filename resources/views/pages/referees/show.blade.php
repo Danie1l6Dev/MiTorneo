@@ -27,8 +27,58 @@
         <div class="space-y-4">
             <flux:heading size="lg">{{ __('Partidos dirigidos') }}</flux:heading>
 
+            @if ($tournaments->isNotEmpty())
+                @php $hasActiveFilters = $selectedTournament || $selectedCategory || $dateFrom || $dateTo; @endphp
+
+                <form method="GET" class="grid gap-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:grid-cols-2 lg:grid-cols-4">
+                    <flux:select
+                        name="tournament"
+                        label="{{ __('Torneo') }}"
+                        placeholder="{{ __('Todos los torneos') }}"
+                        onchange="this.form.submit()"
+                    >
+                        @foreach ($tournaments as $tournament)
+                            <flux:select.option value="{{ $tournament->id }}" :selected="$selectedTournament?->id === $tournament->id">
+                                {{ $tournament->name }}
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+
+                    <flux:select
+                        name="category"
+                        label="{{ __('Categoría') }}"
+                        placeholder="{{ $selectedTournament ? __('Todas las categorías') : __('Elige primero un torneo') }}"
+                        :disabled="! $selectedTournament"
+                    >
+                        @foreach ($categories as $category)
+                            <flux:select.option value="{{ $category->id }}" :selected="$selectedCategory?->id === $category->id">
+                                {{ $category->name }}
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+
+                    <flux:input type="date" name="date_from" label="{{ __('Desde') }}" value="{{ $dateFrom?->format('Y-m-d') }}" />
+                    <flux:input type="date" name="date_to" label="{{ __('Hasta') }}" value="{{ $dateTo?->format('Y-m-d') }}" />
+
+                    <div class="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+                        <flux:button type="submit" variant="primary" size="sm">{{ __('Filtrar') }}</flux:button>
+
+                        @if ($hasActiveFilters)
+                            <flux:button :href="route('referees.show', $referee)" variant="ghost" size="sm" wire:navigate>
+                                {{ __('Limpiar filtros') }}
+                            </flux:button>
+                        @endif
+                    </div>
+                </form>
+            @endif
+
             @if ($matches->isEmpty())
-                <x-ui.empty-state icon="flag" :message="__('Este árbitro todavía no ha dirigido ningún partido.')" />
+                <x-ui.empty-state
+                    icon="flag"
+                    :message="$tournaments->isEmpty()
+                        ? __('Este árbitro todavía no ha dirigido ningún partido.')
+                        : __('Ningún partido coincide con estos filtros.')"
+                />
             @else
                 <div class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel">
                     {{-- Desktop --}}
