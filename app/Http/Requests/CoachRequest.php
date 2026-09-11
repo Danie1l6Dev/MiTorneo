@@ -18,7 +18,9 @@ class CoachRequest extends FormRequest
     {
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'document_number' => ['required', 'string', 'max:30'],
+            // Optional for now -- a team can register a coach before their
+            // document is settled.
+            'document_number' => ['nullable', 'string', 'max:30'],
         ];
     }
 }

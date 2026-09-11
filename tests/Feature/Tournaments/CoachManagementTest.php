@@ -39,6 +39,22 @@ class CoachManagementTest extends TestCase
         ]);
     }
 
+    public function test_a_user_can_register_a_coach_without_a_document_number(): void
+    {
+        $user = User::factory()->create();
+        $team = $this->makeTeam($user);
+
+        $this->actingAs($user)->post(route('teams.coach.store', $team), [
+            'full_name' => 'DT Sin Documento',
+        ])->assertRedirect(route('teams.show', $team));
+
+        $this->assertDatabaseHas('coaches', [
+            'team_id' => $team->id,
+            'full_name' => 'DT Sin Documento',
+            'document_number' => null,
+        ]);
+    }
+
     public function test_a_user_can_edit_a_coach(): void
     {
         $user = User::factory()->create();

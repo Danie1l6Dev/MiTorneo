@@ -39,8 +39,14 @@ class PlayerRequest extends FormRequest
 
         return [
             'full_name' => ['required', 'string', 'max:255'],
+            // Both optional for now -- a team can register a player before
+            // their document/dorsal is settled. The 'unique' rule below never
+            // even runs for a blank value: 'nullable' short-circuits the rest
+            // of a field's rules once it's null, which is exactly what lets
+            // two teammates both leave theirs blank without colliding with
+            // each other.
             'document_number' => [
-                'required',
+                'nullable',
                 'string',
                 'max:30',
                 Rule::unique('players', 'document_number')
@@ -49,7 +55,7 @@ class PlayerRequest extends FormRequest
                     ->ignore($player),
             ],
             'jersey_number' => [
-                'required',
+                'nullable',
                 'integer',
                 'min:1',
                 'max:'.self::MAX_JERSEY_NUMBER,

@@ -5,12 +5,12 @@
 <div {{ $attributes->class('flex items-center justify-between gap-3 px-4 py-3' . ($player->is_active ? '' : ' opacity-60')) }}>
     <div class="flex min-w-0 items-center gap-3">
         <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-content/15 font-display text-base font-bold tabular-nums text-accent-content">
-            {{ $player->jersey_number }}
+            {{ $player->jersey_number ?? '–' }}
         </div>
 
         <div class="min-w-0">
             <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $player->full_name }}</div>
-            <div class="truncate text-xs text-zinc-500 dark:text-white/50">{{ __('Documento') }}: {{ $player->document_number }}</div>
+            <div class="truncate text-xs text-zinc-500 dark:text-white/50">{{ __('Documento') }}: {{ $player->document_number ?? __('Sin registrar') }}</div>
         </div>
     </div>
 

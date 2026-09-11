@@ -16,7 +16,7 @@
                         <div class="truncate text-sm font-semibold text-zinc-800 dark:text-white">{{ $coach->full_name }}</div>
                         <x-ui.person-status-badge :active="$coach->is_active" />
                     </div>
-                    <div class="truncate text-xs text-zinc-500 dark:text-white/50">{{ __('Documento') }}: {{ $coach->document_number }}</div>
+                    <div class="truncate text-xs text-zinc-500 dark:text-white/50">{{ __('Documento') }}: {{ $coach->document_number ?? __('Sin registrar') }}</div>
                 </div>
             </div>
 

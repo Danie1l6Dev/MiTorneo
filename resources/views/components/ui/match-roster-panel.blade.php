@@ -78,7 +78,7 @@
                 <div class="flex items-center justify-between gap-3 px-4 py-2.5">
                     <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-baseline gap-x-1.5">
-                            <span class="shrink-0 font-display text-sm font-bold tabular-nums text-zinc-500 dark:text-white/50">#{{ $player->jersey_number }}</span>
+                            <span class="shrink-0 font-display text-sm font-bold tabular-nums text-zinc-500 dark:text-white/50">#{{ $player->jersey_number ?? '–' }}</span>
                             <span class="text-sm font-medium break-words text-zinc-700 dark:text-white/80">{{ $player->full_name }}</span>
                         </div>
 

@@ -46,20 +46,31 @@ class PlayerController extends Controller
      * Reactivating a player re-checks the same "unique among active
      * teammates" rule PlayerRequest enforces on create/edit -- their number
      * or document could have been taken by someone else while they were
-     * inactive.
+     * inactive. Both fields are optional, though, so each is only checked
+     * when this player actually has a value for it: a bare `where(column,
+     * null)` compiles to `column IS NULL`, which would otherwise flag any
+     * other teammate who also left theirs blank as a false conflict.
      */
     public function toggleActive(Player $player): RedirectResponse
     {
         $this->authorize('update', $player);
 
         if (! $player->is_active) {
-            $conflict = Player::query()
+            $hasJerseyNumber = $player->jersey_number !== null;
+            $hasDocumentNumber = $player->document_number !== null;
+
+            $conflict = ($hasJerseyNumber || $hasDocumentNumber) && Player::query()
                 ->where('team_id', $player->team_id)
                 ->where('is_active', true)
-                ->where(fn ($query) => $query
-                    ->where('jersey_number', $player->jersey_number)
-                    ->orWhere('document_number', $player->document_number)
-                )
+                ->where(function ($query) use ($player, $hasJerseyNumber, $hasDocumentNumber) {
+                    if ($hasJerseyNumber) {
+                        $query->orWhere('jersey_number', $player->jersey_number);
+                    }
+
+                    if ($hasDocumentNumber) {
+                        $query->orWhere('document_number', $player->document_number);
+                    }
+                })
                 ->exists();
 
             if ($conflict) {

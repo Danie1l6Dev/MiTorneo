@@ -70,6 +70,48 @@ class PlayerManagementTest extends TestCase
         $this->assertTrue($player->fresh()->is_active);
     }
 
+    public function test_a_user_can_create_a_player_without_document_or_jersey_number(): void
+    {
+        $user = User::factory()->create();
+        $team = $this->makeTeam($user);
+
+        $this->actingAs($user)->post(route('teams.players.store', $team), [
+            'full_name' => 'Jugador Sin Datos',
+        ])->assertRedirect(route('teams.show', $team));
+
+        $this->assertDatabaseHas('players', [
+            'team_id' => $team->id,
+            'full_name' => 'Jugador Sin Datos',
+            'document_number' => null,
+            'jersey_number' => null,
+        ]);
+    }
+
+    public function test_two_active_players_of_the_same_team_can_both_have_no_jersey_number_or_document(): void
+    {
+        $user = User::factory()->create();
+        $team = $this->makeTeam($user);
+        Player::factory()->for($team)->create(['jersey_number' => null, 'document_number' => null, 'is_active' => true]);
+
+        $this->actingAs($user)->post(route('teams.players.store', $team), [
+            'full_name' => 'Segundo Sin Datos',
+        ])->assertRedirect(route('teams.show', $team));
+
+        $this->assertDatabaseHas('players', ['team_id' => $team->id, 'full_name' => 'Segundo Sin Datos', 'jersey_number' => null]);
+    }
+
+    public function test_reactivating_a_player_without_jersey_number_or_document_never_conflicts_with_another_blank_one(): void
+    {
+        $user = User::factory()->create();
+        $team = $this->makeTeam($user);
+        Player::factory()->for($team)->create(['jersey_number' => null, 'document_number' => null, 'is_active' => true]);
+        $inactive = Player::factory()->for($team)->create(['jersey_number' => null, 'document_number' => null, 'is_active' => false]);
+
+        $this->actingAs($user)->patch(route('players.toggle-active', $inactive))->assertRedirect();
+
+        $this->assertTrue($inactive->fresh()->is_active);
+    }
+
     public function test_jersey_number_cannot_be_duplicated_among_active_players_of_the_same_team(): void
     {
         $user = User::factory()->create();

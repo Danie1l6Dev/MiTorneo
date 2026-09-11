@@ -154,7 +154,7 @@ class TwoGroupLeagueSeeder extends Seeder
      *
      * @param  Collection<int, Team>  $teams
      * @param  Collection<int, Referee>  $referees  Cycled across fixtures; every 5th fixture is deliberately
-     *                                             left without one, so "Sin árbitro asignado" also has real matches to show.
+     *                                              left without one, so "Sin árbitro asignado" also has real matches to show.
      */
     private function generateFinishedSchedule(CompetitionPhase $phase, Collection $teams, Group $group, Collection $referees): void
     {

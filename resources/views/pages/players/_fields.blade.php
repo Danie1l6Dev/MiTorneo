@@ -13,16 +13,16 @@
 <flux:input
     name="document_number"
     label="{{ __('Documento') }}"
+    description="{{ __('Opcional') }}"
     value="{{ old('document_number', $player->document_number ?? '') }}"
-    required
 />
 
 <flux:input
     type="number"
     name="jersey_number"
     label="{{ __('Dorsal') }}"
+    description="{{ __('Opcional') }}"
     min="1"
     max="{{ \App\Http\Requests\PlayerRequest::MAX_JERSEY_NUMBER }}"
     value="{{ old('jersey_number', $player->jersey_number ?? '') }}"
-    required
 />

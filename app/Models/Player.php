@@ -22,8 +22,8 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $team_id
  * @property string $full_name
- * @property string $document_number
- * @property int $jersey_number
+ * @property string|null $document_number
+ * @property int|null $jersey_number
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at

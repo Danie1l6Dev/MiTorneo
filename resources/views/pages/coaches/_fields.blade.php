@@ -13,6 +13,6 @@
 <flux:input
     name="document_number"
     label="{{ __('Documento') }}"
+    description="{{ __('Opcional') }}"
     value="{{ old('document_number', $coach->document_number ?? '') }}"
-    required
 />

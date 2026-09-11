@@ -27,7 +27,7 @@
 
     @foreach ($players as $player)
         <flux:select.option value="player:{{ $player->id }}" :selected="$currentSubject === 'player:'.$player->id">
-            #{{ $player->jersey_number }} {{ $player->full_name }} ({{ $player->team->name }})
+            #{{ $player->jersey_number ?? '–' }} {{ $player->full_name }} ({{ $player->team->name }})
         </flux:select.option>
     @endforeach
 
