@@ -18,10 +18,13 @@
 
         <flux:separator variant="subtle" />
 
-        <form method="POST" action="{{ route('teams.destroy', $team) }}" onsubmit="return confirm('{{ __('¿Eliminar este equipo?') }}')">
-            @csrf
-            @method('DELETE')
-            <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar equipo') }}</flux:button>
-        </form>
+        <x-ui.confirm-delete-form
+            :action="route('teams.destroy', $team)"
+            :heading="__('¿Eliminar este equipo?')"
+            :description="__('Se eliminarán también su plantel y su historial de partidos. Esta acción no se puede deshacer.')"
+            :confirm-label="__('Eliminar equipo')"
+        >
+            <flux:button variant="danger" icon="trash">{{ __('Eliminar equipo') }}</flux:button>
+        </x-ui.confirm-delete-form>
     </div>
 </x-layouts::app>

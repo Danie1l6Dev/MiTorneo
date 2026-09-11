@@ -27,16 +27,19 @@
                      they're indistinguishable now that minute is unused --
                      same decrement-one-at-a-time idea as the pending tray's
                      own remove button, just against already-saved rows. --}}
-                <form method="POST" action="{{ route('events.destroy', $typeEvents->first()) }}" onsubmit="return confirm('{{ __('¿Eliminar un evento de tipo :type de :subject?', ['type' => $type->label(), 'subject' => $subjectLabel]) }}')">
-                    @csrf
-                    @method('DELETE')
+                <x-ui.confirm-delete-form
+                    :action="route('events.destroy', $typeEvents->first())"
+                    :heading="__('¿Eliminar un evento de tipo :type?', ['type' => $type->label()])"
+                    :description="__('De :subject. Esta acción no se puede deshacer.', ['subject' => $subjectLabel])"
+                    :confirm-label="__('Eliminar')"
+                >
                     <flux:tooltip :content="__('Eliminar uno')">
                         <button
-                            type="submit"
+                            type="button"
                             class="rounded px-1 py-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-white/10 dark:hover:text-white"
                         >✕</button>
                     </flux:tooltip>
-                </form>
+                </x-ui.confirm-delete-form>
             </div>
         @endforeach
     </div>

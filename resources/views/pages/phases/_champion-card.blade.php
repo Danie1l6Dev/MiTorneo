@@ -14,11 +14,16 @@
         <flux:heading size="xl" class="relative">{{ $team->name }}</flux:heading>
 
         @if ($undoRoute)
-            <form method="POST" action="{{ $undoRoute }}" class="relative" onsubmit="return confirm('{{ __('¿Quitar el campeón declarado para esta fase?') }}')">
-                @csrf
-                @method('DELETE')
-                <flux:button type="submit" variant="ghost" size="sm">{{ __('Quitar campeón') }}</flux:button>
-            </form>
+            <div class="relative">
+                <x-ui.confirm-delete-form
+                    :action="$undoRoute"
+                    :heading="__('¿Quitar el campeón declarado para esta fase?')"
+                    :confirm-label="__('Quitar campeón')"
+                    icon="trophy"
+                >
+                    <flux:button variant="ghost" size="sm">{{ __('Quitar campeón') }}</flux:button>
+                </x-ui.confirm-delete-form>
+            </div>
         @endif
     </div>
 @endif

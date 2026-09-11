@@ -581,11 +581,14 @@
 
                 <flux:separator variant="subtle" />
 
-                <form method="POST" action="{{ route('matches.destroy', $match) }}" onsubmit="return confirm('{{ __('¿Eliminar este partido?') }}')">
-                    @csrf
-                    @method('DELETE')
-                    <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar partido') }}</flux:button>
-                </form>
+                <x-ui.confirm-delete-form
+                    :action="route('matches.destroy', $match)"
+                    :heading="__('¿Eliminar este partido?')"
+                    :description="__('Se eliminarán también sus eventos y sanciones asociadas. Esta acción no se puede deshacer.')"
+                    :confirm-label="__('Eliminar partido')"
+                >
+                    <flux:button variant="danger" icon="trash">{{ __('Eliminar partido') }}</flux:button>
+                </x-ui.confirm-delete-form>
             </div>
         </div>
     </div>

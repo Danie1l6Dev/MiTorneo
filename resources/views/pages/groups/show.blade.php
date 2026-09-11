@@ -15,11 +15,12 @@
                     {{ __('Editar') }}
                 </flux:button>
 
-                <form method="POST" action="{{ route('groups.destroy', $group) }}" onsubmit="return confirm('{{ __('¿Eliminar este grupo?') }}')">
-                    @csrf
-                    @method('DELETE')
-                    <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
-                </form>
+                <x-ui.confirm-delete-form
+                    :action="route('groups.destroy', $group)"
+                    :heading="__('¿Eliminar este grupo?')"
+                >
+                    <flux:button variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
+                </x-ui.confirm-delete-form>
             </x-slot:actions>
         </x-ui.page-header>
 
@@ -51,13 +52,16 @@
                     @foreach ($group->teams->sortBy('name') as $team)
                         <x-ui.team-row :team="$team">
                             <x-slot:actions>
-                                <form method="POST" action="{{ route('groups.teams.detach', [$group, $team]) }}" onsubmit="return confirm('{{ __('¿Quitar :name de este grupo?', ['name' => $team->name]) }}')">
-                                    @csrf
-                                    @method('DELETE')
+                                <x-ui.confirm-delete-form
+                                    :action="route('groups.teams.detach', [$group, $team])"
+                                    :heading="__('¿Quitar :name de este grupo?', ['name' => $team->name])"
+                                    :confirm-label="__('Quitar')"
+                                    icon="user-minus"
+                                >
                                     <flux:tooltip :content="__('Quitar del grupo')">
-                                        <flux:button type="submit" variant="ghost" size="sm" icon="x-mark" />
+                                        <flux:button variant="ghost" size="sm" icon="x-mark" />
                                     </flux:tooltip>
-                                </form>
+                                </x-ui.confirm-delete-form>
                             </x-slot:actions>
                         </x-ui.team-row>
                     @endforeach

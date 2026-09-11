@@ -27,11 +27,13 @@
                     {{ __('Editar') }}
                 </flux:button>
 
-                <form method="POST" action="{{ route('tournaments.destroy', $tournament) }}" onsubmit="return confirm('{{ __('¿Eliminar este torneo? Se eliminarán también sus categorías, equipos y partidos.') }}')">
-                    @csrf
-                    @method('DELETE')
-                    <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
-                </form>
+                <x-ui.confirm-delete-form
+                    :action="route('tournaments.destroy', $tournament)"
+                    :heading="__('¿Eliminar este torneo?')"
+                    :description="__('Se eliminarán también sus categorías, equipos y partidos. Esta acción no se puede deshacer.')"
+                >
+                    <flux:button variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
+                </x-ui.confirm-delete-form>
             </x-slot:actions>
         </x-ui.page-header>
 

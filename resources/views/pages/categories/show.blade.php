@@ -37,18 +37,25 @@
                 @endphp
 
                 @if ($hasDependencies)
-                    <form method="POST" action="{{ route('categories.destroy', $category) }}" onsubmit="return confirm('{{ __('Esta categoría tiene contenido asociado. ¿Eliminarla junto con todos sus grupos, equipos y fases?') }}')">
-                        @csrf
-                        @method('DELETE')
-                        <input type="hidden" name="force" value="1">
-                        <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar de todas formas') }}</flux:button>
-                    </form>
+                    <x-ui.confirm-delete-form
+                        :action="route('categories.destroy', $category)"
+                        :heading="__('¿Eliminar esta categoría?')"
+                        :description="__('Tiene contenido asociado: se eliminarán también todos sus grupos, equipos y fases. Esta acción no se puede deshacer.')"
+                        :confirm-label="__('Eliminar de todas formas')"
+                    >
+                        <x-slot:fields>
+                            <input type="hidden" name="force" value="1">
+                        </x-slot:fields>
+
+                        <flux:button variant="danger" icon="trash">{{ __('Eliminar de todas formas') }}</flux:button>
+                    </x-ui.confirm-delete-form>
                 @else
-                    <form method="POST" action="{{ route('categories.destroy', $category) }}" onsubmit="return confirm('{{ __('¿Eliminar esta categoría?') }}')">
-                        @csrf
-                        @method('DELETE')
-                        <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
-                    </form>
+                    <x-ui.confirm-delete-form
+                        :action="route('categories.destroy', $category)"
+                        :heading="__('¿Eliminar esta categoría?')"
+                    >
+                        <flux:button variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
+                    </x-ui.confirm-delete-form>
                 @endif
             </x-slot:actions>
         </x-ui.page-header>

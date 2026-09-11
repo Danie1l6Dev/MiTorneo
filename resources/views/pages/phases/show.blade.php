@@ -48,11 +48,13 @@
                     {{ __('Editar') }}
                 </flux:button>
 
-                <form method="POST" action="{{ route('phases.destroy', $phase) }}" onsubmit="return confirm('{{ __('¿Eliminar esta fase? Se eliminarán también sus calendarios y partidos.') }}')">
-                    @csrf
-                    @method('DELETE')
-                    <flux:button type="submit" variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
-                </form>
+                <x-ui.confirm-delete-form
+                    :action="route('phases.destroy', $phase)"
+                    :heading="__('¿Eliminar esta fase?')"
+                    :description="__('Se eliminarán también sus calendarios y partidos. Esta acción no se puede deshacer.')"
+                >
+                    <flux:button variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
+                </x-ui.confirm-delete-form>
             </x-slot:actions>
         </x-ui.page-header>
 
@@ -288,11 +290,14 @@
                             </flux:text>
                         </div>
 
-                        <form method="POST" action="{{ route('phases.schedule.destroy', $phase) }}" onsubmit="return confirm('{{ __('¿Eliminar el calendario generado? Se borrarán todas las jornadas y sus partidos. Esta acción no se puede deshacer.') }}')">
-                            @csrf
-                            @method('DELETE')
-                            <flux:button type="submit" variant="danger" size="sm" icon="trash">{{ __('Eliminar calendario') }}</flux:button>
-                        </form>
+                        <x-ui.confirm-delete-form
+                            :action="route('phases.schedule.destroy', $phase)"
+                            :heading="__('¿Eliminar el calendario generado?')"
+                            :description="__('Se borrarán todas las jornadas y sus partidos. Esta acción no se puede deshacer.')"
+                            :confirm-label="__('Eliminar calendario')"
+                        >
+                            <flux:button variant="danger" size="sm" icon="trash">{{ __('Eliminar calendario') }}</flux:button>
+                        </x-ui.confirm-delete-form>
                     </div>
                 @endif
             </div>
