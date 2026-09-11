@@ -110,8 +110,15 @@
              is one big link. Inset (not overhanging the corner) so it never
              pokes into the round label above or the next card in the row. --}}
         @if ($finished && $match->hasGoalMismatch())
-            <flux:tooltip :content="__('Los goles registrados como eventos no coinciden con el marcador.')">
-                <div class="absolute right-2 top-2 flex size-6 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
+            {{-- El absolute va en el propio <flux:tooltip>, no en el div de la
+                 insignia: el <ui-tooltip> que renderiza es inline-flex, asi que
+                 dejarlo en el flujo agrega una line box al final de la card y la
+                 vuelve mas alta que las demas de la fila. --}}
+            <flux:tooltip
+                :content="__('Los goles registrados como eventos no coinciden con el marcador.')"
+                class="absolute right-2 top-2"
+            >
+                <div class="flex size-6 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
                     <flux:icon.exclamation-triangle variant="mini" class="size-3.5 text-amber-500 dark:text-amber-400" />
                 </div>
             </flux:tooltip>

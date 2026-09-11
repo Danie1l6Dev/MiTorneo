@@ -218,8 +218,17 @@
          edge -- a corner badge there would sit right on top of the home
          team's goal count instead of beside it. --}}
     @if ($finished && $hasAnyGoalMismatch)
-        <flux:tooltip :content="__('Los goles registrados como eventos no coinciden con el marcador.')">
-            <div class="absolute -top-1.5 left-1/2 flex size-4 -translate-x-1/2 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
+        {{-- El posicionamiento absoluto va en el propio <flux:tooltip> (que
+             renderiza un <ui-tooltip>, al que flux.css le da display:inline-flex)
+             y no en el div de la insignia: si el envoltorio queda en el flujo,
+             genera una line box extra debajo de la card, y esa altura de sobra
+             desborda el alto fijo del contenedor, le saca un scroll vertical al
+             bracket y -- al robarle el ancho de la barra -- otro horizontal. --}}
+        <flux:tooltip
+            :content="__('Los goles registrados como eventos no coinciden con el marcador.')"
+            class="absolute -top-1.5 left-1/2 -translate-x-1/2"
+        >
+            <div class="flex size-4 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
                 <flux:icon.exclamation-triangle variant="mini" class="size-2.5 text-amber-500 dark:text-amber-400" />
             </div>
         </flux:tooltip>
