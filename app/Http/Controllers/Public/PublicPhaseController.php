@@ -64,7 +64,7 @@ class PublicPhaseController extends Controller
             : $boardService->championFromBracket($bracketRounds);
 
         $statistics = $phase->type === CompetitionPhaseType::League
-            ? $boardService->statisticsView($request, $category, $statisticsService)
+            ? $boardService->statisticsPanels($request, $category, $statisticsService)
             : null;
 
         return view('pages.public.phases.show', compact(

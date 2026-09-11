@@ -302,22 +302,34 @@ class PhaseBoardService
     }
 
     /**
-     * Resolve the "?view=" query param (goal/assist/yellow_card/red_card)
-     * into the player-statistics leaderboard for $category, shared verbatim
-     * between the admin phase page and the public portal's phase page so
-     * neither one re-derives its own request-parsing or re-queries
-     * CompetitionStatisticsService differently. Null when no valid type was
-     * requested (the tab bar's default "tabla"/"calendario" state).
+     * Every player-statistics leaderboard (goal/assist/yellow_card/red_card)
+     * for $category, under EVERY group/phase-scope combination it could be
+     * viewed with -- computed together so the phase page can render all of
+     * them as already-loaded x-show panels. Switching between
+     * "Goleadores"/"Asistidores"/etc., between "Todos los grupos"/a specific
+     * group, and between "Solo fase de liga"/"Toda la competición" are then
+     * all pure client-side toggles, exactly like "Tabla"/"Calendario"
+     * already were -- none of the nine (four types times up to two scopes
+     * times however many group options) combinations needs a fresh page
+     * load. Shared verbatim between the admin phase page and the public
+     * portal's phase page so neither one re-derives its own request-parsing
+     * or re-queries CompetitionStatisticsService differently.
      *
-     * @return array{type: MatchEventType, group: Group|null, phaseScope: StatisticsPhaseScope, rows: array<int, array{rank: int, player: Player, count: int}>}|null
+     * Only ONE query per (type, phase-scope) pair actually hits the
+     * database -- the unfiltered ("todos los grupos") leaderboard, which
+     * already carries each row's `team.group` (eager-loaded by
+     * CompetitionStatisticsService::leaderboard() itself). Every
+     * per-group panel is sliced out of that same result in PHP
+     * (re-ranked, since a group's own #1 isn't necessarily the category's
+     * overall #1) instead of running a second, near-identical query per
+     * group -- the exact "avoid repeating queries" reasoning this service
+     * already exists for.
+     *
+     * @return array{groupOptions: Collection<int, Group>, group: Group|null, phaseScope: StatisticsPhaseScope, panels: array<string, array<string, array<string, array<int, array{rank: int, player: Player, count: int}>>>>}
      */
-    public function statisticsView(Request $request, Category $category, CompetitionStatisticsService $statisticsService): ?array
+    public function statisticsPanels(Request $request, Category $category, CompetitionStatisticsService $statisticsService): array
     {
-        $activeStatType = MatchEventType::tryFrom((string) $request->query('view'));
-
-        if ($activeStatType === null) {
-            return null;
-        }
+        $groupOptions = $category->uses_groups ? $category->groups->sortBy('order')->values() : new Collection;
 
         // Never a raw Group::find() -- resolving through the category's own
         // relation makes a group id from another category simply not match
@@ -329,11 +341,48 @@ class PhaseBoardService
         $activePhaseScope = StatisticsPhaseScope::tryFrom((string) $request->query('phase'))
             ?? StatisticsPhaseScope::League;
 
+        $panels = [];
+
+        foreach (MatchEventType::cases() as $type) {
+            foreach (StatisticsPhaseScope::cases() as $scope) {
+                $allRows = $statisticsService->leaderboard($category, $type, null, $scope);
+
+                $panels[$type->value][$scope->value]['all'] = $allRows;
+
+                foreach ($groupOptions as $group) {
+                    $panels[$type->value][$scope->value][(string) $group->id] = $this->reRank(
+                        array_values(array_filter(
+                            $allRows,
+                            fn (array $row): bool => $row['player']->team->group_id === $group->id
+                        ))
+                    );
+                }
+            }
+        }
+
         return [
-            'type' => $activeStatType,
+            'groupOptions' => $groupOptions,
             'group' => $activeGroup,
             'phaseScope' => $activePhaseScope,
-            'rows' => $statisticsService->leaderboard($category, $activeStatType, $activeGroup, $activePhaseScope),
+            'panels' => $panels,
         ];
+    }
+
+    /**
+     * Re-number a leaderboard slice's 'rank' from 1, in its existing order
+     * -- used after filtering a category-wide leaderboard down to one
+     * group's rows, since a group's own #1 scorer otherwise keeps whatever
+     * rank they held in the unfiltered (category-wide) list.
+     *
+     * @param  array<int, array{rank: int, player: Player, count: int}>  $rows
+     * @return array<int, array{rank: int, player: Player, count: int}>
+     */
+    private function reRank(array $rows): array
+    {
+        return array_values(array_map(
+            fn (array $row, int $index): array => [...$row, 'rank' => $index + 1],
+            $rows,
+            array_keys($rows)
+        ));
     }
 }

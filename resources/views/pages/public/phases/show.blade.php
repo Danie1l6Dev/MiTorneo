@@ -17,17 +17,6 @@
         <flux:separator variant="subtle" />
 
         @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            @php
-                $statisticsTabHref = function (array $overrides) {
-                    $query = array_filter(
-                        array_merge(request()->query(), $overrides),
-                        fn ($value) => $value !== null
-                    );
-
-                    return $query === [] ? request()->url() : request()->url().'?'.http_build_query($query);
-                };
-            @endphp
-
             <div x-data="{
                 section: (() => {
                     const view = new URLSearchParams(window.location.search).get('view');
@@ -36,14 +25,16 @@
 
                     return window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla';
                 })(),
+                statGroup: new URLSearchParams(window.location.search).get('group') ?? 'all',
+                statScope: new URLSearchParams(window.location.search).get('phase') === 'all' ? 'all' : 'league',
             }">
                 <x-ui.section-tabs :tabs="[
                     ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
                     ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
-                    ['key' => \App\Enums\MatchEventType::Goal->value, 'label' => __(\App\Enums\MatchEventType::Goal->leaderboardTitle()), 'icon' => 'trophy', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::Goal->value])],
-                    ['key' => \App\Enums\MatchEventType::Assist->value, 'label' => __(\App\Enums\MatchEventType::Assist->leaderboardTitle()), 'icon' => 'hand-raised', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::Assist->value])],
-                    ['key' => \App\Enums\MatchEventType::YellowCard->value, 'label' => __(\App\Enums\MatchEventType::YellowCard->leaderboardTitle()), 'icon' => 'rectangle-stack', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::YellowCard->value])],
-                    ['key' => \App\Enums\MatchEventType::RedCard->value, 'label' => __(\App\Enums\MatchEventType::RedCard->leaderboardTitle()), 'icon' => 'rectangle-stack', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::RedCard->value])],
+                    ['key' => \App\Enums\MatchEventType::Goal->value, 'label' => __(\App\Enums\MatchEventType::Goal->leaderboardTitle()), 'icon' => 'trophy'],
+                    ['key' => \App\Enums\MatchEventType::Assist->value, 'label' => __(\App\Enums\MatchEventType::Assist->leaderboardTitle()), 'icon' => 'hand-raised'],
+                    ['key' => \App\Enums\MatchEventType::YellowCard->value, 'label' => __(\App\Enums\MatchEventType::YellowCard->leaderboardTitle()), 'icon' => 'rectangle-stack'],
+                    ['key' => \App\Enums\MatchEventType::RedCard->value, 'label' => __(\App\Enums\MatchEventType::RedCard->leaderboardTitle()), 'icon' => 'rectangle-stack'],
                 ]" />
 
             <div
@@ -171,35 +162,46 @@
                 </div>
             </div>
 
-            @if ($statistics)
-                <div x-show="section === '{{ $statistics['type']->value }}'" x-cloak class="mt-4 space-y-4">
-                    <flux:heading size="lg">{{ __($statistics['type']->leaderboardTitle()) }}</flux:heading>
+            @php
+                $statGroupKeys = $statistics['groupOptions']->isNotEmpty()
+                    ? ['all', ...$statistics['groupOptions']->pluck('id')->map(fn ($id) => (string) $id)->all()]
+                    : ['all'];
+            @endphp
+
+            @foreach (\App\Enums\MatchEventType::cases() as $statType)
+                <div x-show="section === '{{ $statType->value }}'" x-cloak class="mt-4 space-y-4">
+                    <flux:heading size="lg">{{ __($statType->leaderboardTitle()) }}</flux:heading>
 
                     <div class="flex flex-wrap items-center gap-3">
-                        @if ($category->uses_groups && $category->groups->isNotEmpty())
-                            <x-ui.nav-tabs :tabs="[
-                                ['label' => __('Todos los grupos'), 'href' => $statisticsTabHref(['group' => null]), 'active' => $statistics['group'] === null],
-                                ...$category->groups->sortBy('order')->map(fn ($group) => [
+                        @if ($statistics['groupOptions']->isNotEmpty())
+                            <x-ui.section-tabs model="statGroup" :tabs="[
+                                ['key' => 'all', 'label' => __('Todos los grupos')],
+                                ...$statistics['groupOptions']->map(fn ($group) => [
+                                    'key' => (string) $group->id,
                                     'label' => $group->name,
-                                    'href' => $statisticsTabHref(['group' => $group->id]),
-                                    'active' => $statistics['group']?->id === $group->id,
                                 ])->values()->all(),
                             ]" />
                         @endif
 
-                        <x-ui.nav-tabs :tabs="[
-                            ['label' => __(\App\Enums\StatisticsPhaseScope::League->label()), 'href' => $statisticsTabHref(['phase' => \App\Enums\StatisticsPhaseScope::League->value]), 'active' => $statistics['phaseScope'] === \App\Enums\StatisticsPhaseScope::League],
-                            ['label' => __(\App\Enums\StatisticsPhaseScope::All->label()), 'href' => $statisticsTabHref(['phase' => \App\Enums\StatisticsPhaseScope::All->value]), 'active' => $statistics['phaseScope'] === \App\Enums\StatisticsPhaseScope::All],
+                        <x-ui.section-tabs model="statScope" :tabs="[
+                            ['key' => \App\Enums\StatisticsPhaseScope::League->value, 'label' => __(\App\Enums\StatisticsPhaseScope::League->label())],
+                            ['key' => \App\Enums\StatisticsPhaseScope::All->value, 'label' => __(\App\Enums\StatisticsPhaseScope::All->label())],
                         ]" />
                     </div>
 
-                    <x-ui.statistics-leaderboard
-                        :rows="$statistics['rows']"
-                        :type="$statistics['type']"
-                        :show-group="$category->uses_groups && $statistics['group'] === null"
-                    />
+                    @foreach (\App\Enums\StatisticsPhaseScope::cases() as $statScopeCase)
+                        @foreach ($statGroupKeys as $groupKey)
+                            <div x-show="statScope === '{{ $statScopeCase->value }}' && statGroup === '{{ $groupKey }}'" x-cloak>
+                                <x-ui.statistics-leaderboard
+                                    :rows="$statistics['panels'][$statType->value][$statScopeCase->value][$groupKey]"
+                                    :type="$statType"
+                                    :show-group="$groupKey === 'all'"
+                                />
+                            </div>
+                        @endforeach
+                    @endforeach
                 </div>
-            @endif
+            @endforeach
 
             @if ($champion)
                 <div class="mt-4">

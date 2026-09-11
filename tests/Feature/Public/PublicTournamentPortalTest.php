@@ -192,22 +192,39 @@ class PublicTournamentPortalTest extends TestCase
     {
         $data = $this->makeFullTournament();
 
+        // Every leaderboard is preloaded on the same page now (so switching
+        // tabs never reloads), so Carlos Gómez DOES appear somewhere in the
+        // raw HTML (the goal panel) -- assert against the assist panel's own
+        // view data instead of a page-wide assertDontSee.
         $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']]).'?view=assist')
             ->assertOk()
             ->assertSee(MatchEventType::Assist->leaderboardTitle())
-            ->assertDontSee('Carlos Gómez');
+            ->assertViewHas(
+                'statistics',
+                fn (array $statistics): bool => collect($statistics['panels']['assist']['league']['all'])
+                    ->doesntContain(fn (array $row): bool => $row['player']->is($data['player']))
+            );
     }
 
     public function test_statistics_reuse_the_same_service_and_are_scoped_by_group(): void
     {
         $data = $this->makeFullTournament();
 
-        // Filtering by group B (which never played) must not show group A's
-        // goalscorer -- proves the group filter (CompetitionStatisticsService)
-        // is actually wired through on the public page, not just displayed.
+        // Group B's own panel (which never played) must not show group A's
+        // goalscorer -- proves the group filter (CompetitionStatisticsService,
+        // sliced per group in PhaseBoardService::statisticsPanels()) is
+        // actually wired through on the public page. Every group's panel is
+        // now preloaded together, so Carlos Gómez legitimately appears
+        // elsewhere on the page (the "todos los grupos"/group A panels) --
+        // assert against group B's own view data instead of a page-wide
+        // assertDontSee.
         $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']])."?view=goal&group={$data['groupB']->id}")
             ->assertOk()
-            ->assertDontSee('Carlos Gómez');
+            ->assertViewHas(
+                'statistics',
+                fn (array $statistics): bool => collect($statistics['panels']['goal']['league'][(string) $data['groupB']->id])
+                    ->doesntContain(fn (array $row): bool => $row['player']->is($data['player']))
+            );
     }
 
     // ── Seguridad: nada sensible ni administrativo se expone ─────────────

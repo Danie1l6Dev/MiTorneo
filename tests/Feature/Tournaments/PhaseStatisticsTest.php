@@ -65,12 +65,23 @@ class PhaseStatisticsTest extends TestCase
 
     public function test_the_assist_leaderboard_view_does_not_show_a_player_who_only_scored(): void
     {
-        [$user, $phase] = $this->makeLeaguePhaseWithAGoal();
+        [$user, $phase, $player] = $this->makeLeaguePhaseWithAGoal();
 
+        // Every leaderboard/group/scope combination is now preloaded on the
+        // same page (so nothing ever reloads -- see
+        // PhaseBoardService::statisticsPanels()), so Carlos Gómez DOES
+        // appear somewhere in the raw HTML (the goal panel, just not the
+        // visible one) -- a page-wide assertDontSee would wrongly fail.
+        // Assert against the assist panel's own rows (view data) instead of
+        // scraping rendered text.
         $this->actingAs($user)
             ->get(route('phases.show', $phase).'?view=assist')
             ->assertOk()
-            ->assertDontSee('Carlos Gómez');
+            ->assertViewHas(
+                'statistics',
+                fn (array $statistics): bool => collect($statistics['panels']['assist']['league']['all'])
+                    ->doesntContain(fn (array $row): bool => $row['player']->is($player))
+            );
     }
 
     public function test_a_knockout_phase_page_does_not_offer_the_statistics_tabs(): void
@@ -218,10 +229,20 @@ class PhaseStatisticsTest extends TestCase
         // The tab bar (and so this "?view=" statistics section) only lives on
         // the league phase's own page -- that's the page being requested
         // here, even though the goal in question was scored in the semifinal.
+        // Both phase-scope panels are now preloaded together (see
+        // PhaseBoardService::statisticsPanels()), so "Solo Semifinal" DOES
+        // appear somewhere in the raw HTML (the "toda la competición" panel)
+        // regardless of which one was requested -- assert against the
+        // league-scope panel's own view data instead of a page-wide
+        // assertDontSee.
         $this->actingAs($user)
             ->get(route('phases.show', $leaguePhase).'?view=goal&phase=league')
             ->assertOk()
-            ->assertDontSee('Solo Semifinal');
+            ->assertViewHas(
+                'statistics',
+                fn (array $statistics): bool => collect($statistics['panels']['goal']['league']['all'])
+                    ->doesntContain(fn (array $row): bool => $row['player']->is($player))
+            );
 
         $this->actingAs($user)
             ->get(route('phases.show', $leaguePhase).'?view=goal&phase=all')

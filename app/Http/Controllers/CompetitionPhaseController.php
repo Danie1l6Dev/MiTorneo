@@ -177,7 +177,7 @@ class CompetitionPhaseController extends Controller
         // league-type phase's page, matching where the tab bar itself
         // already lives.
         $statistics = $phase->type === CompetitionPhaseType::League
-            ? $boardService->statisticsView($request, $category, $statisticsService)
+            ? $boardService->statisticsPanels($request, $category, $statisticsService)
             : null;
 
         return view('pages.phases.show', compact(

@@ -69,29 +69,14 @@
         <flux:separator variant="subtle" />
 
         @if ($phase->type === \App\Enums\CompetitionPhaseType::League)
-            @php
-                // Builds an href for one statistics tab/filter below: the
-                // current query string with just the given keys overridden,
-                // and any key explicitly set to null dropped entirely
-                // (rather than kept as an empty "key=" param) -- e.g.
-                // selecting "Todos los grupos" must remove ?group=.. from
-                // the URL, not zero it out.
-                $statisticsTabHref = function (array $overrides) {
-                    $query = array_filter(
-                        array_merge(request()->query(), $overrides),
-                        fn ($value) => $value !== null
-                    );
-
-                    return $query === [] ? request()->url() : request()->url().'?'.http_build_query($query);
-                };
-            @endphp
-
             {{-- Landing back on 'calendario' after registering a match result (see MatchResultController's
                  #calendario redirect) beats always resetting to the table, since that's usually where the
                  user wants to keep going -- e.g. to register the next match's result. A '?view=' query
-                 param (goal/assist/yellow_card/red_card) takes priority over both -- it means a statistics
-                 tab link was just followed, which always does a real page load, unlike tabla/calendario's
-                 pure client-side toggle. --}}
+                 param (goal/assist/yellow_card/red_card, plus '?group='/'?phase=') takes priority over
+                 both, for a deep link into a specific leaderboard/filter. Every one of these tabs --
+                 the six top-level ones AND each statistics panel's own group/phase-scope filter -- is a
+                 pure client-side toggle: every combination is already loaded in the page (see
+                 PhaseBoardService::statisticsPanels()), so nothing here ever reloads. --}}
             <div x-data="{
                 section: (() => {
                     const view = new URLSearchParams(window.location.search).get('view');
@@ -100,14 +85,16 @@
 
                     return window.location.hash.startsWith('#calendario') ? 'calendario' : 'tabla';
                 })(),
+                statGroup: new URLSearchParams(window.location.search).get('group') ?? 'all',
+                statScope: new URLSearchParams(window.location.search).get('phase') === 'all' ? 'all' : 'league',
             }">
                 <x-ui.section-tabs :tabs="[
                     ['key' => 'tabla', 'label' => __('Tabla de posiciones'), 'icon' => 'table-cells'],
                     ['key' => 'calendario', 'label' => __('Calendario'), 'icon' => 'calendar-days'],
-                    ['key' => \App\Enums\MatchEventType::Goal->value, 'label' => __(\App\Enums\MatchEventType::Goal->leaderboardTitle()), 'icon' => 'trophy', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::Goal->value])],
-                    ['key' => \App\Enums\MatchEventType::Assist->value, 'label' => __(\App\Enums\MatchEventType::Assist->leaderboardTitle()), 'icon' => 'hand-raised', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::Assist->value])],
-                    ['key' => \App\Enums\MatchEventType::YellowCard->value, 'label' => __(\App\Enums\MatchEventType::YellowCard->leaderboardTitle()), 'icon' => 'rectangle-stack', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::YellowCard->value])],
-                    ['key' => \App\Enums\MatchEventType::RedCard->value, 'label' => __(\App\Enums\MatchEventType::RedCard->leaderboardTitle()), 'icon' => 'rectangle-stack', 'href' => $statisticsTabHref(['view' => \App\Enums\MatchEventType::RedCard->value])],
+                    ['key' => \App\Enums\MatchEventType::Goal->value, 'label' => __(\App\Enums\MatchEventType::Goal->leaderboardTitle()), 'icon' => 'trophy'],
+                    ['key' => \App\Enums\MatchEventType::Assist->value, 'label' => __(\App\Enums\MatchEventType::Assist->leaderboardTitle()), 'icon' => 'hand-raised'],
+                    ['key' => \App\Enums\MatchEventType::YellowCard->value, 'label' => __(\App\Enums\MatchEventType::YellowCard->leaderboardTitle()), 'icon' => 'rectangle-stack'],
+                    ['key' => \App\Enums\MatchEventType::RedCard->value, 'label' => __(\App\Enums\MatchEventType::RedCard->leaderboardTitle()), 'icon' => 'rectangle-stack'],
                 ]" />
 
             <div
@@ -315,42 +302,54 @@
             {{-- Player statistics (goleadores/asistidores/amarillas/rojas) always
                  reflect the whole category, not just this phase -- "toda la
                  competición" wouldn't mean anything scoped to one phase alone.
-                 $statistics is only ever set for whichever single type the
-                 '?view=' query param requested (see CompetitionPhaseController),
-                 so this whole block either renders that one leaderboard or
-                 nothing at all -- x-show here only matters for the case where
-                 the user then clicks "Tabla de posiciones"/"Calendario" (a pure
-                 client-side toggle, no reload) right after: it hides this block
-                 exactly like it would on a fresh load of that other tab. --}}
-            @if ($statistics)
-                <div x-show="section === '{{ $statistics['type']->value }}'" x-cloak class="mt-4 space-y-4">
-                    <flux:heading size="lg">{{ __($statistics['type']->leaderboardTitle()) }}</flux:heading>
+                 All four leaderboards are already computed (see
+                 PhaseBoardService::statisticsPanels()), so this renders all
+                 four panels up front and lets x-show toggle between them --
+                 same pure client-side switch "Tabla de posiciones"/"Calendario"
+                 already do, no reload for any of the six tabs. Changing the
+                 group/phase-scope filter WITHIN a panel still reloads (it needs
+                 a fresh query), but each panel bakes its own type into that
+                 reload's "?view=" so it lands back on the same leaderboard. --}}
+            @php
+                $statGroupKeys = $statistics['groupOptions']->isNotEmpty()
+                    ? ['all', ...$statistics['groupOptions']->pluck('id')->map(fn ($id) => (string) $id)->all()]
+                    : ['all'];
+            @endphp
+
+            @foreach (\App\Enums\MatchEventType::cases() as $statType)
+                <div x-show="section === '{{ $statType->value }}'" x-cloak class="mt-4 space-y-4">
+                    <flux:heading size="lg">{{ __($statType->leaderboardTitle()) }}</flux:heading>
 
                     <div class="flex flex-wrap items-center gap-3">
-                        @if ($category->uses_groups && $category->groups->isNotEmpty())
-                            <x-ui.nav-tabs :tabs="[
-                                ['label' => __('Todos los grupos'), 'href' => $statisticsTabHref(['group' => null]), 'active' => $statistics['group'] === null],
-                                ...$category->groups->sortBy('order')->map(fn ($group) => [
+                        @if ($statistics['groupOptions']->isNotEmpty())
+                            <x-ui.section-tabs model="statGroup" :tabs="[
+                                ['key' => 'all', 'label' => __('Todos los grupos')],
+                                ...$statistics['groupOptions']->map(fn ($group) => [
+                                    'key' => (string) $group->id,
                                     'label' => $group->name,
-                                    'href' => $statisticsTabHref(['group' => $group->id]),
-                                    'active' => $statistics['group']?->id === $group->id,
                                 ])->values()->all(),
                             ]" />
                         @endif
 
-                        <x-ui.nav-tabs :tabs="[
-                            ['label' => __(\App\Enums\StatisticsPhaseScope::League->label()), 'href' => $statisticsTabHref(['phase' => \App\Enums\StatisticsPhaseScope::League->value]), 'active' => $statistics['phaseScope'] === \App\Enums\StatisticsPhaseScope::League],
-                            ['label' => __(\App\Enums\StatisticsPhaseScope::All->label()), 'href' => $statisticsTabHref(['phase' => \App\Enums\StatisticsPhaseScope::All->value]), 'active' => $statistics['phaseScope'] === \App\Enums\StatisticsPhaseScope::All],
+                        <x-ui.section-tabs model="statScope" :tabs="[
+                            ['key' => \App\Enums\StatisticsPhaseScope::League->value, 'label' => __(\App\Enums\StatisticsPhaseScope::League->label())],
+                            ['key' => \App\Enums\StatisticsPhaseScope::All->value, 'label' => __(\App\Enums\StatisticsPhaseScope::All->label())],
                         ]" />
                     </div>
 
-                    <x-ui.statistics-leaderboard
-                        :rows="$statistics['rows']"
-                        :type="$statistics['type']"
-                        :show-group="$category->uses_groups && $statistics['group'] === null"
-                    />
+                    @foreach (\App\Enums\StatisticsPhaseScope::cases() as $statScopeCase)
+                        @foreach ($statGroupKeys as $groupKey)
+                            <div x-show="statScope === '{{ $statScopeCase->value }}' && statGroup === '{{ $groupKey }}'" x-cloak>
+                                <x-ui.statistics-leaderboard
+                                    :rows="$statistics['panels'][$statType->value][$statScopeCase->value][$groupKey]"
+                                    :type="$statType"
+                                    :show-group="$groupKey === 'all'"
+                                />
+                            </div>
+                        @endforeach
+                    @endforeach
                 </div>
-            @endif
+            @endforeach
 
             @if ($champion)
                 <div class="mt-4">
