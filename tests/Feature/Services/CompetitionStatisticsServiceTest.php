@@ -525,6 +525,54 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->assertCount(0, $rows);
     }
 
+    // ── Jugadores inactivos ──────────────────────────────────────────────
+
+    public function test_an_inactive_player_still_appears_with_their_historical_goals(): void
+    {
+        $category = $this->makeCategory();
+        $phase = $this->makePhase($category);
+        $home = $this->makeTeam($category);
+        $away = $this->makeTeam($category);
+        $player = Player::factory()->for($home)->create(['is_active' => true]);
+        $match = $this->makeFinishedMatch($phase, $home, $away);
+
+        $this->recordEvent($match, $player, MatchEventType::Goal);
+        $this->recordEvent($match, $player, MatchEventType::Goal);
+
+        // Deactivating a player (e.g. they left the squad) must not erase or
+        // hide the goals they already scored -- toggle-active only flips a
+        // roster flag, it never touches match_events. Direct property
+        // assignment (not update()) since 'is_active' is deliberately not in
+        // Player's #[Fillable(...)] list -- same as PlayerController::toggleActive().
+        $player->is_active = false;
+        $player->save();
+
+        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($player->id, $rows[0]['player']->id);
+        $this->assertSame(2, $rows[0]['count']);
+        $this->assertFalse($rows[0]['player']->is_active);
+    }
+
+    public function test_an_inactive_players_cards_and_assists_are_also_preserved(): void
+    {
+        $category = $this->makeCategory();
+        $phase = $this->makePhase($category);
+        $home = $this->makeTeam($category);
+        $away = $this->makeTeam($category);
+        $player = Player::factory()->for($home)->create(['is_active' => false]);
+        $match = $this->makeFinishedMatch($phase, $home, $away);
+
+        $this->recordEvent($match, $player, MatchEventType::Assist);
+        $this->recordEvent($match, $player, MatchEventType::YellowCard);
+        $this->recordEvent($match, $player, MatchEventType::RedCard);
+
+        $this->assertSame(1, $this->service->leaderboard($category, MatchEventType::Assist, null, StatisticsPhaseScope::All)[0]['count']);
+        $this->assertSame(1, $this->service->leaderboard($category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All)[0]['count']);
+        $this->assertSame(1, $this->service->leaderboard($category, MatchEventType::RedCard, null, StatisticsPhaseScope::All)[0]['count']);
+    }
+
     public function test_events_from_another_categorys_matches_are_never_included(): void
     {
         $categoryOne = $this->makeCategory();
