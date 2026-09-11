@@ -85,6 +85,14 @@ select:focus[data-flux-control] {
    Identidad visual "estadio nocturno" -- fondo, glassmorphism, microinteracciones
    ========================================================================== */
 
+/* Anchos del sidebar de Flux (w-64 / w-14 del componente) expuestos como
+   variables para que el fondo del estadio pueda alinearse con su borde derecho
+   sin repetir los numeros en cada regla. */
+:root {
+    --app-sidebar-width: 16rem;
+    --app-sidebar-width-collapsed: 3.5rem;
+}
+
 /* Capa de fondo fija con la imagen del estadio (public/assets/images/stadium-background.png).
    background-position varía por breakpoint para mantener el arco y las luces
    reconocibles incluso cuando el recorte es más agresivo en pantallas angostas.
@@ -115,6 +123,73 @@ select:focus[data-flux-control] {
 @media (min-width: 1024px) {
     .stadium-bg {
         background-position: center 40%;
+    }
+}
+
+/* En desktop el fondo arranca donde termina el sidebar (que ocupa su propia
+   columna del grid de Flux) en vez de pasar por debajo: asi la franja del sidebar
+   queda plana y la foto del estadio solo vive en el area de contenido. Los dos
+   anchos son los del propio componente de Flux -- w-64 desplegado y w-14
+   retraido -- y el segundo selector los distingue leyendo el atributo de estado
+   que Flux pone en el <ui-sidebar> al contraerlo.
+   En movil el sidebar es un overlay flotante, no una columna, por eso ahi el
+   fondo sigue cubriendo el ancho completo de la pantalla. El :has([data-flux-sidebar])
+   es imprescindible: el mismo .stadium-bg se usa en los layouts sin sidebar
+   (portal publico, pantallas de login), y ahi el fondo debe seguir a pantalla
+   completa. */
+@media (min-width: 1024px) {
+    body:has([data-flux-sidebar]) .stadium-bg {
+        left: var(--app-sidebar-width);
+    }
+
+    body:has([data-flux-sidebar][data-flux-sidebar-collapsed-desktop]) .stadium-bg {
+        left: var(--app-sidebar-width-collapsed);
+    }
+}
+
+/* Flux cambia el ancho del sidebar (w-64 <-> w-14) de golpe, asi que la animacion
+   se anade aqui: sobre el ancho/padding del propio sidebar y sobre el borde
+   izquierdo del fondo del estadio, que lo sigue.
+
+   Solo a partir de 1024px: por debajo el sidebar es un overlay que Flux ya anima
+   con translate (le pone la clase transition-transform), y estas reglas -- al ir
+   sin @layer, o sea con mas prioridad que cualquier utilidad de Tailwind --
+   sobrescribirian su transition-property y romperian ese deslizamiento.
+
+   No hace falta desactivar la transicion del sidebar al cargar la pagina (Flux
+   restaura desde localStorage el estado retraido justo despues de montarlo, lo
+   que dispararia una animacion espuria): el propio Flux le pone un
+   style="transition: none" inline mientras aplica ese estado inicial y lo quita
+   en un setTimeout. El fondo, en cambio, es un elemento ajeno a Flux y si
+   necesita ese cuidado -- ver .stadium-bg-animated mas abajo. */
+@media (min-width: 1024px) {
+    [data-flux-sidebar] {
+        /* Mientras el ancho se interpola, las etiquetas de los items (que Flux
+           muestra/oculta con display) sobresaldrian del sidebar estrecho; el
+           overflow-x las recorta y evita que asome una barra de scroll horizontal. */
+        overflow-x: hidden;
+        transition:
+            width 250ms cubic-bezier(.4, 0, .2, 1),
+            padding 250ms cubic-bezier(.4, 0, .2, 1);
+    }
+
+    /* La clase la anade Alpine un frame despues de montar el div (x-init en el
+       layout), no viene en el HTML: asi el salto inicial de left -- el que provoca
+       Flux al restaurar el estado retraido guardado -- ocurre sin transicion, y
+       solo se anima lo que el usuario dispara despues. Vale igual para la carga
+       completa y para cada wire:navigate, porque Alpine reinicializa el div nuevo. */
+    body:has([data-flux-sidebar]) .stadium-bg.stadium-bg-animated {
+        transition: left 250ms cubic-bezier(.4, 0, .2, 1);
+    }
+}
+
+/* Los selectores se repiten tal cual (en vez de un .stadium-bg suelto) porque
+   aqui no basta con ir despues en el archivo: el de arriba lleva el :has() y las
+   dos clases, o sea mas especificidad, y ganaria igual. */
+@media (prefers-reduced-motion: reduce) {
+    [data-flux-sidebar],
+    body:has([data-flux-sidebar]) .stadium-bg.stadium-bg-animated {
+        transition: none;
     }
 }
 

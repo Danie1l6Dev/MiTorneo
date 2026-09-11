@@ -4,16 +4,35 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-950">
-        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"></div>
+        {{-- El x-init arma la transicion del borde izquierdo del fondo un frame
+             despues del montaje: en ese primer frame Flux ya aplico el estado
+             retraido del sidebar que guarda en localStorage, asi que ese salto
+             queda sin animar y solo se anima lo que el usuario dispara despues. --}}
+        <div
+            class="stadium-bg"
+            aria-hidden="true"
+            x-data
+            x-init="requestAnimationFrame(() => $el.classList.add('stadium-bg-animated'))"
+            style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"
+        ></div>
 
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 glass-panel-strong">
+        <flux:sidebar sticky collapsible class="border-e border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 glass-panel-strong">
             <flux:sidebar.header>
                 <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
-                <flux:sidebar.collapse class="lg:hidden" />
+                <flux:sidebar.collapse />
             </flux:sidebar.header>
 
             <flux:sidebar.nav>
-                <flux:sidebar.group :heading="__('Plataforma')" class="grid">
+                {{-- No se usa el :heading de <flux:sidebar.group> porque ese componente
+                     se oculta entero (in-data-flux-sidebar-collapsed-desktop:hidden) al
+                     retraer el sidebar en desktop, y con el desaparecerian tambien los
+                     items. Aqui el titulo va aparte y es lo unico que se oculta: los
+                     items quedan como una columna de iconos. --}}
+                <div class="px-3 py-2 in-data-flux-sidebar-collapsed-desktop:hidden">
+                    <div class="text-sm leading-none font-medium text-zinc-400">{{ __('Plataforma') }}</div>
+                </div>
+
+                <div class="flex flex-col">
                     @if (auth()->user()->role === \App\Enums\UserRole::Admin)
                         <flux:sidebar.item icon="shield-check" :href="route('admin.dashboard')" :current="request()->routeIs('admin.dashboard')" wire:navigate>
                             {{ __('Dashboard administrativo') }}
@@ -39,7 +58,7 @@
                             {{ __('Sanciones') }}
                         </flux:sidebar.item>
                     @endif
-                </flux:sidebar.group>
+                </div>
             </flux:sidebar.nav>
 
             <flux:spacer />
