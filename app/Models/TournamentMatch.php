@@ -233,6 +233,22 @@ class TournamentMatch extends Model
     }
 
     /**
+     * Which tab (and, for a grouped league match, which group's own
+     * calendar) this match's own entry lives under on its phase's show
+     * page -- what the match edit page's "Volver al calendario" link
+     * points at, so it lands back on the exact tab/group this match came
+     * from instead of always resetting to the phase's default tab.
+     */
+    public function calendarHash(): string
+    {
+        return match (true) {
+            $this->competitionPhase->type !== CompetitionPhaseType::League => '#cuadro',
+            $this->group_id !== null => "#calendario-grupo-{$this->group_id}",
+            default => '#calendario',
+        };
+    }
+
+    /**
      * This match's own regular-time score, aggregated with the first leg's
      * (mapped onto this leg's sides, which swap between legs -- the first
      * leg's away score is this leg's home team's other total) when this is

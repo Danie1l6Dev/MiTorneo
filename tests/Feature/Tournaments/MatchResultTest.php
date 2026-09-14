@@ -36,7 +36,7 @@ class MatchResultTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => 3, 'away_score' => 1])
-            ->assertRedirect(route('phases.show', $phase).'#calendario');
+            ->assertRedirect(route('matches.edit', $match));
 
         $match->refresh();
 
@@ -67,7 +67,7 @@ class MatchResultTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => 2, 'away_score' => 2])
-            ->assertRedirect(route('phases.show', $phase).'#calendario');
+            ->assertRedirect(route('matches.edit', $match));
 
         $match->refresh();
 

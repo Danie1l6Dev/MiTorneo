@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchStatus;
 use App\Http\Requests\MatchResultRequest;
 use App\Models\TournamentMatch;
@@ -18,7 +17,6 @@ class MatchResultController extends Controller
         $match->home_score = $request->validated('home_score');
         $match->away_score = $request->validated('away_score');
 
-        $isKnockoutPhase = $match->competitionPhase->type !== CompetitionPhaseType::League;
         $isDecisiveLeg = $match->isDecisiveKnockoutLeg();
 
         $match->home_extra_time_score = $isDecisiveLeg ? $request->validated('home_extra_time_score') : null;
@@ -42,16 +40,13 @@ class MatchResultController extends Controller
 
         $bracketService->resolveWinner($match);
 
-        // Land back on the same group's calendar tab, not just the calendar
-        // section in general -- otherwise registering results one after
-        // another for group B keeps bouncing the view back to group A.
-        $hash = match (true) {
-            $isKnockoutPhase => '#cuadro',
-            $match->group_id !== null => "#calendario-grupo-{$match->group_id}",
-            default => '#calendario',
-        };
-
-        return redirect(route('phases.show', $match->competitionPhase).$hash)
+        // Stays on the match itself rather than bouncing back to the
+        // phase's calendar/bracket -- an organizer registering a result
+        // usually wants to immediately follow up with events (goals,
+        // cards) for the very match they just scored, not navigate away
+        // from it. "Volver al calendario" (see the match edit page) is the
+        // explicit way back when they're actually done with it.
+        return to_route('matches.edit', $match)
             ->with('status', __('Resultado registrado correctamente.'));
     }
 }

@@ -8,7 +8,6 @@ use App\Http\Requests\MatchEventRequest;
 use App\Models\Coach;
 use App\Models\MatchEvent;
 use App\Models\Player;
-use App\Models\Sanction;
 use App\Models\TournamentMatch;
 use App\Services\SanctionService;
 use Illuminate\Database\Eloquent\Collection;
@@ -131,7 +130,7 @@ class MatchEventController extends Controller
             ));
         }
 
-        if ($this->deletingWouldOrphanAProtectedSanction($event, $sanctions)) {
+        if ($sanctions->protectedSanctionFor($event) !== null) {
             return to_route('matches.edit', $match)->with('error', __(
                 'No se puede eliminar esta tarjeta: ya tiene una sanción resuelta por el Comité Directivo. Edita o elimina la sanción primero.'
             ));
@@ -150,32 +149,6 @@ class MatchEventController extends Controller
         });
 
         return to_route('matches.edit', $match)->with('status', __('Evento eliminado correctamente.'));
-    }
-
-    /**
-     * A Sanction SanctionService itself would refuse to touch (a resolved
-     * red_card, or anything with a fecha already marked served) is a real
-     * administrative record -- deleting the card event behind it would
-     * silently orphan that record instead of the post-delete sync just
-     * cleaning it up. Blocked the same way an unsafe goal deletion already
-     * is, above. Only relevant for yellow/red events; a goal/assist can
-     * never have a Sanction tied to it.
-     */
-    private function deletingWouldOrphanAProtectedSanction(MatchEvent $event, SanctionService $sanctions): bool
-    {
-        if (! in_array($event->type, [MatchEventType::YellowCard, MatchEventType::RedCard], true)) {
-            return false;
-        }
-
-        $subjectColumn = $event->coach_id !== null ? 'coach_id' : 'player_id';
-        $subjectId = $event->coach_id ?? $event->player_id;
-
-        $sanction = Sanction::query()
-            ->where('match_id', $event->match_id)
-            ->where($subjectColumn, $subjectId)
-            ->first();
-
-        return $sanction !== null && ! $sanctions->isAutoManageable($sanction);
     }
 
     /**

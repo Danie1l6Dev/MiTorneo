@@ -127,7 +127,7 @@ class KnockoutBracketProgressionTest extends TestCase
         // The final is now playable and its result no longer resolves anything further.
         $this->actingAs($user)
             ->patch(route('matches.result.update', $final), ['home_score' => 1, 'away_score' => 0])
-            ->assertRedirect(route('phases.show', $newPhase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $final));
 
         $this->assertSame(MatchStatus::Finished, $final->fresh()->status);
     }
@@ -280,7 +280,7 @@ class KnockoutBracketProgressionTest extends TestCase
                 'home_penalty_score' => 3,
                 'away_penalty_score' => 5,
             ])
-            ->assertRedirect(route('phases.show', $phase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $match));
 
         $match->refresh();
         $this->assertSame(MatchStatus::Finished, $match->status);
@@ -479,7 +479,7 @@ class KnockoutBracketProgressionTest extends TestCase
                 'home_penalty_score' => 5,
                 'away_penalty_score' => 4,
             ])
-            ->assertRedirect(route('phases.show', $newPhase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $semiMatches[0]));
 
         $semiMatches[0]->refresh();
         $this->assertSame(MatchStatus::Finished, $semiMatches[0]->status);
@@ -509,7 +509,7 @@ class KnockoutBracketProgressionTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $match), ['home_score' => 1, 'away_score' => 1])
-            ->assertRedirect(route('phases.show', $phase).'#calendario');
+            ->assertRedirect(route('matches.edit', $match));
 
         $this->assertSame(MatchStatus::Finished, $match->fresh()->status);
     }

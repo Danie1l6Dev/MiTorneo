@@ -213,13 +213,13 @@ class TwoLeggedKnockoutTest extends TestCase
         // perfectly valid -- it isn't decisive on its own.
         $this->actingAs($user)
             ->patch(route('matches.result.update', $firstLeg), ['home_score' => 2, 'away_score' => 0])
-            ->assertRedirect(route('phases.show', $phase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $firstLeg));
 
         // Second leg: B beats A 1-0 at home. Aggregate is A 2 - B 1: A
         // advances even though it lost the second leg outright.
         $this->actingAs($user)
             ->patch(route('matches.result.update', $secondLeg), ['home_score' => 1, 'away_score' => 0])
-            ->assertRedirect(route('phases.show', $phase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $secondLeg));
 
         $secondLeg->refresh();
         $this->assertSame($teamA->id, $secondLeg->tieWinnerTeamId());
@@ -263,7 +263,7 @@ class TwoLeggedKnockoutTest extends TestCase
 
         $this->actingAs($user)
             ->patch(route('matches.result.update', $firstLeg), ['home_score' => 1, 'away_score' => 1])
-            ->assertRedirect(route('phases.show', $phase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $firstLeg));
 
         $this->assertSame(MatchStatus::Finished, $firstLeg->fresh()->status);
     }
@@ -318,7 +318,7 @@ class TwoLeggedKnockoutTest extends TestCase
                 'home_penalty_score' => 4,
                 'away_penalty_score' => 5,
             ])
-            ->assertRedirect(route('phases.show', $phase).'#cuadro');
+            ->assertRedirect(route('matches.edit', $secondLeg));
 
         $secondLeg->refresh();
         $this->assertSame(MatchStatus::Finished, $secondLeg->status);

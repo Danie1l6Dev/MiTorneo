@@ -4,14 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchEventType;
+use App\Enums\MatchStatus;
 use App\Http\Requests\TournamentMatchRequest;
+use App\Models\MatchEvent;
 use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\TournamentMatch;
 use App\Services\KnockoutBracketService;
+use App\Services\SanctionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class TournamentMatchController extends Controller
@@ -203,6 +207,54 @@ class TournamentMatchController extends Controller
 
         return redirect(route('phases.show', $match->competitionPhase).($isKnockoutMatch ? '#cuadro' : ''))
             ->with('status', __('Cambios guardados correctamente.'));
+    }
+
+    /**
+     * Undoes a registered result entirely: score (regular/extra time/
+     * penalties), status back to Scheduled, and every match_event this
+     * match has -- not just the scoreboard, since an organizer who wants to
+     * redo a match usually got the events wrong too, not just the numbers.
+     * The lineup (match_lineups) is left untouched -- who was called up to
+     * play is independent of what happened once they did.
+     *
+     * Blocked the same way a single card's deletion already is
+     * (MatchEventController) when any event here backs a Sanction the
+     * Comité Directivo already resolved -- sanctions.match_event_id
+     * cascades on delete, so silently wiping the events would silently
+     * destroy that administrative record too.
+     *
+     * Deliberately doesn't try to unwind any knockout bracket propagation
+     * this match's result may have already triggered (KnockoutBracketService)
+     * -- the same gap already exists for deleting the match outright.
+     */
+    public function reset(TournamentMatch $match, SanctionService $sanctions): RedirectResponse
+    {
+        $this->authorize('update', $match);
+
+        $protectedEvent = $match->events->first(fn (MatchEvent $event): bool => $sanctions->protectedSanctionFor($event) !== null);
+
+        if ($protectedEvent !== null) {
+            return to_route('matches.edit', $match)->with('error', __(
+                'No se puede resetear este partido: :subject tiene una sanción ya resuelta por el Comité Directivo originada aquí. Resuélvela o elimínala primero.',
+                ['subject' => $protectedEvent->subjectLabel()]
+            ));
+        }
+
+        DB::transaction(function () use ($match): void {
+            $match->events()->delete();
+
+            $match->update([
+                'home_score' => null,
+                'away_score' => null,
+                'home_extra_time_score' => null,
+                'away_extra_time_score' => null,
+                'home_penalty_score' => null,
+                'away_penalty_score' => null,
+                'status' => MatchStatus::Scheduled,
+            ]);
+        });
+
+        return to_route('matches.edit', $match)->with('status', __('Partido reseteado: resultado y eventos eliminados.'));
     }
 
     public function destroy(TournamentMatch $match): RedirectResponse

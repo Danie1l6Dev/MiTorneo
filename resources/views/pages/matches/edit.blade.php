@@ -112,7 +112,22 @@
             },
         }"
     >
-        <x-ui.page-header :title="__('Editar partido')" :subtitle="$match->competitionPhase->name" />
+        <x-ui.page-header :title="__('Editar partido')" :subtitle="$match->competitionPhase->name">
+            {{-- Registering a result no longer navigates away from this
+                 page (see MatchResultController) -- this is the explicit
+                 way back, landing on the same tab/group this match's own
+                 entry lives under (TournamentMatch::calendarHash()). --}}
+            <flux:button
+                :href="route('phases.show', $match->competitionPhase).$match->calendarHash()"
+                variant="ghost"
+                size="sm"
+                icon="chevron-left"
+                wire:navigate
+                class="mt-1"
+            >
+                {{ __('Volver al calendario') }}
+            </flux:button>
+        </x-ui.page-header>
 
         @if (session('status'))
             <flux:callout variant="success" icon="check-circle" :heading="session('status')" />
@@ -427,6 +442,25 @@
                                 <flux:button type="submit" variant="primary" icon="check">{{ __('Registrar resultado') }}</flux:button>
                             </div>
                         </form>
+
+                        {{-- Only offered once a result actually exists --
+                             resetting an already-scheduled match with
+                             nothing recorded would have nothing to undo. --}}
+                        @if ($match->status === \App\Enums\MatchStatus::Finished)
+                            <div class="flex justify-center border-t border-zinc-200 px-4 py-4 dark:border-white/10 sm:px-8">
+                                <x-ui.confirm-delete-form
+                                    :action="route('matches.reset', $match)"
+                                    method="PATCH"
+                                    variant="warning"
+                                    icon="arrow-path"
+                                    :heading="__('¿Resetear este partido?')"
+                                    :description="__('Se borran el resultado y TODOS los eventos registrados (goles, asistencias, tarjetas) de este partido. Los jugadores convocados se mantienen. Esta acción no se puede deshacer.')"
+                                    :confirm-label="__('Resetear partido')"
+                                >
+                                    <flux:button variant="ghost" size="sm" icon="arrow-path">{{ __('Resetear partido') }}</flux:button>
+                                </x-ui.confirm-delete-form>
+                            </div>
+                        @endif
                     @endif
                 </div>
             </div>

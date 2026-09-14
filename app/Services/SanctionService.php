@@ -98,6 +98,36 @@ class SanctionService
         return $sanction->type === SanctionType::DoubleYellow || $sanction->status === SanctionStatus::Pending;
     }
 
+    /**
+     * The Sanction that would be silently destroyed if $event were deleted
+     * right now, when that sanction is one this service itself refuses to
+     * touch automatically (a resolved red_card) -- a real administrative
+     * record (fechas, maybe a fine, on file), never safe to orphan just
+     * because the card event behind it goes away. sanctions.match_event_id
+     * cascades on delete, so this has to be checked BEFORE the event is
+     * removed -- syncForSubject() running afterward is too late, the row is
+     * already gone by then. Null for a goal/assist (never has a Sanction)
+     * or a yellow/red event whose Sanction (if any) is still auto-manageable.
+     * Used both by a single event's own delete (MatchEventController) and
+     * by resetting a whole match's events at once (TournamentMatchController).
+     */
+    public function protectedSanctionFor(MatchEvent $event): ?Sanction
+    {
+        if (! in_array($event->type, [MatchEventType::YellowCard, MatchEventType::RedCard], true)) {
+            return null;
+        }
+
+        $subjectColumn = $event->coach_id !== null ? 'coach_id' : 'player_id';
+        $subjectId = $event->coach_id ?? $event->player_id;
+
+        $sanction = Sanction::query()
+            ->where('match_id', $event->match_id)
+            ->where($subjectColumn, $subjectId)
+            ->first();
+
+        return $sanction !== null && ! $this->isAutoManageable($sanction) ? $sanction : null;
+    }
+
     private function cardCount(TournamentMatch $match, string $subjectColumn, int $subjectId, MatchEventType $type): int
     {
         return MatchEvent::query()

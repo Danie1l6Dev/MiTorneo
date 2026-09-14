@@ -121,6 +121,9 @@ Route::middleware(['auth'])->group(function () {
         ->shallow()
         ->only(['edit', 'update', 'destroy']);
 
+    Route::patch('matches/{match}/reset', [TournamentMatchController::class, 'reset'])
+        ->name('matches.reset');
+
     // No edit/update -- events are intentionally not editable in place; a
     // user who wants a different type/subject deletes the event and
     // registers the correct one, so there's only ever one path (creation)
