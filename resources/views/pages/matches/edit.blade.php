@@ -137,8 +137,17 @@
             $awayUnavailablePlayerIds = $awayUnavailableSanctions->pluck('player_id')->filter();
             $homeCoachUnavailable = $match->homeTeam?->coach && $homeUnavailableSanctions->contains('coach_id', $match->homeTeam->coach->id);
             $awayCoachUnavailable = $match->awayTeam?->coach && $awayUnavailableSanctions->contains('coach_id', $match->awayTeam->coach->id);
-            $homeAvailablePlayers = $match->homeTeam?->players->whereNotIn('id', $homeUnavailablePlayerIds);
-            $awayAvailablePlayers = $match->awayTeam?->players->whereNotIn('id', $awayUnavailablePlayerIds);
+
+            // The roster panels only ever show players actually "convocados"
+            // for THIS match (see TournamentMatchController::edit()) -- not
+            // a team's full category plantel anymore. A suspended player is
+            // pulled from this list the same way as before, even though
+            // they're technically in the lineup: they still shouldn't get
+            // quick-add buttons.
+            $homeAvailablePlayers = $homeLineups->pluck('player')->whereNotIn('id', $homeUnavailablePlayerIds)->values();
+            $awayAvailablePlayers = $awayLineups->pluck('player')->whereNotIn('id', $awayUnavailablePlayerIds)->values();
+            $homeSearchCandidates = $homeCandidates->whereNotIn('id', $homeUnavailablePlayerIds)->values();
+            $awaySearchCandidates = $awayCandidates->whereNotIn('id', $awayUnavailablePlayerIds)->values();
 
             $resultErrorKeys = ['home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score'];
             $resultErrorMessage = collect($resultErrorKeys)->map(fn ($key) => $errors->first($key))->first(fn ($message) => $message !== '');
@@ -177,7 +186,8 @@
         ])>
             @unless ($pending)
                 <div class="space-y-4 lg:order-1">
-                    <x-ui.match-roster-panel :team="$match->homeTeam" :players="$homeAvailablePlayers" :hide-coach="$homeCoachUnavailable" />
+                    <x-ui.match-lineup-search :match="$match" :team="$match->homeTeam" :candidates="$homeSearchCandidates" :club-has-eligible-players="$homeClubHasEligiblePlayers" />
+                    <x-ui.match-roster-panel :team="$match->homeTeam" :players="$homeAvailablePlayers" :lineups="$homeLineups" :hide-coach="$homeCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->home_team_id" />
                     <x-ui.match-unavailable-players :sanctions="$homeUnavailableSanctions" :match-id="$match->id" />
                 </div>
@@ -423,7 +433,8 @@
 
             @unless ($pending)
                 <div class="space-y-4 lg:order-3">
-                    <x-ui.match-roster-panel :team="$match->awayTeam" :players="$awayAvailablePlayers" :hide-coach="$awayCoachUnavailable" />
+                    <x-ui.match-lineup-search :match="$match" :team="$match->awayTeam" :candidates="$awaySearchCandidates" :club-has-eligible-players="$awayClubHasEligiblePlayers" />
+                    <x-ui.match-roster-panel :team="$match->awayTeam" :players="$awayAvailablePlayers" :lineups="$awayLineups" :hide-coach="$awayCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->away_team_id" />
                     <x-ui.match-unavailable-players :sanctions="$awayUnavailableSanctions" :match-id="$match->id" />
                 </div>

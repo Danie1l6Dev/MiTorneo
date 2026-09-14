@@ -100,8 +100,8 @@ class PublicTournamentPortalTest extends TestCase
 
         $this->get(route('public.tournaments.show', $data['tournament']))
             ->assertOk()
-            ->assertSee('Campeonato Maicao 2026')
-            ->assertSee('Sub-15');
+            ->assertSee('CAMPEONATO MAICAO 2026')
+            ->assertSee('SUB-15');
     }
 
     public function test_the_tournament_is_reachable_by_its_readable_slug_url(): void
@@ -119,10 +119,10 @@ class PublicTournamentPortalTest extends TestCase
 
         $this->get(route('public.tournaments.categories.show', [$data['tournament'], $data['category']]))
             ->assertOk()
-            ->assertSee('Grupo A')
-            ->assertSee('Grupo B')
-            ->assertSee('Tigres FC')
-            ->assertSee('Águilas FC');
+            ->assertSee('GRUPO A')
+            ->assertSee('GRUPO B')
+            ->assertSee('TIGRES FC')
+            ->assertSee('ÁGUILAS FC');
     }
 
     public function test_a_guest_can_navigate_from_the_category_page_into_a_phase(): void
@@ -145,11 +145,11 @@ class PublicTournamentPortalTest extends TestCase
         // visible on the same "tabla" section, one per group.
         $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']]))
             ->assertOk()
-            ->assertSee('Grupo A')
-            ->assertSee('Grupo B')
-            ->assertSee('Tigres FC')
-            ->assertSee('Leones FC')
-            ->assertSee('Águilas FC');
+            ->assertSee('GRUPO A')
+            ->assertSee('GRUPO B')
+            ->assertSee('TIGRES FC')
+            ->assertSee('LEONES FC')
+            ->assertSee('ÁGUILAS FC');
     }
 
     // ── Calendario y resultados ──────────────────────────────────────────
@@ -175,7 +175,7 @@ class PublicTournamentPortalTest extends TestCase
         $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']]).'?view=goal')
             ->assertOk()
             ->assertSee(MatchEventType::Goal->leaderboardTitle())
-            ->assertSee('Carlos Gómez');
+            ->assertSee('CARLOS GÓMEZ');
     }
 
     public function test_a_guest_can_view_the_yellow_card_leaderboard(): void
@@ -185,7 +185,7 @@ class PublicTournamentPortalTest extends TestCase
         $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']]).'?view=yellow_card')
             ->assertOk()
             ->assertSee(MatchEventType::YellowCard->leaderboardTitle())
-            ->assertSee('Carlos Gómez');
+            ->assertSee('CARLOS GÓMEZ');
     }
 
     public function test_the_assist_leaderboard_does_not_show_a_player_who_only_scored(): void
@@ -235,7 +235,7 @@ class PublicTournamentPortalTest extends TestCase
 
         $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']]).'?view=goal')
             ->assertOk()
-            ->assertSee('Carlos Gómez')
+            ->assertSee('CARLOS GÓMEZ')
             ->assertDontSee('1234567890');
     }
 

@@ -4,7 +4,7 @@
     <div class="min-w-0">
         <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $sanction->subjectLabel() }}</div>
         <div class="mt-0.5 truncate text-xs text-zinc-500 dark:text-white/50">
-            {{ $sanction->team->name }} &middot; {{ $sanction->team->tournament->name }} &middot; {{ $sanction->match->category->name }}
+            {{ $sanction->team->name }} &middot; {{ $sanction->match->tournament->name }} &middot; {{ $sanction->match->category->name }}
         </div>
     </div>
 

@@ -21,10 +21,12 @@ class TournamentMatchController extends Controller
         $this->authorize('update', $match);
 
         $match->load([
-            'homeTeam.players' => fn ($query) => $query->orderBy('jersey_number'),
             'homeTeam.coach',
-            'awayTeam.players' => fn ($query) => $query->orderBy('jersey_number'),
             'awayTeam.coach',
+            // Who's actually called up to play this match -- what the
+            // quick-add roster panels are now built from instead of each
+            // team's full category plantel. See MatchLineup's docblock.
+            'lineups.player',
             // Ordered by registration order, not minute -- minute isn't
             // collected right now (see MatchEventRequest), so it's null for
             // most events and wouldn't produce a meaningful chronology.
@@ -33,6 +35,31 @@ class TournamentMatchController extends Controller
             // cross -- the edit page reads it to show the aggregate context.
             'firstLeg',
         ]);
+
+        $homeLineups = $match->lineups->where('team_id', $match->home_team_id)->values();
+        $awayLineups = $match->lineups->where('team_id', $match->away_team_id)->values();
+
+        // The club-wide search candidates for each side's "agregar
+        // convocados" panel -- everything Team::clubPlayersEligibleForLineup()
+        // considers eligible (this team's own roster, plus play-up-eligible
+        // players from the rest of the club) minus whoever's already called
+        // up. Suspended players are filtered out client-side in the view,
+        // alongside the same $home/awayUnavailablePlayerIds the roster panel
+        // itself uses, since both lists are only known once
+        // unavailableSanctions() below has run.
+        $homeEligiblePlayers = $match->homeTeam?->clubPlayersEligibleForLineup() ?? collect();
+        $awayEligiblePlayers = $match->awayTeam?->clubPlayersEligibleForLineup() ?? collect();
+
+        $homeCandidates = $homeEligiblePlayers->whereNotIn('id', $homeLineups->pluck('player_id'))->values();
+        $awayCandidates = $awayEligiblePlayers->whereNotIn('id', $awayLineups->pluck('player_id'))->values();
+
+        // Lets the search panel tell "everyone eligible is already
+        // convocado" (nothing to do) apart from "this club has no players
+        // to search at all" (needs a "ve a cargarlos" pointer instead) --
+        // both look identical from $homeCandidates/$awayCandidates alone
+        // once it's empty.
+        $homeClubHasEligiblePlayers = $homeEligiblePlayers->isNotEmpty();
+        $awayClubHasEligiblePlayers = $awayEligiblePlayers->isNotEmpty();
 
         // Purely informational -- the scoreboard stays the source of truth
         // for the result/standings/bracket, this only flags the goal events
@@ -73,7 +100,9 @@ class TournamentMatchController extends Controller
 
         return view('pages.matches.edit', compact(
             'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds',
-            'oldQueuedEvents', 'referees', 'homeUnavailableSanctions', 'awayUnavailableSanctions'
+            'oldQueuedEvents', 'referees', 'homeUnavailableSanctions', 'awayUnavailableSanctions',
+            'homeLineups', 'awayLineups', 'homeCandidates', 'awayCandidates',
+            'homeClubHasEligiblePlayers', 'awayClubHasEligiblePlayers'
         ));
     }
 
@@ -111,12 +140,25 @@ class TournamentMatchController extends Controller
             return [];
         }
 
-        $players = collect($match->homeTeam?->players)->merge($match->awayTeam?->players ?? [])->keyBy('id');
+        // Same "belongs directly OR via the lineup" set MatchEventRequest/
+        // MatchEventBatchRequest validate against -- a queued event can be
+        // for a player called up through the new search panel (in
+        // $match->lineups) just as much as one created directly on the
+        // team (the pre-lineup-feature path some flows still use). See
+        // TournamentMatch::lineupTeamIdFor() for why teamId below can't
+        // just be $subject->team_id: a player called up to play UP from a
+        // younger category's roster has that pointing at their own team,
+        // not this match's side.
+        $players = collect($match->homeTeam?->players)
+            ->merge($match->awayTeam?->players ?? [])
+            ->merge($match->lineups->pluck('player'))
+            ->filter()
+            ->keyBy('id');
         $coaches = collect([$match->homeTeam?->coach, $match->awayTeam?->coach])->filter()->keyBy('id');
         $validTypes = array_column(MatchEventType::cases(), 'value');
 
         $grouped = collect($oldEvents)
-            ->map(function (array $row) use ($players, $coaches, $validTypes): ?array {
+            ->map(function (array $row) use ($players, $coaches, $validTypes, $match): ?array {
                 $type = $row['type'] ?? null;
                 $isCoach = ! empty($row['coach_id']);
                 $subjectId = (int) ($isCoach ? $row['coach_id'] : ($row['player_id'] ?? 0));
@@ -130,7 +172,7 @@ class TournamentMatchController extends Controller
                     'type' => $type,
                     'subjectType' => $isCoach ? 'coach' : 'player',
                     'subjectId' => $subjectId,
-                    'teamId' => $subject->team_id,
+                    'teamId' => $isCoach ? $subject->team_id : $match->lineupTeamIdFor($subject),
                     'label' => $isCoach ? __('DT').': '.$subject->full_name : $subject->full_name,
                 ];
             })

@@ -71,6 +71,26 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * @return HasMany<Club, $this>
+     */
+    public function clubs(): HasMany
+    {
+        return $this->hasMany(Club::class);
+    }
+
+    /**
+     * This organizer's global category catalog -- excludes legacy
+     * per-tournament rows (tournament_id set), see
+     * docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+     *
+     * @return HasMany<Category, $this>
+     */
+    public function categories(): HasMany
+    {
+        return $this->hasMany(Category::class)->whereNull('tournament_id');
+    }
+
+    /**
      * Get the user's initials
      */
     public function initials(): string

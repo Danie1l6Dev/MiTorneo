@@ -86,7 +86,7 @@ class RefereeMatchFilterTest extends TestCase
         $response = $this->actingAs($user)->get(route('referees.show', $referee));
 
         $response->assertOk()
-            ->assertViewHas('tournaments', fn ($tournaments) => $tournaments->pluck('name')->all() === ['Torneo Dirigido']);
+            ->assertViewHas('tournaments', fn ($tournaments) => $tournaments->pluck('name')->all() === ['TORNEO DIRIGIDO']);
     }
 
     // ── Filtro por categoría (de ese torneo) ─────────────────────────────
@@ -138,7 +138,7 @@ class RefereeMatchFilterTest extends TestCase
 
         $response->assertOk()
             ->assertViewHas('selectedCategory', fn ($category) => $category === null)
-            ->assertSeeText('Categoría A');
+            ->assertSeeText('CATEGORÍA A');
     }
 
     public function test_no_category_can_be_selected_before_a_tournament_is(): void

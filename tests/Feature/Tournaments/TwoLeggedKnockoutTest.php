@@ -69,7 +69,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $this->assertSame(ScheduleFormat::SingleRound, $newPhase->knockout_format);
 
         // 2 semifinals + 1 final, one match each -- exactly like before this
@@ -90,7 +90,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $this->assertSame(ScheduleFormat::HomeAndAway, $newPhase->knockout_format);
 
         // 2 semifinal crosses + 1 final cross, 2 matches each = 6 total.
@@ -123,7 +123,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
 
         // Both semifinal crosses are immediately playable (real teams
         // already known), so clicking one must offer a picker between its
@@ -155,7 +155,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $finalFirstLeg = $newPhase->matches()->where('round_number', 2)->whereNull('first_leg_match_id')->firstOrFail();
 
         // The final's teams aren't known yet, so there's nothing meaningful
@@ -177,7 +177,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semis = $newPhase->matches()->where('round_number', 1)->get();
 
         $response = $this->actingAs($user)->get(route('phases.show', $newPhase));
@@ -339,7 +339,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semiFirstLegs = $newPhase->matches()->where('round_number', 1)->whereNull('first_leg_match_id')->orderBy('id')->get();
         $finalFirstLeg = $newPhase->matches()->where('round_number', 2)->whereNull('first_leg_match_id')->firstOrFail();
 
@@ -379,7 +379,7 @@ class TwoLeggedKnockoutTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semis = $newPhase->matches()->where('round_number', 1)->whereNull('first_leg_match_id')->orderBy('id')->get();
 
         foreach ($semis as $semi) {

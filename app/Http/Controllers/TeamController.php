@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ClubTeamRequest;
 use App\Http\Requests\TeamRequest;
 use App\Models\Category;
+use App\Models\Club;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class TeamController extends Controller
@@ -23,20 +26,60 @@ class TeamController extends Controller
         return view('pages.teams.create', compact('category', 'lockedGroup'));
     }
 
+    /**
+     * A new plantel under a global Club -- see ClubTeamRequest's docblock.
+     * Kept as a separate method (rather than overloading create()/store())
+     * because the parent here is a Club, not a Category.
+     */
+    public function createForClub(Club $club): View
+    {
+        $this->authorize('create', [Team::class, $club]);
+
+        $categories = Auth::user()->categories()->with('groups')->orderBy('name')->get();
+
+        return view('pages.clubs.teams.create', compact('club', 'categories'));
+    }
+
+    public function storeForClub(ClubTeamRequest $request, Club $club): RedirectResponse
+    {
+        $this->authorize('create', [Team::class, $club]);
+
+        $validated = $request->validated();
+        $categoryId = Arr::pull($validated, 'category_id');
+        $groupId = Arr::pull($validated, 'group_id');
+
+        $team = new Team($validated);
+        $team->club_id = $club->id;
+        $team->category_id = $categoryId;
+        $team->group_id = $groupId ?: null;
+        $team->tournament_id = null;
+        $team->save();
+
+        return to_route('clubs.show', $club)->with('status', __('Plantel creado correctamente.'));
+    }
+
     public function show(Team $team): View
     {
         $this->authorize('view', $team);
 
-        $team->load([
-            'category',
-            'group',
-            'coach',
-            'players' => fn ($query) => $query->orderByDesc('is_active')->orderBy('jersey_number'),
-        ]);
+        $team->load(['category', 'group', 'coach']);
 
-        $activePlayersCount = $team->players->where('is_active', true)->count();
+        // A global Team's roster can have players from two sources: ones
+        // linked the "old" way (players.team_id, still how PlayerController
+        // adds a player -- fine for a team that only ever plays in one
+        // category) and ones linked via player_team (backfilled real
+        // rosters, or a player deliberately added to more than one
+        // plantel). A legacy per-tournament Team only ever has the first
+        // kind. See docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+        $roster = $team->players()->orderByDesc('is_active')->orderBy('jersey_number')->get();
 
-        return view('pages.teams.show', compact('team', 'activePlayersCount'));
+        if (! $team->tournament_id) {
+            $roster = $roster->merge($team->globalPlayers()->get())->unique('id')->values();
+        }
+
+        $activePlayersCount = $roster->where('is_active', true)->count();
+
+        return view('pages.teams.show', compact('team', 'roster', 'activePlayersCount'));
     }
 
     public function store(TeamRequest $request, Category $category): RedirectResponse
@@ -82,9 +125,12 @@ class TeamController extends Controller
         $this->authorize('delete', $team);
 
         $category = $team->category;
+        $club = $team->club;
 
         $team->delete();
 
-        return to_route('categories.show', $category);
+        return $club
+            ? to_route('clubs.show', $club)
+            : to_route('categories.show', $category);
     }
 }

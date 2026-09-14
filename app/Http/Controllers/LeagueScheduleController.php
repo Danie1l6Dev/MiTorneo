@@ -29,7 +29,7 @@ class LeagueScheduleController extends Controller
         DB::transaction(function () use ($scopes, $category, $phase, $format, $service, $roster): void {
             foreach ($scopes as $group) {
                 /** @var Group|null $group */
-                $teams = $group ? $group->teams : ($roster->isNotEmpty() ? $roster : $category->teams);
+                $teams = $group ? $group->teams : ($roster->isNotEmpty() ? $roster : $category->teamsForTournament($phase->tournament));
 
                 $schedule = new LeagueSchedule;
                 $schedule->tournament_id = $phase->tournament_id;

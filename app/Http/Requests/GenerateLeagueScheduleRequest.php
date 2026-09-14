@@ -60,7 +60,7 @@ class GenerateLeagueScheduleRequest extends FormRequest
             foreach ($scopes as $group) {
                 $label = $group instanceof Group ? $group->name : $category->name;
                 $groupId = $group instanceof Group ? $group->id : null;
-                $teamsCount = $group instanceof Group ? $group->teams()->count() : $category->teams()->count();
+                $teamsCount = $group instanceof Group ? $group->teams()->count() : $category->teamsForTournament($phase->tournament)->count();
 
                 if ($teamsCount < 2) {
                     $validator->errors()->add('format', __('No hay suficientes equipos en :label para generar un calendario (mínimo 2).', ['label' => $label]));

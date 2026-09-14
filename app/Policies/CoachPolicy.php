@@ -10,16 +10,16 @@ class CoachPolicy
 {
     public function view(User $user, Coach $coach): bool
     {
-        return $user->id === $coach->team->tournament->user_id;
+        return $user->id === $coach->team->ownerId();
     }
 
     public function create(User $user, Team $team): bool
     {
-        return $user->id === $team->tournament->user_id;
+        return $user->id === $team->ownerId();
     }
 
     public function update(User $user, Coach $coach): bool
     {
-        return $user->id === $coach->team->tournament->user_id;
+        return $user->id === $coach->team->ownerId();
     }
 }

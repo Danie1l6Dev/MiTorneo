@@ -1,0 +1,13 @@
+{
+  "4": {
+    "BABY": { "birth_year_from": 2020, "birth_year_to": 2021 },
+    "TETERITO": { "birth_year_from": 2018, "birth_year_to": 2019 },
+    "CEBOLLITA": { "birth_year_from": 2017, "birth_year_to": 2017 },
+    "PRE-PONY": { "birth_year_from": 2015, "birth_year_to": 2016 },
+    "PONY": { "birth_year_from": 2014, "birth_year_to": 2014 },
+    "PRE-INFANTIL": { "birth_year_from": 2013, "birth_year_to": 2013 },
+    "INFANTIL": { "birth_year_from": 2011, "birth_year_to": 2012 },
+    "PRE-JUVENIL": { "birth_year_from": 2009, "birth_year_to": 2010 },
+    "JUVENIL": { "birth_year_from": 2007, "birth_year_to": 2008 }
+  }
+}

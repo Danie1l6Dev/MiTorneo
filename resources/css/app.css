@@ -93,6 +93,18 @@ select:focus[data-flux-control] {
     --app-sidebar-width-collapsed: 3.5rem;
 }
 
+/* El fondo de abajo (.stadium-bg) es position:fixed con inset:0 -- ocupa
+   exactamente el ancho del viewport. Sin esto, cada vez que el contenido de
+   la página cruza el umbral de necesitar (o dejar de necesitar) la barra de
+   scroll vertical -- típicamente al abrir/cerrar un desplegable -- esa barra
+   aparece/desaparece y le come unos pixeles de ancho al viewport, así que el
+   fondo se corría visiblemente esa misma cantidad. Reservando siempre el
+   espacio de la barra (haya o no scroll) el ancho del viewport nunca cambia
+   y el fondo deja de moverse. */
+html {
+    scrollbar-gutter: stable;
+}
+
 /* Capa de fondo fija con la imagen del estadio (public/assets/images/stadium-background.png).
    background-position varía por breakpoint para mantener el arco y las luces
    reconocibles incluso cuando el recorte es más agresivo en pantallas angostas.

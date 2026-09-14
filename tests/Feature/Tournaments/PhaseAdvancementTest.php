@@ -52,7 +52,7 @@ class PhaseAdvancementTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $response->assertRedirect(route('phases.show', $newPhase));
 
         $this->assertSame(CompetitionPhaseType::Knockout, $newPhase->type);
@@ -121,7 +121,7 @@ class PhaseAdvancementTest extends TestCase
             'qualifiers_per_table' => 3,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Liga de clasificados')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'LIGA DE CLASIFICADOS')->firstOrFail();
         $response->assertRedirect(route('phases.show', $newPhase));
 
         $this->assertSame(6, $newPhase->teams()->count());
@@ -212,7 +212,7 @@ class PhaseAdvancementTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $semifinal = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $response->assertRedirect(route('phases.show', $semifinal));
         $this->assertSame(4, $semifinal->teams()->count());
         // The 2 semifinal matches, plus the final already created and pending.
@@ -241,7 +241,7 @@ class PhaseAdvancementTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
+        $final = CompetitionPhase::where('name', 'FINAL')->firstOrFail();
         $response->assertRedirect(route('phases.show', $final));
         $this->assertSame(2, $final->teams()->count());
         $this->assertSame(1, $final->matches()->count());
@@ -293,7 +293,7 @@ class PhaseAdvancementTest extends TestCase
             'type' => CompetitionPhaseType::Knockout->value,
             'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
-        ])->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'Otra eliminatoria')->firstOrFail()));
+        ])->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'OTRA ELIMINATORIA')->firstOrFail()));
     }
 
     public function test_qualifiers_per_table_cannot_be_sent_for_semifinal_or_final(): void
@@ -383,7 +383,7 @@ class PhaseAdvancementTest extends TestCase
             'qualifiers_per_table' => 2,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Liga final')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'LIGA FINAL')->firstOrFail();
         $rosterIds = $newPhase->teams()->pluck('teams.id')->sort()->values()->all();
 
         $this->actingAs($user)->post(route('phases.schedule.store', $newPhase), [
@@ -433,7 +433,7 @@ class PhaseAdvancementTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $round1 = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
 
         $this->assertSame([$first->id, $fourth->id], [$round1[0]->home_team_id, $round1[0]->away_team_id]);
@@ -463,7 +463,7 @@ class PhaseAdvancementTest extends TestCase
             'qualifiers_per_table' => 2,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $round1 = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
 
         // Group A's winner (a1) against group B's runner-up (b2), and

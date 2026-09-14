@@ -47,7 +47,7 @@ class RefereeManagementTest extends TestCase
 
         $this->assertDatabaseHas('referees', [
             'user_id' => $user->id,
-            'full_name' => 'Carlos Gómez',
+            'full_name' => 'CARLOS GÓMEZ',
             'document_number' => '12345678',
         ]);
     }
@@ -62,7 +62,7 @@ class RefereeManagementTest extends TestCase
             'document_number' => $referee->document_number,
         ])->assertRedirect(route('referees.show', $referee));
 
-        $this->assertSame('Nombre Actualizado', $referee->fresh()->full_name);
+        $this->assertSame('NOMBRE ACTUALIZADO', $referee->fresh()->full_name);
     }
 
     public function test_a_referee_is_not_tied_to_any_tournament(): void
@@ -158,7 +158,7 @@ class RefereeManagementTest extends TestCase
 
         $response = $this->actingAs($user)->get(route('referees.index'));
 
-        $response->assertOk()->assertSeeText('Ana Torres')->assertSeeText('2');
+        $response->assertOk()->assertSeeText('ANA TORRES')->assertSeeText('2');
     }
 
     public function test_a_referees_match_count_does_not_rely_on_a_stored_counter(): void
@@ -240,6 +240,6 @@ class RefereeManagementTest extends TestCase
 
         $response = $this->actingAs($user)->get(route('referees.index'));
 
-        $response->assertOk()->assertSeeText('Propio Árbitro')->assertDontSeeText('Ajeno Árbitro');
+        $response->assertOk()->assertSeeText('PROPIO ÁRBITRO')->assertDontSeeText('AJENO ÁRBITRO');
     }
 }

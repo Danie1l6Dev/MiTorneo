@@ -15,6 +15,12 @@
     </div>
 
     <div class="flex shrink-0 items-center gap-1.5">
+        @unless ($player->birth_date)
+            <flux:tooltip :content="__('Falta la fecha de nacimiento -- necesaria para sumarlo a otra categoría')">
+                <flux:icon.exclamation-triangle variant="micro" class="size-4 text-amber-500" />
+            </flux:tooltip>
+        @endunless
+
         <x-ui.person-status-badge :active="$player->is_active" />
 
         <flux:tooltip :content="__('Editar')">

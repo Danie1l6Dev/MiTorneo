@@ -168,9 +168,9 @@ class MatchResultTest extends TestCase
 
         $response->assertOk()
             ->assertSeeText('Tabla de posiciones')
-            ->assertSeeText('Juvenil')
-            ->assertSeeText('Equipo Local')
-            ->assertSeeText('Equipo Visitante');
+            ->assertSeeText('JUVENIL')
+            ->assertSeeText('EQUIPO LOCAL')
+            ->assertSeeText('EQUIPO VISITANTE');
     }
 
     public function test_a_category_with_groups_shows_one_standings_table_per_group(): void
@@ -187,8 +187,8 @@ class MatchResultTest extends TestCase
         $response = $this->actingAs($user)->get(route('phases.show', $phase));
 
         $response->assertOk()
-            ->assertSeeText('Grupo A')
-            ->assertSeeText('Grupo B');
+            ->assertSeeText('GRUPO A')
+            ->assertSeeText('GRUPO B');
     }
 
     public function test_a_scheduled_match_does_not_affect_the_standings_table(): void

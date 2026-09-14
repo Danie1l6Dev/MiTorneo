@@ -1,5 +1,5 @@
 <x-layouts::app :title="__('Nuevo jugador')">
-    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up">
+    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ birthDate: '' }">
         <x-ui.page-header :title="__('Nuevo jugador')" :subtitle="$team->name" />
 
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">

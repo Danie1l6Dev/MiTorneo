@@ -7,13 +7,16 @@ use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
 use App\Enums\StatisticsPhaseScope;
 use App\Models\Category;
+use App\Models\Club;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\MatchEvent;
+use App\Models\MatchLineup;
 use App\Models\Player;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
+use App\Models\User;
 use App\Services\CompetitionStatisticsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -596,5 +599,72 @@ class CompetitionStatisticsServiceTest extends TestCase
 
         $this->assertCount(1, $rows);
         $this->assertSame($playerOne->id, $rows[0]['player']->id);
+    }
+
+    /**
+     * The same isolation as above, but for one SINGLE player who scores in
+     * both their own (younger) category and, called up via match_lineups,
+     * in an OLDER category's match too (see MatchLineup's docblock). Each
+     * leaderboard query is scoped purely by MatchEvent->match->category_id
+     * -- entirely independent of Player::$team_id -- so a play-up
+     * performance can never leak into the player's natural category's
+     * stats, and vice versa.
+     */
+    public function test_a_play_up_players_goals_only_count_toward_the_category_they_were_scored_in(): void
+    {
+        $organizer = User::factory()->create();
+        $tournament = Tournament::factory()->for($organizer)->create();
+        $club = Club::factory()->for($organizer)->create();
+
+        $youngerCategory = Category::factory()->create([
+            'tournament_id' => null, 'user_id' => $organizer->id, 'name' => 'Sub-8', 'uses_groups' => false, 'birth_year_to' => 2017,
+        ]);
+        $olderCategory = Category::factory()->create([
+            'tournament_id' => null, 'user_id' => $organizer->id, 'name' => 'Sub-12', 'uses_groups' => false, 'birth_year_to' => 2013,
+        ]);
+
+        $youngerTeam = Team::factory()->create(['club_id' => $club->id, 'category_id' => $youngerCategory->id, 'tournament_id' => null, 'group_id' => null]);
+        $youngerAway = Team::factory()->create(['club_id' => $club->id, 'category_id' => $youngerCategory->id, 'tournament_id' => null, 'group_id' => null]);
+        $olderTeam = Team::factory()->create(['club_id' => $club->id, 'category_id' => $olderCategory->id, 'tournament_id' => null, 'group_id' => null]);
+        $olderAway = Team::factory()->create(['club_id' => $club->id, 'category_id' => $olderCategory->id, 'tournament_id' => null, 'group_id' => null]);
+
+        $youngerPhase = CompetitionPhase::factory()->for($tournament)->for($youngerCategory)->create();
+        $olderPhase = CompetitionPhase::factory()->for($tournament)->for($olderCategory)->create();
+
+        $player = Player::factory()->for($youngerTeam)->create(['birth_date' => '2016-05-01']);
+
+        $ownMatch = TournamentMatch::factory()->for($youngerPhase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $youngerCategory->id,
+            'home_team_id' => $youngerTeam->id,
+            'away_team_id' => $youngerAway->id,
+            'status' => MatchStatus::Finished,
+        ]);
+        $this->recordEvent($ownMatch, $player, MatchEventType::Goal);
+
+        $playUpMatch = TournamentMatch::factory()->for($olderPhase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $olderCategory->id,
+            'home_team_id' => $olderTeam->id,
+            'away_team_id' => $olderAway->id,
+            'status' => MatchStatus::Finished,
+        ]);
+        MatchLineup::factory()->create(['match_id' => $playUpMatch->id, 'team_id' => $olderTeam->id, 'player_id' => $player->id]);
+        MatchEvent::factory()->count(2)->create([
+            'match_id' => $playUpMatch->id,
+            'team_id' => $olderTeam->id,
+            'player_id' => $player->id,
+            'type' => MatchEventType::Goal,
+        ]);
+
+        $youngerRows = $this->service->leaderboard($youngerCategory, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $olderRows = $this->service->leaderboard($olderCategory, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+
+        $this->assertCount(1, $youngerRows);
+        $this->assertSame(1, $youngerRows[0]['count']);
+
+        $this->assertCount(1, $olderRows);
+        $this->assertSame($player->id, $olderRows[0]['player']->id);
+        $this->assertSame(2, $olderRows[0]['count']);
     }
 }

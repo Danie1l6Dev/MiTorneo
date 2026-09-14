@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchStatus;
 use App\Enums\ScheduleFormat;
+use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\CompetitionPhaseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -30,7 +31,10 @@ use Illuminate\Support\Carbon;
 class CompetitionPhase extends Model
 {
     /** @use HasFactory<CompetitionPhaseFactory> */
-    use HasFactory;
+    use HasFactory, NormalizesToUppercase;
+
+    /** @var list<string> */
+    protected array $uppercaseAttributes = ['name'];
 
     protected function casts(): array
     {

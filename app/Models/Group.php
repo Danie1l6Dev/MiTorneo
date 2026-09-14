@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\GroupFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,7 +24,10 @@ use Illuminate\Support\Carbon;
 class Group extends Model
 {
     /** @use HasFactory<GroupFactory> */
-    use HasFactory;
+    use HasFactory, NormalizesToUppercase;
+
+    /** @var list<string> */
+    protected array $uppercaseAttributes = ['name'];
 
     /**
      * @return BelongsTo<Tournament, $this>
@@ -31,6 +35,15 @@ class Group extends Model
     public function tournament(): BelongsTo
     {
         return $this->belongsTo(Tournament::class);
+    }
+
+    /**
+     * See Category::ownerId() -- delegates to the parent category since
+     * Group carries no owner of its own.
+     */
+    public function ownerId(): int
+    {
+        return $this->category->ownerId();
     }
 
     /**

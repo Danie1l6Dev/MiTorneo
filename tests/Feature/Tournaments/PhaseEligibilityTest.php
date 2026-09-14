@@ -79,7 +79,7 @@ class PhaseEligibilityTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $phase = CompetitionPhase::where('name', 'Eliminatoria')->firstOrFail();
+        $phase = CompetitionPhase::where('name', 'ELIMINATORIA')->firstOrFail();
         $response->assertRedirect(route('phases.show', $phase));
 
         $this->assertSame(CompetitionPhaseType::Knockout, $phase->type);
@@ -147,7 +147,7 @@ class PhaseEligibilityTest extends TestCase
 
         $response->assertRedirect(route('phases.show', $phase));
         $phase->refresh();
-        $this->assertSame('Fase de Liga (renombrada)', $phase->name);
+        $this->assertSame('FASE DE LIGA (RENOMBRADA)', $phase->name);
         $this->assertSame(5, $phase->order);
         $this->assertSame(CompetitionPhaseType::League, $phase->type);
     }
@@ -170,7 +170,7 @@ class PhaseEligibilityTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $semifinal = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $response->assertRedirect(route('phases.show', $semifinal));
         $this->assertSame(4, $semifinal->teams()->count());
         $this->assertSame(3, $semifinal->matches()->count());
@@ -193,7 +193,7 @@ class PhaseEligibilityTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
+        $final = CompetitionPhase::where('name', 'FINAL')->firstOrFail();
         $response->assertRedirect(route('phases.show', $final));
         $this->assertSame(2, $final->teams()->count());
         $this->assertSame(1, $final->matches()->count());
@@ -247,7 +247,7 @@ class PhaseEligibilityTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $semifinal = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $semifinal = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $response->assertRedirect(route('phases.show', $semifinal));
         $this->assertSame(4, $semifinal->teams()->count());
     }

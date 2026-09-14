@@ -174,7 +174,7 @@ class PhaseChampionTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
-        $knockoutResponse->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'Eliminatoria')->firstOrFail()));
+        $knockoutResponse->assertRedirect(route('phases.show', CompetitionPhase::where('name', 'ELIMINATORIA')->firstOrFail()));
     }
 
     public function test_a_multi_group_league_can_still_advance_to_another_league(): void
@@ -197,7 +197,7 @@ class PhaseChampionTest extends TestCase
             'qualifiers_per_table' => 2,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Liga de clasificados')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'LIGA DE CLASIFICADOS')->firstOrFail();
         $response->assertRedirect(route('phases.show', $newPhase));
     }
 
@@ -251,7 +251,7 @@ class PhaseChampionTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
             'qualifiers_per_table' => 4,
         ]);
-        $nextPhase = CompetitionPhase::where('name', 'Eliminatoria')->firstOrFail();
+        $nextPhase = CompetitionPhase::where('name', 'ELIMINATORIA')->firstOrFail();
 
         // The league's matches here weren't generated through phases.schedule.store
         // (see finishedMatch()), so there's no LeagueSchedule row to delete --

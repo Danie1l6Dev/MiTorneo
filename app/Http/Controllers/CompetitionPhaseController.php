@@ -7,6 +7,7 @@ use App\Enums\ScheduleFormat;
 use App\Http\Requests\CompetitionPhaseRequest;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
+use App\Models\Tournament;
 use App\Services\CompetitionStatisticsService;
 use App\Services\KnockoutBracketService;
 use App\Services\PhaseBoardService;
@@ -24,11 +25,13 @@ class CompetitionPhaseController extends Controller
     {
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        if ($redirect = $this->guardFirstPhase($category)) {
+        $tournament = $this->resolveTournament($category);
+
+        if ($redirect = $this->guardFirstPhase($category, $tournament)) {
             return $redirect;
         }
 
-        $typeOptions = $eligibilityService->firstPhaseTypeOptions($category);
+        $typeOptions = $eligibilityService->firstPhaseTypeOptions($category, $tournament);
 
         return view('pages.phases.create', compact('category', 'typeOptions'));
     }
@@ -37,21 +40,23 @@ class CompetitionPhaseController extends Controller
     {
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        if ($redirect = $this->guardFirstPhase($category)) {
+        $tournament = $this->resolveTournament($category);
+
+        if ($redirect = $this->guardFirstPhase($category, $tournament)) {
             return $redirect;
         }
 
         $type = CompetitionPhaseType::from($request->validated('type'));
 
-        if (! $eligibilityService->firstPhaseTypeAllowed($category, $type)) {
+        if (! $eligibilityService->firstPhaseTypeAllowed($category, $tournament, $type)) {
             throw ValidationException::withMessages([
                 'type' => __('Ese tipo de fase no está disponible todavía para esta categoría.'),
             ]);
         }
 
-        $phase = DB::transaction(function () use ($category, $request, $type, $bracketService): CompetitionPhase {
+        $phase = DB::transaction(function () use ($category, $tournament, $request, $type, $bracketService, $eligibilityService): CompetitionPhase {
             $phase = new CompetitionPhase;
-            $phase->tournament_id = $category->tournament_id;
+            $phase->tournament_id = $tournament->id;
             $phase->category_id = $category->id;
             $phase->name = (string) $request->validated('name');
             $phase->type = $type;
@@ -66,8 +71,10 @@ class CompetitionPhaseController extends Controller
 
             if ($type !== CompetitionPhaseType::League) {
                 // No standings to seed by yet -- a category's first phase is
-                // drawn straight from its team list, so this is always random.
-                $bracketService->generateBracket($phase, $category->teams->shuffle());
+                // drawn straight from its (tournament-scoped) team list, so
+                // this is always random.
+                $teams = $eligibilityService->eligibleTeams($category, $tournament)->shuffle();
+                $bracketService->generateBracket($phase, $teams);
             }
 
             return $phase;
@@ -86,19 +93,49 @@ class CompetitionPhaseController extends Controller
     }
 
     /**
-     * A category may only ever get its first phase created directly (there's
-     * no standings table yet to draw qualifiers from); every phase after it
-     * is created from an already-finished phase via the advancement flow.
+     * A category may only ever get its first phase created directly per
+     * TOURNAMENT (there's no standings table yet to draw qualifiers from);
+     * every phase after it is created from an already-finished phase via
+     * the advancement flow. Scoped by tournament (T02-03) so a catalog
+     * category inscribed into more than one tournament gets its own
+     * independent phase chain in each.
      */
-    private function guardFirstPhase(Category $category): ?RedirectResponse
+    private function guardFirstPhase(Category $category, Tournament $tournament): ?RedirectResponse
     {
-        if ($category->competitionPhases()->exists()) {
+        if ($category->competitionPhases()->where('tournament_id', $tournament->id)->exists()) {
             return to_route('categories.show', $category)->with('error', __(
                 'Esta categoría ya tiene una fase inicial. Para crear la siguiente, marca su fase de liga como finalizada y define los clasificados desde ahí.'
             ));
         }
 
         return null;
+    }
+
+    /**
+     * The tournament a bare Category's phase-related action (create/store)
+     * applies to. A still-legacy category (pre-T02-01, `tournament_id` set
+     * directly) resolves to that tournament unchanged -- this keeps working
+     * exactly as before promotion ever runs. A promoted catalog category
+     * resolves via the tournament_category pivot, unambiguous today because
+     * a category is never actually shared between two tournaments' phases
+     * yet (see docs/plan-reestructuracion/02-unificacion-categorias-torneo.md,
+     * T02-03: sharing one category's PHASES across tournaments is future
+     * work, not something the "inscripción" flow builds toward on its own).
+     * Aborts with a clear message instead of guessing if that ever changes
+     * before this does.
+     */
+    private function resolveTournament(Category $category): Tournament
+    {
+        if ($category->tournament_id) {
+            return $category->tournament;
+        }
+
+        $tournaments = $category->tournaments()->get();
+
+        abort_if($tournaments->isEmpty(), 404, __('Esta categoría todavía no está inscrita en ningún torneo.'));
+        abort_if($tournaments->count() > 1, 422, __('Esta categoría está inscrita en más de un torneo -- todavía no se puede crear una fase así de ambigua.'));
+
+        return $tournaments->first();
     }
 
     public function show(
@@ -192,7 +229,7 @@ class CompetitionPhaseController extends Controller
         $this->authorize('update', $phase);
 
         $typeIsLocked = $phase->matches()->exists();
-        $typeOptions = $this->isFirstPhase($phase) ? $eligibilityService->firstPhaseTypeOptions($phase->category) : null;
+        $typeOptions = $this->isFirstPhase($phase) ? $eligibilityService->firstPhaseTypeOptions($phase->category, $phase->tournament) : null;
 
         return view('pages.phases.edit', compact('phase', 'typeIsLocked', 'typeOptions'));
     }
@@ -217,7 +254,7 @@ class CompetitionPhaseController extends Controller
         // The category's first phase is still bound by the same sporting
         // rules it was created under (groups need an independent league,
         // and a knockout needs a bracket-sized team count).
-        if ($this->isFirstPhase($phase) && ! $eligibilityService->firstPhaseTypeAllowed($phase->category, $type)) {
+        if ($this->isFirstPhase($phase) && ! $eligibilityService->firstPhaseTypeAllowed($phase->category, $phase->tournament, $type)) {
             throw ValidationException::withMessages([
                 'type' => __('Ese tipo de fase no está disponible todavía para esta categoría.'),
             ]);

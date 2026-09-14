@@ -11,7 +11,7 @@
         @endif
 
         @if ($sanctions->isEmpty())
-            <x-ui.empty-state icon="shield-exclamation" :message="__('Todavía no hay sanciones registradas. Se generan automáticamente cuando registrás una doble amarilla o una roja directa en un partido.')" />
+            <x-ui.empty-state icon="shield-exclamation" :message="__('Todavía no hay sanciones registradas. Se generan automáticamente cuando registras una doble amarilla o una roja directa en un partido.')" />
         @else
             <div class="mx-auto grid grid-cols-3 gap-4 sm:gap-5 lg:max-w-2xl">
                 <x-ui.stat-card :label="__('Pendientes')" :value="$pendingSanctions->count()" icon="clock" color="amber" />

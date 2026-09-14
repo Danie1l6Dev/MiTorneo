@@ -2,9 +2,13 @@
     <div class="w-full space-y-8 animate-fade-in-up">
         <x-ui.page-header :title="$group->name">
             <x-slot:breadcrumbs>
-                <x-ui.breadcrumbs :items="[
+                <x-ui.breadcrumbs :items="$group->category->tournament_id ? [
                     ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $group->category->tournament->name, 'href' => route('tournaments.show', $group->category->tournament)],
+                    ['label' => $group->category->name, 'href' => route('categories.show', $group->category)],
+                    ['label' => $group->name],
+                ] : [
+                    ['label' => __('Categorías'), 'href' => route('categories.index')],
                     ['label' => $group->category->name, 'href' => route('categories.show', $group->category)],
                     ['label' => $group->name],
                 ]" />

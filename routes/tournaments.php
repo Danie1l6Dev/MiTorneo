@@ -1,11 +1,13 @@
 <?php
 
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ClubController;
 use App\Http\Controllers\CoachController;
 use App\Http\Controllers\CompetitionPhaseController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchEventController;
+use App\Http\Controllers\MatchLineupController;
 use App\Http\Controllers\MatchResultController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\RefereeController;
 use App\Http\Controllers\SanctionController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TournamentCategoryController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
 use Illuminate\Support\Facades\Route;
@@ -23,16 +26,62 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('tournaments/{tournament}/regenerate-slug', [TournamentController::class, 'regenerateSlug'])
         ->name('tournaments.regenerate-slug');
 
+    // "Inscripción" of a tournament from the global catalog -- see
+    // docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md
+    // (T01-24/T01-25). Deliberately separate from the legacy
+    // tournaments.categories.create/store above (per-tournament category
+    // creation, still the only path that can host phases/matches today).
+    Route::get('tournaments/{tournament}/global-categories/create', [TournamentCategoryController::class, 'create'])
+        ->name('tournaments.global-categories.create');
+
+    Route::post('tournaments/{tournament}/global-categories', [TournamentCategoryController::class, 'store'])
+        ->name('tournaments.global-categories.store');
+
+    Route::delete('tournaments/{tournament}/global-categories/{category}', [TournamentCategoryController::class, 'destroy'])
+        ->name('tournaments.global-categories.destroy');
+
+    Route::get('tournaments/{tournament}/global-categories/{category}/teams', [TournamentCategoryController::class, 'editTeams'])
+        ->name('tournaments.global-categories.teams.edit');
+
+    Route::put('tournaments/{tournament}/global-categories/{category}/teams', [TournamentCategoryController::class, 'updateTeams'])
+        ->name('tournaments.global-categories.teams.update');
+
     // Referees are global to the organizer, not nested under a tournament --
     // this is a standalone top-level resource, same as tournaments.
     Route::resource('referees', RefereeController::class)->except('destroy');
 
-    Route::resource('tournaments.categories', CategoryController::class)
-        ->shallow()
-        ->except('index');
+    // Categories are global to the organizer now (see
+    // docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md)
+    // -- this flat resource covers index/create/store/show/edit/update/
+    // destroy for that global catalog. A tournament never creates its own
+    // category anymore -- it only picks from this catalog, via
+    // tournaments.global-categories.* above (see
+    // docs/plan-reestructuracion/02-unificacion-categorias-torneo.md,
+    // T02-04).
+    Route::resource('categories', CategoryController::class);
 
     Route::patch('categories/{category}/toggle-status', [CategoryController::class, 'toggleStatus'])
         ->name('categories.toggle-status');
+
+    // Clubs are global to the organizer too -- see
+    // docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+    // A plantel (Team) is created directly under a club, picking one of
+    // the organizer's own global categories (+group if it uses them).
+    Route::resource('clubs', ClubController::class);
+
+    Route::get('clubs/{club}/teams/create', [TeamController::class, 'createForClub'])
+        ->name('clubs.teams.create');
+
+    Route::post('clubs/{club}/teams', [TeamController::class, 'storeForClub'])
+        ->name('clubs.teams.store');
+
+    // Enroll a player into one or more of the club's own planteles at
+    // once -- the checkbox-per-category flow, see ClubPlayerRequest.
+    Route::get('clubs/{club}/players/create', [PlayerController::class, 'createForClub'])
+        ->name('clubs.players.create');
+
+    Route::post('clubs/{club}/players', [PlayerController::class, 'storeForClub'])
+        ->name('clubs.players.store');
 
     Route::resource('categories.phases', CompetitionPhaseController::class)
         ->shallow()
@@ -82,6 +131,14 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('matches/{match}/events/batch', [MatchEventController::class, 'storeBatch'])
         ->name('matches.events.batch-store');
+
+    // Who's actually called up to play a match, searched from across the
+    // whole club (not just this one category's plantel) -- see
+    // MatchLineup's docblock. No index/show/edit/update: the search panel
+    // only ever adds (store) or removes (destroy) one entry at a time.
+    Route::resource('matches.lineups', MatchLineupController::class)
+        ->shallow()
+        ->only(['store', 'destroy']);
 
     // Sanctions are only ever created by SanctionService, from card events
     // -- no create/store/destroy routes, this resource is read + resolve

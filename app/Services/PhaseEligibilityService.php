@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Enums\CompetitionPhaseType;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
+use App\Models\Team;
+use App\Models\Tournament;
+use Illuminate\Support\Collection;
 
 /**
  * Central authority for which competition-phase configurations are
@@ -56,30 +59,56 @@ class PhaseEligibilityService
     }
 
     /**
-     * A category's first phase is created directly (no standings to draw
-     * qualifiers from yet), so only one may ever exist -- every phase after
-     * it is created from an already-finished phase's qualifiers instead.
+     * The teams a category's first phase for THIS tournament is drawn from.
+     * A still-legacy category (pre-T02-01, `tournament_id` set directly)
+     * uses its own full roster unchanged -- it only ever belonged to that
+     * one tournament anyway. A promoted catalog category uses the roster
+     * THIS tournament specifically inscribed (`tournament_team`), since the
+     * same category can be inscribed into more than one tournament. See
+     * docs/plan-reestructuracion/02-unificacion-categorias-torneo.md
+     * (T02-03).
+     *
+     * @return Collection<int, Team>
      */
-    public function canCreateFirstPhase(Category $category): bool
+    public function eligibleTeams(Category $category, Tournament $tournament): Collection
     {
-        return $category->competitionPhases()->doesntExist();
+        return $category->teamsForTournament($tournament);
     }
 
     /**
-     * Which phase types a category can start with, and why not for the
-     * rest. A category using groups can only start with an independent
-     * league per group: a knockout format only makes sporting sense once
-     * those leagues have produced qualifiers to seed a bracket with. A
-     * category without groups can also start directly with a knockout, but
-     * only when its current team count is already a valid bracket size (a
-     * power of two, at least 2) -- otherwise some teams would have no
-     * opponent and no legal bracket can be drawn.
+     * A category's first phase for a GIVEN tournament is created directly
+     * (no standings to draw qualifiers from yet), so only one may ever
+     * exist per (category, tournament) pair -- every phase after it is
+     * created from an already-finished phase's qualifiers instead. Scoped
+     * by tournament (not just category) because a catalog category can be
+     * inscribed into more than one tournament -- see
+     * docs/plan-reestructuracion/02-unificacion-categorias-torneo.md
+     * (T02-03).
+     */
+    public function canCreateFirstPhase(Category $category, Tournament $tournament): bool
+    {
+        return $category->competitionPhases()->where('tournament_id', $tournament->id)->doesntExist();
+    }
+
+    /**
+     * Which phase types a category can start with FOR THIS TOURNAMENT, and
+     * why not for the rest. A category using groups can only start with an
+     * independent league per group: a knockout format only makes sporting
+     * sense once those leagues have produced qualifiers to seed a bracket
+     * with. A category without groups can also start directly with a
+     * knockout, but only when its current team count is already a valid
+     * bracket size (a power of two, at least 2) -- otherwise some teams
+     * would have no opponent and no legal bracket can be drawn.
+     *
+     * The team count is the roster THIS tournament inscribed for this
+     * category (via `tournament_team`), not every team the category has
+     * across every tournament that includes it -- see T02-03.
      *
      * @return array<int, array{type: CompetitionPhaseType, available: bool, reason: string|null}>
      */
-    public function firstPhaseTypeOptions(Category $category): array
+    public function firstPhaseTypeOptions(Category $category, Tournament $tournament): array
     {
-        $teamCount = $category->teams()->count();
+        $teamCount = $this->eligibleTeams($category, $tournament)->count();
 
         $knockoutReason = match (true) {
             $category->uses_groups => (string) __('Esta categoría usa grupos: la primera fase debe ser una liga por grupos.'),
@@ -96,9 +125,9 @@ class PhaseEligibilityService
         ];
     }
 
-    public function firstPhaseTypeAllowed(Category $category, CompetitionPhaseType $type): bool
+    public function firstPhaseTypeAllowed(Category $category, Tournament $tournament, CompetitionPhaseType $type): bool
     {
-        foreach ($this->firstPhaseTypeOptions($category) as $option) {
+        foreach ($this->firstPhaseTypeOptions($category, $tournament) as $option) {
             if ($option['type'] === $type) {
                 return $option['available'];
             }
@@ -123,13 +152,16 @@ class PhaseEligibilityService
     /**
      * The phase $phase was advanced into, if any -- null while it hasn't
      * been (or its next phase was deleted). A category's phases chain in a
-     * single line (each one's `order` is the previous phase's `order + 1`),
-     * so there's at most one of these.
+     * single line PER TOURNAMENT (each one's `order` is the previous
+     * phase's `order + 1`), so there's at most one of these -- scoped by
+     * `tournament_id` too (T02-03) so two tournaments sharing a catalog
+     * category never mix into the same chain.
      */
     public function nextPhase(CompetitionPhase $phase): ?CompetitionPhase
     {
         return CompetitionPhase::query()
             ->where('category_id', $phase->category_id)
+            ->where('tournament_id', $phase->tournament_id)
             ->where('order', '>', $phase->order)
             ->orderBy('order')
             ->first();
@@ -137,15 +169,17 @@ class PhaseEligibilityService
 
     /**
      * The phase $phase was advanced FROM, if any -- null for a category's
-     * first phase, which was created directly rather than chained from a
-     * previous phase's qualifiers. Deliberately no `order <= 1` shortcut: a
-     * first phase's actual `order` value isn't guaranteed to be 1 (seeded
-     * fixtures use 0), so whether one exists is left entirely to the query.
+     * first phase in this tournament, which was created directly rather
+     * than chained from a previous phase's qualifiers. Deliberately no
+     * `order <= 1` shortcut: a first phase's actual `order` value isn't
+     * guaranteed to be 1 (seeded fixtures use 0), so whether one exists is
+     * left entirely to the query.
      */
     public function previousPhase(CompetitionPhase $phase): ?CompetitionPhase
     {
         return CompetitionPhase::query()
             ->where('category_id', $phase->category_id)
+            ->where('tournament_id', $phase->tournament_id)
             ->where('order', '<', $phase->order)
             ->orderByDesc('order')
             ->first();

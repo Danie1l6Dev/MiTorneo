@@ -29,7 +29,7 @@ class TournamentPublicLinkTest extends TestCase
         $this->post(route('tournaments.store'), ['name' => 'Copa Verano', 'status' => 'active']);
         $this->post(route('tournaments.store'), ['name' => 'Copa Verano', 'status' => 'active']);
 
-        $tournaments = Tournament::query()->where('name', 'Copa Verano')->orderBy('id')->get();
+        $tournaments = Tournament::query()->where('name', 'COPA VERANO')->orderBy('id')->get();
 
         $this->assertCount(2, $tournaments);
         $this->assertNotSame($tournaments[0]->slug, $tournaments[1]->slug);
@@ -63,12 +63,12 @@ class TournamentPublicLinkTest extends TestCase
 
         $tournament->refresh();
         $this->assertSame('nombre-original', $tournament->slug);
-        $this->assertSame('Nombre Cambiado', $tournament->name);
+        $this->assertSame('NOMBRE CAMBIADO', $tournament->name);
 
         // The link shared before the rename must keep working afterward.
         $this->get('/public/torneos/nombre-original')
             ->assertOk()
-            ->assertSee('Nombre Cambiado');
+            ->assertSee('NOMBRE CAMBIADO');
     }
 
     // ── Acceso mediante slug (nunca el id interno) ───────────────────────
@@ -79,7 +79,7 @@ class TournamentPublicLinkTest extends TestCase
 
         $this->get('/public/torneos/torneo-abierto')
             ->assertOk()
-            ->assertSee('Torneo Abierto');
+            ->assertSee('TORNEO ABIERTO');
     }
 
     public function test_the_public_route_does_not_resolve_by_the_raw_internal_id(): void

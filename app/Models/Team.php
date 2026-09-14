@@ -2,18 +2,27 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\TeamFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @property int $id
- * @property int $tournament_id
+ * @property int|null $tournament_id Legacy owning tournament -- being phased
+ *                                   out in favor of $club_id (a global club catalog) plus the
+ *                                   tournament_team pivot. See docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+ * @property int|null $club_id The club this roster belongs to. Nullable
+ *                             only until the backfill command populates it for rows created before
+ *                             this column existed.
  * @property int $category_id
  * @property int|null $group_id
  * @property string $name
@@ -25,7 +34,10 @@ use Illuminate\Support\Carbon;
 class Team extends Model
 {
     /** @use HasFactory<TeamFactory> */
-    use HasFactory;
+    use HasFactory, NormalizesToUppercase;
+
+    /** @var list<string> */
+    protected array $uppercaseAttributes = ['name', 'short_name'];
 
     /**
      * @return BelongsTo<Tournament, $this>
@@ -33,6 +45,69 @@ class Team extends Model
     public function tournament(): BelongsTo
     {
         return $this->belongsTo(Tournament::class);
+    }
+
+    /**
+     * See Category::ownerId() -- delegates to the category since a global
+     * Team has no $tournament of its own to fall back on.
+     */
+    public function ownerId(): int
+    {
+        return $this->category->ownerId();
+    }
+
+    /**
+     * Which of these team ids have at least one player with no
+     * birth_date -- whether linked the "old" way (players.team_id) or via
+     * player_team. Used to warn "can't fully validate this roster's
+     * category eligibility yet" in the Clubes views without an N+1 query
+     * per team. See docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md
+     * (T01-11/T01-27).
+     *
+     * @param  iterable<int>  $teamIds
+     * @return list<int>
+     */
+    public static function idsWithIncompletePlayers(iterable $teamIds): array
+    {
+        $teamIds = collect($teamIds)->values();
+        if ($teamIds->isEmpty()) {
+            return [];
+        }
+
+        $viaDirect = Player::query()
+            ->whereIn('team_id', $teamIds)
+            ->whereNull('birth_date')
+            ->pluck('team_id');
+
+        $viaPivot = DB::table('player_team')
+            ->join('players', 'players.id', '=', 'player_team.player_id')
+            ->whereIn('player_team.team_id', $teamIds)
+            ->whereNull('players.birth_date')
+            ->pluck('player_team.team_id');
+
+        return $viaDirect->merge($viaPivot)->unique()->values()->all();
+    }
+
+    /**
+     * The club this roster belongs to -- a club has one Team per
+     * category(+group) it fields, this is that link.
+     *
+     * @return BelongsTo<Club, $this>
+     */
+    public function club(): BelongsTo
+    {
+        return $this->belongsTo(Club::class);
+    }
+
+    /**
+     * Every tournament this roster is entered into -- via the
+     * tournament_team pivot, not the legacy tournament_id column.
+     *
+     * @return BelongsToMany<Tournament, $this>
+     */
+    public function tournaments(): BelongsToMany
+    {
+        return $this->belongsToMany(Tournament::class, 'tournament_team');
     }
 
     /**
@@ -68,11 +143,76 @@ class Team extends Model
     }
 
     /**
+     * @deprecated Legacy relation via players.team_id -- being phased out
+     *   in favor of $this->globalPlayers() (the player_team pivot). See
+     *   docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+     *
      * @return HasMany<Player, $this>
      */
     public function players(): HasMany
     {
         return $this->hasMany(Player::class);
+    }
+
+    /**
+     * Every player actually rostered on this team -- via the player_team
+     * pivot, which is what lets the same player appear on more than one
+     * Team (e.g. two different categories for the same club).
+     *
+     * @return BelongsToMany<Player, $this>
+     */
+    public function globalPlayers(): BelongsToMany
+    {
+        return $this->belongsToMany(Player::class, 'player_team')->withPivot('jersey_number');
+    }
+
+    /**
+     * Every player who could be called up to play a match for this team:
+     * this team's own roster (legacy team_id + player_team pivot, kept
+     * regardless of whether it still fits the age rule below -- an existing
+     * enrollment is never revoked here) plus, for a global team, every
+     * other roster of the SAME club whose player is age-eligible to play UP
+     * into this team's category (Player::ageEligibleForCategory() already
+     * allows a natural-or-older fit, never younger). Unlike that method's
+     * own default, a play-up candidate with no birth_date is NOT included
+     * here -- ageEligibleForCategory() treats missing data as "don't block"
+     * everywhere else (enrollment, the age-eligibility banner), but this
+     * search is the one place a missing birth_date can silently let someone
+     * in who might not actually qualify, so it's excluded instead until
+     * that date is filled in. This is deliberately broader than
+     * globalPlayers()/players() alone -- see MatchLineup/MatchEventController
+     * for what actually gates a match's quick-add roster to a subset of
+     * this list. A team with no club (still a legacy per-tournament team)
+     * only ever offers its own roster: there's no sibling club roster to
+     * search across.
+     *
+     * @return Collection<int, Player>
+     */
+    public function clubPlayersEligibleForLineup(): Collection
+    {
+        if ($this->club_id === null) {
+            return $this->players()->get()
+                ->merge($this->globalPlayers()->get())
+                ->unique('id')
+                ->sortBy('full_name')
+                ->values();
+        }
+
+        $clubTeamIds = static::query()->where('club_id', $this->club_id)->pluck('id');
+
+        return Player::query()
+            ->where(function ($query) use ($clubTeamIds) {
+                $query->whereIn('team_id', $clubTeamIds)
+                    ->orWhereHas('teams', fn ($q) => $q->whereIn('teams.id', $clubTeamIds));
+            })
+            ->with(['team.category', 'teams'])
+            ->get()
+            ->filter(fn (Player $player): bool => $player->team_id === $this->id
+                || $player->teams->contains('id', $this->id)
+                || ($player->birth_date !== null && $player->ageEligibleForCategory($this->category)))
+            ->unique('id')
+            ->sortBy('full_name')
+            ->values();
     }
 
     /**

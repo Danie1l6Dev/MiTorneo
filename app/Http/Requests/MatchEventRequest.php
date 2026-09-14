@@ -4,9 +4,12 @@ namespace App\Http\Requests;
 
 use App\Enums\MatchEventType;
 use App\Models\MatchEvent;
+use App\Models\MatchLineup;
 use App\Models\Player;
 use App\Models\Sanction;
+use App\Models\Team;
 use App\Models\TournamentMatch;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -58,9 +61,22 @@ class MatchEventRequest extends FormRequest
             // unless the other is present" and mutual exclusivity are
             // enforced together in withValidator() below, since Laravel's
             // required_without doesn't also forbid both being sent at once.
+            // A player belongs to this match either directly (their own
+            // Player::$team_id is one of its two sides) or via a
+            // match_lineups row -- the latter is what lets a player called
+            // up to play UP from a younger category's roster register
+            // events here too, even though their own team_id points
+            // elsewhere. See TournamentMatch::lineupTeamIdFor().
             'player_id' => [
                 'nullable',
-                Rule::exists('players', 'id')->where(fn ($query) => $query->whereIn('team_id', $eligibleTeamIds)),
+                function (string $attribute, mixed $value, Closure $fail) use ($eligibleTeamIds, $match): void {
+                    $belongsDirectly = Player::query()->where('id', $value)->whereIn('team_id', $eligibleTeamIds)->exists();
+                    $belongsViaLineup = $match !== null && MatchLineup::query()->where('match_id', $match->id)->where('player_id', $value)->exists();
+
+                    if (! $belongsDirectly && ! $belongsViaLineup) {
+                        $fail(__('El jugador seleccionado no pertenece a ninguno de los dos equipos de este partido.'));
+                    }
+                },
             ],
             'coach_id' => [
                 'nullable',
@@ -126,9 +142,11 @@ class MatchEventRequest extends FormRequest
                 $player = Player::find($this->input('player_id'));
 
                 if ($player !== null) {
+                    $matchTeamId = $match->lineupTeamIdFor($player);
+
                     $playerIdsFor = fn (MatchEventType $type) => MatchEvent::query()
                         ->where('match_id', $match->id)
-                        ->where('team_id', $player->team_id)
+                        ->where('team_id', $matchTeamId)
                         ->where('type', $type)
                         ->pluck('player_id')
                         ->all();
@@ -146,12 +164,12 @@ class MatchEventRequest extends FormRequest
                         // A goal can go unassisted, but an assist always
                         // implies a goal -- so a team's assist count can
                         // never exceed its goal count.
-                        $validator->errors()->add('type', __('No puede haber más asistencias que goles registrados para :team.', ['team' => $player->team->name]));
+                        $validator->errors()->add('type', __('No puede haber más asistencias que goles registrados para :team.', ['team' => Team::find($matchTeamId)?->name]));
                     } elseif (MatchEvent::someAssisterOutpacesTeammateGoals($goalPlayerIds, $assistPlayerIds)) {
                         // A player can't assist their own goal, so their
                         // assists can only ever cover goals scored by
                         // teammates.
-                        $validator->errors()->add('type', __('Algún jugador de :team tiene más asistencias que goles anotados por sus compañeros.', ['team' => $player->team->name]));
+                        $validator->errors()->add('type', __('Algún jugador de :team tiene más asistencias que goles anotados por sus compañeros.', ['team' => Team::find($matchTeamId)?->name]));
                     }
                 }
             }
@@ -188,7 +206,6 @@ class MatchEventRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'player_id.exists' => __('El jugador seleccionado no pertenece a ninguno de los dos equipos de este partido.'),
             'coach_id.exists' => __('El director técnico seleccionado no pertenece a ninguno de los dos equipos de este partido.'),
         ];
     }

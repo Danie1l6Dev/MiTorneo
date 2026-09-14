@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\RefereeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -29,7 +30,10 @@ use Illuminate\Support\Carbon;
 class Referee extends Model
 {
     /** @use HasFactory<RefereeFactory> */
-    use HasFactory;
+    use HasFactory, NormalizesToUppercase;
+
+    /** @var list<string> */
+    protected array $uppercaseAttributes = ['full_name'];
 
     /**
      * @return BelongsTo<User, $this>

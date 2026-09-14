@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\MatchEventType;
+use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\CoachFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,7 +32,10 @@ use Illuminate\Support\Carbon;
 class Coach extends Model
 {
     /** @use HasFactory<CoachFactory> */
-    use HasFactory;
+    use HasFactory, NormalizesToUppercase;
+
+    /** @var list<string> */
+    protected array $uppercaseAttributes = ['full_name'];
 
     protected function casts(): array
     {

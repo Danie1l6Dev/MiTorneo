@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use App\Enums\TournamentStatus;
+use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\TournamentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -27,7 +29,10 @@ use Illuminate\Support\Str;
 class Tournament extends Model
 {
     /** @use HasFactory<TournamentFactory> */
-    use HasFactory;
+    use HasFactory, NormalizesToUppercase;
+
+    /** @var list<string> */
+    protected array $uppercaseAttributes = ['name'];
 
     protected function casts(): array
     {
@@ -92,11 +97,40 @@ class Tournament extends Model
     }
 
     /**
+     * @deprecated Legacy relation via categories.tournament_id -- being
+     *   phased out in favor of $this->globalCategories() (the
+     *   tournament_category pivot). See
+     *   docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+     *
      * @return HasMany<Category, $this>
      */
     public function categories(): HasMany
     {
         return $this->hasMany(Category::class);
+    }
+
+    /**
+     * Which categories (from the organizer's global catalog) this
+     * tournament includes -- via the tournament_category pivot.
+     *
+     * @return BelongsToMany<Category, $this>
+     */
+    public function globalCategories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class, 'tournament_category');
+    }
+
+    /**
+     * Which teams (club rosters) are entered into this tournament -- via
+     * the tournament_team pivot. This is the full roster per
+     * category/group; competition_phase_team narrows that further to a
+     * single phase (e.g. "top 2 of each group").
+     *
+     * @return BelongsToMany<Team, $this>
+     */
+    public function globalTeams(): BelongsToMany
+    {
+        return $this->belongsToMany(Team::class, 'tournament_team');
     }
 
     /**

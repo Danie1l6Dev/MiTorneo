@@ -5,27 +5,45 @@ namespace App\Http\Controllers;
 use App\Enums\CategoryStatus;
 use App\Http\Requests\CategoryRequest;
 use App\Models\Category;
-use App\Models\Tournament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class CategoryController extends Controller
 {
-    public function create(Tournament $tournament): View
+    /**
+     * The organizer's global category catalog. A tournament never creates
+     * its own category -- it only picks from this catalog (see
+     * docs/plan-reestructuracion/02-unificacion-categorias-torneo.md).
+     */
+    public function index(): View
     {
-        $this->authorize('create', [Category::class, $tournament]);
+        $this->authorize('viewAny', Category::class);
 
-        return view('pages.categories.create', compact('tournament'));
+        $categories = Auth::user()->categories()
+            ->withCount(['groups', 'teams'])
+            ->orderBy('order')
+            ->orderBy('name')
+            ->get();
+
+        return view('pages.categories.index', compact('categories'));
     }
 
-    public function store(CategoryRequest $request, Tournament $tournament): RedirectResponse
+    public function create(): View
     {
-        $this->authorize('create', [Category::class, $tournament]);
+        $this->authorize('create', Category::class);
 
-        $category = $tournament->categories()->create($request->validated());
+        return view('pages.categories.create');
+    }
 
-        return to_route('categories.show', $category);
+    public function store(CategoryRequest $request): RedirectResponse
+    {
+        $this->authorize('create', Category::class);
+
+        $category = Auth::user()->categories()->create($request->validated());
+
+        return to_route('categories.show', $category)->with('status', __('Categoría creada correctamente.'));
     }
 
     public function show(Category $category): View
@@ -35,6 +53,7 @@ class CategoryController extends Controller
         $category->load([
             'groups' => fn ($query) => $query->withCount('teams'),
             'teams',
+            'tournaments',
             'competitionPhases' => fn ($query) => $query->withCount('matches'),
         ]);
 
@@ -88,6 +107,8 @@ class CategoryController extends Controller
 
         $category->delete();
 
-        return to_route('tournaments.show', $tournament);
+        return $tournament
+            ? to_route('tournaments.show', $tournament)
+            : to_route('categories.index');
     }
 }

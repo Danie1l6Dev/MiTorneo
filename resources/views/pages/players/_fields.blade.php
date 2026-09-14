@@ -18,6 +18,15 @@
 />
 
 <flux:input
+    type="date"
+    name="birth_date"
+    label="{{ __('Fecha de nacimiento') }}"
+    description="{{ __('Opcional, pero se necesita para poder sumarlo a otra categoría más adelante') }}"
+    value="{{ old('birth_date', optional($player->birth_date ?? null)->format('Y-m-d')) }}"
+    x-model="birthDate"
+/>
+
+<flux:input
     type="number"
     name="jersey_number"
     label="{{ __('Dorsal') }}"

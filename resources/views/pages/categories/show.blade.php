@@ -2,9 +2,12 @@
     <div class="w-full space-y-8 animate-fade-in-up">
         <x-ui.page-header :title="$category->name" :subtitle="$category->description">
             <x-slot:breadcrumbs>
-                <x-ui.breadcrumbs :items="[
+                <x-ui.breadcrumbs :items="$category->tournament_id ? [
                     ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $category->tournament->name, 'href' => route('tournaments.show', $category->tournament)],
+                    ['label' => $category->name],
+                ] : [
+                    ['label' => __('Categorías'), 'href' => route('categories.index')],
                     ['label' => $category->name],
                 ]" />
             </x-slot:breadcrumbs>
@@ -14,6 +17,10 @@
 
                 @if ($category->uses_groups)
                     <flux:badge size="sm" color="zinc">{{ __('Usa grupos') }}</flux:badge>
+                @endif
+
+                @if ($category->birth_year_from && $category->birth_year_to)
+                    <flux:badge size="sm" color="cyan">{{ __(':from–:to', ['from' => $category->birth_year_from, 'to' => $category->birth_year_to]) }}</flux:badge>
                 @endif
             </div>
 
@@ -105,11 +112,15 @@
             <div class="flex items-center justify-between">
                 <flux:heading size="lg">{{ __('Equipos') }}</flux:heading>
 
-                @unless ($category->uses_groups)
+                @if (! $category->tournament_id)
+                    <flux:button :href="route('clubs.index')" variant="ghost" size="sm" icon="arrow-top-right-on-square" wire:navigate>
+                        {{ __('Se administran desde cada club') }}
+                    </flux:button>
+                @elseif (! $category->uses_groups)
                     <flux:button :href="route('categories.teams.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
                         {{ __('Nuevo equipo') }}
                     </flux:button>
-                @endunless
+                @endif
             </div>
 
             @if ($category->teams->isEmpty())
@@ -171,7 +182,7 @@
             <div class="flex items-center justify-between">
                 <flux:heading size="lg">{{ __('Fases') }}</flux:heading>
 
-                @if ($category->competitionPhases->isEmpty())
+                @if ($category->competitionPhases->isEmpty() && Auth::user()->can('create', [\App\Models\CompetitionPhase::class, $category]))
                     <flux:button :href="route('categories.phases.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
                         {{ __('Nueva fase') }}
                     </flux:button>
@@ -179,7 +190,9 @@
             </div>
 
             @if ($category->competitionPhases->isEmpty())
-                <x-ui.empty-state icon="calendar-days" :message="__('Todavía no hay fases definidas.')" />
+                <x-ui.empty-state icon="calendar-days" :message="$category->tournament_id || $category->tournaments->isNotEmpty()
+                    ? __('Todavía no hay fases definidas.')
+                    : __('Todavía no hay fases -- primero inscribe esta categoría en un torneo.')" />
             @else
                 <flux:text class="text-sm text-zinc-500">
                     {{ __('Las siguientes fases se crean desde una fase de liga ya finalizada, definiendo sus clasificados.') }}

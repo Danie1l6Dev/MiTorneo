@@ -59,7 +59,7 @@ class PhaseStatisticsTest extends TestCase
         $this->actingAs($user)
             ->get(route('phases.show', $phase).'?view=goal')
             ->assertOk()
-            ->assertSee('Carlos Gómez')
+            ->assertSee('CARLOS GÓMEZ')
             ->assertSee(MatchEventType::Goal->leaderboardTitle());
     }
 
@@ -113,7 +113,7 @@ class PhaseStatisticsTest extends TestCase
         $this->actingAs($user)
             ->get(route('phases.show', $phase).'?view=goal&phase=not-a-real-scope')
             ->assertOk()
-            ->assertSee('Carlos Gómez');
+            ->assertSee('CARLOS GÓMEZ');
     }
 
     // ── Seguridad ────────────────────────────────────────────────────────
@@ -166,7 +166,7 @@ class PhaseStatisticsTest extends TestCase
         $this->actingAs($user)
             ->get(route('phases.show', $phaseOne)."?view=goal&group={$foreignGroup->id}")
             ->assertOk()
-            ->assertSee('Jugador Uno');
+            ->assertSee('JUGADOR UNO');
     }
 
     public function test_only_finished_matches_are_ever_counted(): void
@@ -247,6 +247,6 @@ class PhaseStatisticsTest extends TestCase
         $this->actingAs($user)
             ->get(route('phases.show', $leaguePhase).'?view=goal&phase=all')
             ->assertOk()
-            ->assertSee('Solo Semifinal');
+            ->assertSee('SOLO SEMIFINAL');
     }
 }

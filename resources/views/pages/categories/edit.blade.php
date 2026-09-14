@@ -1,6 +1,6 @@
 <x-layouts::app :title="__('Editar categoría')">
     <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up">
-        <x-ui.page-header :title="__('Editar categoría')" :subtitle="$category->tournament->name" />
+        <x-ui.page-header :title="__('Editar categoría')" :subtitle="$category->tournament?->name ?? __('Catálogo global')" />
 
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
             <form method="POST" action="{{ route('categories.update', $category) }}" class="space-y-6">

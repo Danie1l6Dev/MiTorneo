@@ -35,7 +35,7 @@ class PlayerManagementTest extends TestCase
 
         $this->assertDatabaseHas('players', [
             'team_id' => $team->id,
-            'full_name' => 'Carlos Gómez',
+            'full_name' => 'CARLOS GÓMEZ',
             'document_number' => '0102030405',
             'jersey_number' => 10,
             'is_active' => true,
@@ -54,7 +54,7 @@ class PlayerManagementTest extends TestCase
             'jersey_number' => $player->jersey_number,
         ])->assertRedirect(route('teams.show', $team));
 
-        $this->assertSame('Nombre Nuevo', $player->fresh()->full_name);
+        $this->assertSame('NOMBRE NUEVO', $player->fresh()->full_name);
     }
 
     public function test_a_user_can_toggle_a_players_active_status(): void
@@ -81,7 +81,7 @@ class PlayerManagementTest extends TestCase
 
         $this->assertDatabaseHas('players', [
             'team_id' => $team->id,
-            'full_name' => 'Jugador Sin Datos',
+            'full_name' => 'JUGADOR SIN DATOS',
             'document_number' => null,
             'jersey_number' => null,
         ]);
@@ -97,7 +97,7 @@ class PlayerManagementTest extends TestCase
             'full_name' => 'Segundo Sin Datos',
         ])->assertRedirect(route('teams.show', $team));
 
-        $this->assertDatabaseHas('players', ['team_id' => $team->id, 'full_name' => 'Segundo Sin Datos', 'jersey_number' => null]);
+        $this->assertDatabaseHas('players', ['team_id' => $team->id, 'full_name' => 'SEGUNDO SIN DATOS', 'jersey_number' => null]);
     }
 
     public function test_reactivating_a_player_without_jersey_number_or_document_never_conflicts_with_another_blank_one(): void
@@ -167,7 +167,7 @@ class PlayerManagementTest extends TestCase
             'jersey_number' => 5,
         ]);
 
-        $player = Player::query()->firstWhere('full_name', 'Jugador Correcto');
+        $player = Player::query()->firstWhere('full_name', 'JUGADOR CORRECTO');
         $this->assertNotNull($player);
         $this->assertSame($team->id, $player->team_id);
     }

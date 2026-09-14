@@ -12,7 +12,7 @@
             <x-slot:breadcrumbs>
                 <x-ui.breadcrumbs :items="[
                     ['label' => __('Mis torneos'), 'href' => route('dashboard')],
-                    ['label' => $phase->category->tournament->name, 'href' => route('tournaments.show', $phase->category->tournament)],
+                    ['label' => $phase->tournament->name, 'href' => route('tournaments.show', $phase->tournament)],
                     ['label' => $phase->category->name, 'href' => route('categories.show', $phase->category)],
                     ['label' => $phase->name],
                 ]" />

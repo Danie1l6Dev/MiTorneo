@@ -1,4 +1,11 @@
-@php $category ??= null; @endphp
+@php
+    $category ??= null;
+    // Birth-year range only makes sense for the global catalog -- shown
+    // when editing an existing global category, or by default when
+    // creating (the legacy per-tournament create view explicitly turns
+    // this off).
+    $showBirthYears = $category ? is_null($category->tournament_id) : ($showBirthYears ?? true);
+@endphp
 
 <flux:input
     name="name"
@@ -32,6 +39,26 @@
     description="{{ __('Por ejemplo, Grupo A y Grupo B. Si no la marcas, los equipos se listan directamente en la categoría.') }}"
     :checked="(bool) old('uses_groups', $category->uses_groups ?? false)"
 />
+
+@if ($showBirthYears)
+    <div class="grid grid-cols-2 gap-4">
+        <flux:input
+            name="birth_year_from"
+            type="number"
+            label="{{ __('Nacidos desde (año)') }}"
+            value="{{ old('birth_year_from', $category->birth_year_from ?? '') }}"
+            placeholder="{{ __('Ej. 2020') }}"
+        />
+
+        <flux:input
+            name="birth_year_to"
+            type="number"
+            label="{{ __('Nacidos hasta (año)') }}"
+            value="{{ old('birth_year_to', $category->birth_year_to ?? '') }}"
+            placeholder="{{ __('Ej. 2021') }}"
+        />
+    </div>
+@endif
 
 <flux:input
     name="order"

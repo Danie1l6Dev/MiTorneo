@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ClubPlayerRequest;
 use App\Http\Requests\PlayerRequest;
+use App\Models\Club;
 use App\Models\Player;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class PlayerController extends Controller
@@ -14,6 +18,10 @@ class PlayerController extends Controller
     {
         $this->authorize('create', [Player::class, $team]);
 
+        if (! $team->tournament_id) {
+            return view('pages.players.create-for-team', compact('team'));
+        }
+
         return view('pages.players.create', compact('team'));
     }
 
@@ -21,25 +29,140 @@ class PlayerController extends Controller
     {
         $this->authorize('create', [Player::class, $team]);
 
+        if (! $team->tournament_id) {
+            return $this->storeForTeam($request, $team);
+        }
+
         $team->players()->create($request->validated());
 
         return to_route('teams.show', $team)->with('status', __('Jugador agregado correctamente.'));
+    }
+
+    /**
+     * A global team (see docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md)
+     * finds-or-links instead of always creating: if a player with this
+     * document already exists in this organizer's roster, they're just
+     * attached to this team via player_team (age eligibility already
+     * checked by PlayerRequest) -- no re-typing their name/birth date. A
+     * genuinely new player is created the "old" way (players.team_id
+     * pointing straight at this team) since it's their first and only
+     * team so far; player_team only comes into play for a 2nd+ one.
+     */
+    private function storeForTeam(PlayerRequest $request, Team $team): RedirectResponse
+    {
+        $validated = $request->validated();
+        $jerseyNumber = Arr::pull($validated, 'jersey_number');
+        $documentNumber = $validated['document_number'] ?? null;
+
+        $existingPlayer = $documentNumber ? Player::findForOrganizer($documentNumber, Auth::id()) : null;
+
+        if ($existingPlayer) {
+            $existingPlayer->teams()->attach($team->id, ['jersey_number' => $jerseyNumber]);
+
+            return to_route('teams.show', $team)->with('status', __(
+                ':name ya estaba registrado -- se vinculó a este plantel sin duplicar sus datos.',
+                ['name' => $existingPlayer->full_name]
+            ));
+        }
+
+        $player = new Player($validated);
+        $player->jersey_number = $jerseyNumber;
+        $player->team_id = $team->id;
+        $player->save();
+
+        return to_route('teams.show', $team)->with('status', __('Jugador agregado correctamente.'));
+    }
+
+    /**
+     * The club-level "agregar jugador" flow: pick one or more of the
+     * club's own planteles to enroll them in at once (checkboxes gated by
+     * age eligibility client-side, re-checked authoritatively by
+     * ClubPlayerRequest). This is what actually lets a kid go straight
+     * into two categories in one step, instead of repeating the
+     * single-team flow above once per plantel.
+     */
+    public function createForClub(Club $club): View
+    {
+        $this->authorize('create', [Player::class, $club]);
+
+        $teams = $club->teams()->with(['category', 'group'])->orderBy('name')->get();
+
+        return view('pages.clubs.players.create', compact('club', 'teams'));
+    }
+
+    public function storeForClub(ClubPlayerRequest $request, Club $club): RedirectResponse
+    {
+        $this->authorize('create', [Player::class, $club]);
+
+        $validated = $request->validated();
+        $teamIds = $validated['team_ids'];
+        $documentNumber = $validated['document_number'] ?? null;
+
+        $existingPlayer = $documentNumber ? Player::findForOrganizer($documentNumber, Auth::id()) : null;
+
+        if ($existingPlayer) {
+            $alreadyLinkedIds = $existingPlayer->teams()->pluck('teams.id')
+                ->push($existingPlayer->team_id)
+                ->all();
+
+            $newTeamIds = array_diff($teamIds, $alreadyLinkedIds);
+            $existingPlayer->teams()->attach($newTeamIds);
+
+            return to_route('clubs.show', $club)->with('status', __(
+                ':name ya estaba registrado -- se vinculó a :count plantel(es) nuevo(s) sin duplicar sus datos.',
+                ['name' => $existingPlayer->full_name, 'count' => count($newTeamIds)]
+            ));
+        }
+
+        $primaryTeamId = array_shift($teamIds);
+
+        $player = new Player([
+            'full_name' => $validated['full_name'],
+            'document_number' => $documentNumber,
+            'birth_date' => $validated['birth_date'],
+        ]);
+        $player->team_id = $primaryTeamId;
+        $player->save();
+
+        if ($teamIds !== []) {
+            $player->teams()->attach($teamIds);
+        }
+
+        return to_route('clubs.show', $club)->with('status', __('Jugador agregado correctamente.'));
     }
 
     public function edit(Player $player): View
     {
         $this->authorize('update', $player);
 
-        return view('pages.players.edit', compact('player'));
+        // Lets a player who's missing their birth_date (the backfill-era
+        // gap T01-11/T01-27 is about) get enrolled into another plantel of
+        // their own club the moment that date is filled in here, instead
+        // of a separate visit once it "unlocks" -- see
+        // Player::candidateTeamsForEnrollment().
+        $candidateTeams = $player->candidateTeamsForEnrollment();
+
+        return view('pages.players.edit', compact('player', 'candidateTeams'));
     }
 
     public function update(PlayerRequest $request, Player $player): RedirectResponse
     {
         $this->authorize('update', $player);
 
-        $player->update($request->validated());
+        $validated = $request->validated();
+        $teamIds = Arr::pull($validated, 'team_ids', []);
 
-        return to_route('teams.show', $player->team)->with('status', __('Jugador actualizado correctamente.'));
+        $player->update($validated);
+
+        if ($teamIds !== []) {
+            $player->teams()->syncWithoutDetaching($teamIds);
+        }
+
+        $message = $teamIds !== []
+            ? __('Jugador actualizado y vinculado a :count plantel(es) más.', ['count' => count($teamIds)])
+            : __('Jugador actualizado correctamente.');
+
+        return to_route('teams.show', $player->team)->with('status', $message);
     }
 
     /**

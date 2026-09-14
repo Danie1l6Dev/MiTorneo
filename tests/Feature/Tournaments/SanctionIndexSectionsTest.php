@@ -98,7 +98,7 @@ class SanctionIndexSectionsTest extends TestCase
         $response = $this->actingAs($user)->get(route('sanctions.index'));
 
         $response->assertOk()
-            ->assertSeeTextInOrder([__('Faltan por resolver'), 'Pendiente Pérez'])
+            ->assertSeeTextInOrder([__('Faltan por resolver'), 'PENDIENTE PÉREZ'])
             ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->count() === 1)
             ->assertViewHas('activeSanctions', fn ($sanctions) => $sanctions->isEmpty())
             ->assertViewHas('fulfilledSanctions', fn ($sanctions) => $sanctions->isEmpty());
@@ -118,7 +118,7 @@ class SanctionIndexSectionsTest extends TestCase
         $response = $this->actingAs($user)->get(route('sanctions.index'));
 
         $response->assertOk()
-            ->assertSeeTextInOrder([__('Ya tienen resolución'), 'Activo Gómez'])
+            ->assertSeeTextInOrder([__('Ya tienen resolución'), 'ACTIVO GÓMEZ'])
             ->assertViewHas('activeSanctions', fn ($sanctions) => $sanctions->count() === 1)
             ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->isEmpty())
             ->assertViewHas('fulfilledSanctions', fn ($sanctions) => $sanctions->isEmpty());
@@ -138,7 +138,7 @@ class SanctionIndexSectionsTest extends TestCase
         $response = $this->actingAs($user)->get(route('sanctions.index'));
 
         $response->assertOk()
-            ->assertSeeTextInOrder([__('Ya cumplidas'), 'Cumplido Ruiz'])
+            ->assertSeeTextInOrder([__('Ya cumplidas'), 'CUMPLIDO RUIZ'])
             ->assertViewHas('fulfilledSanctions', fn ($sanctions) => $sanctions->count() === 1)
             ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->isEmpty())
             ->assertViewHas('activeSanctions', fn ($sanctions) => $sanctions->isEmpty());
@@ -183,9 +183,9 @@ class SanctionIndexSectionsTest extends TestCase
             ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->count() === 1)
             ->assertViewHas('activeSanctions', fn ($sanctions) => $sanctions->count() === 1)
             ->assertViewHas('fulfilledSanctions', fn ($sanctions) => $sanctions->count() === 1)
-            ->assertSeeText('Pendiente Pérez')
-            ->assertSeeText('Activo Gómez')
-            ->assertSeeText('Cumplido Ruiz');
+            ->assertSeeText('PENDIENTE PÉREZ')
+            ->assertSeeText('ACTIVO GÓMEZ')
+            ->assertSeeText('CUMPLIDO RUIZ');
     }
 
     public function test_the_stat_cards_count_matches_the_sections(): void
@@ -218,7 +218,7 @@ class SanctionIndexSectionsTest extends TestCase
         $response = $this->actingAs($owner)->get(route('sanctions.index'));
 
         $response->assertOk()
-            ->assertSeeText('Propio Pérez')
+            ->assertSeeText('PROPIO PÉREZ')
             ->assertDontSeeText('Ajeno Gómez')
             ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->count() === 1);
     }

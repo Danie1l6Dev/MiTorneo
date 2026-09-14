@@ -116,7 +116,18 @@ class MatchEventBatchRequest extends FormRequest
                     continue;
                 }
 
-                $player = Player::query()->where('id', $playerId)->whereIn('team_id', $eligibleTeamIds)->first();
+                // A player belongs to this match either directly (their own
+                // Player::$team_id is one of its two sides) or via a
+                // match_lineups row -- the latter is what lets a player
+                // called up to play UP from a younger category's roster
+                // register events here too. See
+                // TournamentMatch::lineupTeamIdFor().
+                $player = Player::query()->where('id', $playerId)
+                    ->where(function ($query) use ($eligibleTeamIds, $match) {
+                        $query->whereIn('team_id', $eligibleTeamIds)
+                            ->orWhereHas('matchLineups', fn ($q) => $q->where('match_id', $match->id));
+                    })
+                    ->first();
 
                 if ($player === null) {
                     $validator->errors()->add("events.$index.player_id", __('Uno de los jugadores seleccionados no pertenece a ninguno de los dos equipos de este partido.'));
@@ -130,9 +141,11 @@ class MatchEventBatchRequest extends FormRequest
                     continue;
                 }
 
+                $matchTeamId = $match->lineupTeamIdFor($player);
+
                 if (in_array($type, ['goal', 'assist'], true)) {
-                    $newPlayerIdsByTeam[$player->team_id][$type][] = $player->id;
-                    $lastRelevantIndexByTeam[$player->team_id] = $index;
+                    $newPlayerIdsByTeam[$matchTeamId][$type][] = $player->id;
+                    $lastRelevantIndexByTeam[$matchTeamId] = $index;
                 }
 
                 if (in_array($type, ['yellow_card', 'red_card'], true)) {

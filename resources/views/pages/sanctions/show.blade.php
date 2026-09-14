@@ -31,7 +31,7 @@
 
                 <div>
                     <dt class="text-zinc-500 dark:text-white/50">{{ __('Torneo / categoría') }}</dt>
-                    <dd class="font-medium text-zinc-800 dark:text-white">{{ $sanction->team->tournament->name }} &middot; {{ $sanction->match->category->name }}</dd>
+                    <dd class="font-medium text-zinc-800 dark:text-white">{{ $sanction->match->tournament->name }} &middot; {{ $sanction->match->category->name }}</dd>
                 </div>
 
                 <div class="col-span-2">
@@ -79,7 +79,7 @@
             <div class="space-y-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
                 <flux:heading size="lg">{{ __('Resolución del Comité Directivo') }}</flux:heading>
 
-                <flux:text class="text-sm">{{ __('Una roja directa no tiene una duración asumida: indicá cuántas fechas de sanción corresponden según lo resuelto.') }}</flux:text>
+                <flux:text class="text-sm">{{ __('Una roja directa no tiene una duración asumida: indica cuántas fechas de sanción corresponden según lo resuelto.') }}</flux:text>
 
                 <form method="POST" action="{{ route('sanctions.resolve', $sanction) }}" class="space-y-4">
                     @csrf

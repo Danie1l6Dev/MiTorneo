@@ -34,7 +34,7 @@ class CoachManagementTest extends TestCase
 
         $this->assertDatabaseHas('coaches', [
             'team_id' => $team->id,
-            'full_name' => 'Juan Pérez',
+            'full_name' => 'JUAN PÉREZ',
             'is_active' => true,
         ]);
     }
@@ -50,7 +50,7 @@ class CoachManagementTest extends TestCase
 
         $this->assertDatabaseHas('coaches', [
             'team_id' => $team->id,
-            'full_name' => 'DT Sin Documento',
+            'full_name' => 'DT SIN DOCUMENTO',
             'document_number' => null,
         ]);
     }
@@ -66,7 +66,7 @@ class CoachManagementTest extends TestCase
             'document_number' => $coach->document_number,
         ])->assertRedirect(route('teams.show', $team));
 
-        $this->assertSame('Nuevo DT', $coach->fresh()->full_name);
+        $this->assertSame('NUEVO DT', $coach->fresh()->full_name);
     }
 
     public function test_a_user_can_toggle_a_coachs_active_status(): void

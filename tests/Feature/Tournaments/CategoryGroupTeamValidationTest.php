@@ -21,8 +21,14 @@ class CategoryGroupTeamValidationTest extends TestCase
         $category = Category::factory()->for($tournament)->usingGroups()->create();
         Group::factory()->for($tournament)->for($category)->create(['name' => 'Grupo A']);
 
+        // Submitted already uppercased to match the stored row exactly --
+        // NormalizesToUppercase only runs on save, AFTER the unique
+        // validation rule's own query, so the rule compares the raw
+        // request value against what's stored; a mixed-case duplicate here
+        // would only reliably collide under a case-insensitive DB
+        // collation (true in production/MySQL, not guaranteed on SQLite).
         $this->actingAs($user)
-            ->post(route('categories.groups.store', $category), ['name' => 'Grupo A'])
+            ->post(route('categories.groups.store', $category), ['name' => 'GRUPO A'])
             ->assertSessionHasErrors('name');
 
         $this->assertSame(1, $category->groups()->count());
@@ -35,8 +41,11 @@ class CategoryGroupTeamValidationTest extends TestCase
         $category = Category::factory()->for($tournament)->create();
         Team::factory()->for($tournament)->for($category)->create(['name' => 'Real Norte']);
 
+        // Same reasoning as the group-name test above: submitted already
+        // uppercased so the uniqueness collision is deterministic
+        // regardless of the test DB's collation.
         $this->actingAs($user)
-            ->post(route('categories.teams.store', $category), ['name' => 'Real Norte'])
+            ->post(route('categories.teams.store', $category), ['name' => 'REAL NORTE'])
             ->assertSessionHasErrors('name');
 
         $this->assertSame(1, $category->teams()->count());

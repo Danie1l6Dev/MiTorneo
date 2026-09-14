@@ -42,7 +42,7 @@ class MatchEventController extends Controller
         }
 
         $minute = $request->validated('minute') !== null ? (int) $request->validated('minute') : null;
-        $subject = $this->resolveSubject($request->validated('player_id'), $request->validated('coach_id'));
+        $subject = $this->resolveSubject($match, $request->validated('player_id'), $request->validated('coach_id'));
         $type = MatchEventType::from($request->validated('type'));
 
         $match->events()->create([
@@ -90,8 +90,8 @@ class MatchEventController extends Controller
         DB::transaction(function () use ($match, $events, $players, $coaches, $sanctions, &$cardSubjects): void {
             foreach ($events as $eventData) {
                 $subject = ! empty($eventData['coach_id'])
-                    ? $this->resolveSubject(null, $coaches->get($eventData['coach_id']))
-                    : $this->resolveSubject($players->get($eventData['player_id']), null);
+                    ? $this->resolveSubject($match, null, $coaches->get($eventData['coach_id']))
+                    : $this->resolveSubject($match, $players->get($eventData['player_id']), null);
 
                 $type = MatchEventType::from($eventData['type']);
 
@@ -126,14 +126,14 @@ class MatchEventController extends Controller
 
         if ($event->type === MatchEventType::Goal && $this->deletingWouldLeaveTooManyAssists($event)) {
             return to_route('matches.edit', $match)->with('error', __(
-                'No se puede eliminar este gol: :team quedaría con más asistencias que goles registrados. Eliminá primero una asistencia.',
+                'No se puede eliminar este gol: :team quedaría con más asistencias que goles registrados. Elimina primero una asistencia.',
                 ['team' => $event->team->name]
             ));
         }
 
         if ($this->deletingWouldOrphanAProtectedSanction($event, $sanctions)) {
             return to_route('matches.edit', $match)->with('error', __(
-                'No se puede eliminar esta tarjeta: ya tiene una sanción resuelta por el Comité Directivo. Editá o eliminá la sanción primero.'
+                'No se puede eliminar esta tarjeta: ya tiene una sanción resuelta por el Comité Directivo. Edita o elimina la sanción primero.'
             ));
         }
 
@@ -266,7 +266,7 @@ class MatchEventController extends Controller
      *
      * @return array{team_id: int, player_id: int|null, coach_id: int|null}
      */
-    private function resolveSubject(Player|int|null $player, Coach|int|null $coach): array
+    private function resolveSubject(TournamentMatch $match, Player|int|null $player, Coach|int|null $coach): array
     {
         if ($coach !== null) {
             $coach = $coach instanceof Coach ? $coach : Coach::findOrFail($coach);
@@ -276,7 +276,7 @@ class MatchEventController extends Controller
 
         $player = $player instanceof Player ? $player : Player::findOrFail($player);
 
-        return ['team_id' => $player->team_id, 'player_id' => $player->id, 'coach_id' => null];
+        return ['team_id' => $match->lineupTeamIdFor($player), 'player_id' => $player->id, 'coach_id' => null];
     }
 
     /**

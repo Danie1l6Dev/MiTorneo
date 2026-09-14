@@ -38,8 +38,8 @@
                             color="green"
                             size="lg"
                             :stats="[
-                                trans_choice(':count categoría|:count categorías', $tournament->categories_count, ['count' => $tournament->categories_count]),
-                                trans_choice(':count equipo|:count equipos', $tournament->teams_count, ['count' => $tournament->teams_count]),
+                                trans_choice(':count categoría|:count categorías', $tournament->global_categories_count, ['count' => $tournament->global_categories_count]),
+                                trans_choice(':count equipo|:count equipos', $tournament->global_teams_count, ['count' => $tournament->global_teams_count]),
                                 trans_choice(':count partido|:count partidos', $tournament->matches_count, ['count' => $tournament->matches_count]),
                             ]"
                         >

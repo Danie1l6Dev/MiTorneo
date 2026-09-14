@@ -1,16 +1,16 @@
 <x-layouts::app :title="__('Nueva categoría')">
     <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up">
-        <x-ui.page-header :title="__('Nueva categoría')" :subtitle="$tournament->name" />
+        <x-ui.page-header :title="__('Nueva categoría')" :subtitle="__('Se agrega a tu catálogo y podrás incluirla en cualquiera de tus torneos.')" />
 
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
-            <form method="POST" action="{{ route('tournaments.categories.store', $tournament) }}" class="space-y-6">
+            <form method="POST" action="{{ route('categories.store') }}" class="space-y-6">
                 @csrf
 
                 @include('pages.categories._fields')
 
                 <div class="flex items-center gap-3">
                     <flux:button type="submit" variant="primary">{{ __('Crear categoría') }}</flux:button>
-                    <flux:button :href="route('tournaments.show', $tournament)" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
+                    <flux:button :href="route('categories.index')" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
                 </div>
             </form>
         </div>

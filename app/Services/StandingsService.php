@@ -43,7 +43,7 @@ class StandingsService
 
         return [[
             'label' => $category->name,
-            'rows' => $this->calculate($category->teams, $matches),
+            'rows' => $this->calculate($category->teamsForTournament($phase->tournament), $matches),
         ]];
     }
 

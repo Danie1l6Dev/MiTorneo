@@ -35,21 +35,27 @@ class TournamentManagementTest extends TestCase
             'status' => 'active',
         ])->assertRedirect();
 
-        $tournament = Tournament::query()->firstWhere('name', 'Campeonato Municipal 2026');
+        $tournament = Tournament::query()->firstWhere('name', 'CAMPEONATO MUNICIPAL 2026');
         $this->assertNotNull($tournament);
         $this->assertSame($user->id, $tournament->user_id);
 
-        $this->post(route('tournaments.categories.store', $tournament), [
+        $this->post(route('categories.store'), [
             'name' => 'Teterito',
             'status' => 'active',
             'uses_groups' => '1',
             'order' => 0,
         ])->assertRedirect();
 
-        $category = $tournament->categories()->firstWhere('name', 'Teterito');
+        $category = Category::query()->where('user_id', $user->id)->firstWhere('name', 'TETERITO');
         $this->assertNotNull($category);
-        $this->assertSame($tournament->id, $category->tournament_id);
+        $this->assertNull($category->tournament_id);
         $this->assertTrue($category->uses_groups);
+
+        $this->post(route('tournaments.global-categories.store', $tournament), [
+            'category_ids' => [$category->id],
+        ])->assertRedirect();
+
+        $this->assertTrue($tournament->globalCategories()->whereKey($category->id)->exists());
 
         $this->post(route('categories.phases.store', $category), [
             'name' => 'Liga',
@@ -57,7 +63,7 @@ class TournamentManagementTest extends TestCase
             'order' => 0,
         ])->assertRedirect();
 
-        $phase = $category->competitionPhases()->firstWhere('name', 'Liga');
+        $phase = $category->competitionPhases()->firstWhere('name', 'LIGA');
         $this->assertNotNull($phase);
         $this->assertSame($tournament->id, $phase->tournament_id);
 
@@ -66,9 +72,9 @@ class TournamentManagementTest extends TestCase
             'order' => 0,
         ])->assertRedirect();
 
-        $group = $category->groups()->firstWhere('name', 'Grupo A');
+        $group = $category->groups()->firstWhere('name', 'GRUPO A');
         $this->assertNotNull($group);
-        $this->assertSame($tournament->id, $group->tournament_id);
+        $this->assertNull($group->tournament_id);
 
         $this->post(route('categories.teams.store', $category), [
             'name' => 'Equipo 1',
@@ -79,8 +85,8 @@ class TournamentManagementTest extends TestCase
             'group_id' => $group->id,
         ])->assertRedirect();
 
-        $teamOne = $category->teams()->firstWhere('name', 'Equipo 1');
-        $teamTwo = $category->teams()->firstWhere('name', 'Equipo 2');
+        $teamOne = $category->teams()->firstWhere('name', 'EQUIPO 1');
+        $teamTwo = $category->teams()->firstWhere('name', 'EQUIPO 2');
         $this->assertNotNull($teamOne);
         $this->assertNotNull($teamTwo);
         $this->assertSame($group->id, $teamOne->group_id);
@@ -114,7 +120,7 @@ class TournamentManagementTest extends TestCase
         $this->get(route('tournaments.show', $tournament))->assertOk();
         $this->get(route('tournaments.edit', $tournament))->assertOk();
 
-        $this->get(route('tournaments.categories.create', $tournament))->assertOk();
+        $this->get(route('tournaments.global-categories.create', $tournament))->assertOk();
         $this->get(route('categories.show', $category))->assertOk();
         $this->get(route('categories.edit', $category))->assertOk();
 

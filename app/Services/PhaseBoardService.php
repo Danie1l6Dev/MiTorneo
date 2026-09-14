@@ -44,7 +44,7 @@ class PhaseBoardService
     private function buildScheduleView(LeagueSchedule $schedule, CompetitionPhase $phase): array
     {
         $roster = $phase->teams;
-        $teams = $schedule->group ? $schedule->group->teams : ($roster->isNotEmpty() ? $roster : $phase->category->teams);
+        $teams = $schedule->group ? $schedule->group->teams : ($roster->isNotEmpty() ? $roster : $phase->category->teamsForTournament($phase->tournament));
 
         $roundsCount = $schedule->matches->pluck('round_number')->unique()->count();
         $firstLegRounds = $schedule->format === ScheduleFormat::HomeAndAway ? intdiv($roundsCount, 2) : $roundsCount;

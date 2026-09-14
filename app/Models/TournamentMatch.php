@@ -361,6 +361,41 @@ class TournamentMatch extends Model
     }
 
     /**
+     * Every player "convocado" (called up) to play this match, for either
+     * side -- see MatchLineup's docblock for why this is a separate record
+     * from Player::$team_id.
+     *
+     * @return HasMany<MatchLineup, $this>
+     */
+    public function lineups(): HasMany
+    {
+        return $this->hasMany(MatchLineup::class, 'match_id');
+    }
+
+    /**
+     * Which side of THIS match $player is playing for: their match_lineups
+     * entry when one exists, falling back to Player::$team_id otherwise --
+     * the pre-lineup-feature path every player created directly on the
+     * home/away team (and any programmatic event creation with no lineup
+     * row) still relies on. Used instead of Player::$team_id directly
+     * whenever an event needs to be attributed to a match SIDE, since a
+     * player playing up from a younger category's roster has a
+     * Player::$team_id that points at their own team, not this match's.
+     */
+    public function lineupTeamIdFor(Player $player): ?int
+    {
+        // Prefers the already-loaded relation (avoids re-querying once per
+        // event when several events/validations resolve this in the same
+        // request, e.g. MatchEventBatchRequest's per-row loop) and only
+        // falls back to a fresh query when lineups wasn't eager loaded.
+        $lineup = $this->relationLoaded('lineups')
+            ? $this->lineups->firstWhere('player_id', $player->id)
+            : $this->lineups()->where('player_id', $player->id)->first();
+
+        return $lineup?->team_id ?? $player->team_id;
+    }
+
+    /**
      * True once the match is finished and either team's tally of logged goal
      * events disagrees with its final score -- purely informational, mirrors
      * the callout on the match edit screen so the discrepancy is visible from

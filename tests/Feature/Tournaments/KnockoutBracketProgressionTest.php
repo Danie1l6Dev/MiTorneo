@@ -58,7 +58,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 8,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Cuartos')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'CUARTOS')->firstOrFail();
         $matches = $newPhase->matches()->get();
 
         // 4 quarterfinal matches (real teams) + 2 semifinal + 1 final (both pending).
@@ -96,7 +96,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semiMatches = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
         $final = $newPhase->matches()->where('round_number', 2)->firstOrFail();
 
@@ -151,7 +151,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semiMatches = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
         $final = $newPhase->matches()->where('round_number', 2)->firstOrFail();
 
@@ -193,7 +193,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semiMatches = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
         $final = $newPhase->matches()->where('round_number', 2)->firstOrFail();
 
@@ -378,7 +378,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $final = $newPhase->matches()->where('round_number', 2)->firstOrFail();
 
         $this->actingAs($user)
@@ -408,7 +408,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'draw_method' => DrawMethod::Random->value,
         ]);
 
-        $final = CompetitionPhase::where('name', 'Final')->firstOrFail();
+        $final = CompetitionPhase::where('name', 'FINAL')->firstOrFail();
         $match = $final->matches()->firstOrFail();
 
         $this->actingAs($user)
@@ -466,7 +466,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
         $semiMatches = $newPhase->matches()->where('round_number', 1)->orderBy('id')->get();
         $final = $newPhase->matches()->where('round_number', 2)->firstOrFail();
 
@@ -533,7 +533,7 @@ class KnockoutBracketProgressionTest extends TestCase
             'qualifiers_per_table' => 4,
         ]);
 
-        $newPhase = CompetitionPhase::where('name', 'Semifinales')->firstOrFail();
+        $newPhase = CompetitionPhase::where('name', 'SEMIFINALES')->firstOrFail();
 
         $this->actingAs($user)
             ->get(route('phases.show', $newPhase))

@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\TournamentRequest;
+use App\Models\CompetitionPhase;
 use App\Models\Tournament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class TournamentController extends Controller
@@ -32,10 +34,29 @@ class TournamentController extends Controller
     {
         $this->authorize('view', $tournament);
 
-        $tournament->load(['categories' => fn ($query) => $query->withCount(['teams', 'groups'])]);
-        $tournament->loadCount(['categories', 'teams', 'matches']);
+        $tournament->load('globalCategories');
+        $tournament->loadCount(['globalCategories', 'globalTeams', 'matches']);
 
-        return view('pages.tournaments.show', compact('tournament'));
+        // Per global category, how many of its planteles are already
+        // registered for this tournament (tournament_team) -- one query
+        // instead of one per category card.
+        $globalTeamCounts = DB::table('tournament_team')
+            ->join('teams', 'teams.id', '=', 'tournament_team.team_id')
+            ->where('tournament_team.tournament_id', $tournament->id)
+            ->selectRaw('teams.category_id, count(*) as aggregate')
+            ->groupBy('teams.category_id')
+            ->pluck('aggregate', 'teams.category_id');
+
+        // Categories whose roster is frozen (T02-10): once a category has a
+        // phase in this tournament, its tournament_team selection can no
+        // longer change, so the card hides the "quitar" action and shows
+        // "Ver planteles" (read-only) instead of "Elegir planteles".
+        $lockedCategoryIds = CompetitionPhase::query()
+            ->where('tournament_id', $tournament->id)
+            ->pluck('category_id')
+            ->unique();
+
+        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds'));
     }
 
     public function edit(Tournament $tournament): View

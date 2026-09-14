@@ -46,8 +46,16 @@
                             {{ __('Torneos') }}
                         </flux:sidebar.item>
                     @else
-                        <flux:sidebar.item icon="trophy" :href="route('dashboard')" :current="request()->routeIs('dashboard', 'tournaments.*', 'categories.*', 'phases.*', 'groups.*', 'teams.*', 'matches.*')" wire:navigate>
+                        <flux:sidebar.item icon="trophy" :href="route('dashboard')" :current="request()->routeIs('dashboard', 'tournaments.*', 'phases.*', 'groups.*', 'matches.*')" wire:navigate>
                             {{ __('Mis torneos') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="shield-check" :href="route('clubs.index')" :current="request()->routeIs('clubs.*')" wire:navigate>
+                            {{ __('Clubes') }}
+                        </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="rectangle-stack" :href="route('categories.index')" :current="request()->routeIs('categories.index', 'categories.create')" wire:navigate>
+                            {{ __('Categorías') }}
                         </flux:sidebar.item>
 
                         <flux:sidebar.item icon="flag" :href="route('referees.index')" :current="request()->routeIs('referees.*')" wire:navigate>
