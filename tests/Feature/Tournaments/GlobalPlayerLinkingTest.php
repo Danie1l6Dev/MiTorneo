@@ -359,6 +359,53 @@ class GlobalPlayerLinkingTest extends TestCase
             ->assertSessionHasErrors('team_ids.0');
     }
 
+    /**
+     * Reported after a real user searched a player up, saw they were
+     * listed under NUEVA ALIANZA · PRE-JUVENIL, but their edit page's
+     * candidate checkboxes only showed TETERITO (a plantel they weren't on
+     * yet) -- reading as if PRE-JUVENIL wasn't real. The candidates list
+     * was always correct (it only ever lists what's missing); what was
+     * missing was any confirmation of what the player already has. Fixed
+     * by folding both into one list: an already-current plantel shows up
+     * checked and labeled "(ya está)", right alongside the ones still
+     * available to add.
+     */
+    public function test_the_edit_page_shows_every_plantel_the_player_is_already_on_as_a_checked_checkbox(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $teamA = $this->makeTeamForClub($club, 'Infantil', 2012);
+        $teamB = $this->makeTeamForClub($club, 'Cebollita', 2016);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id, 'birth_date' => '2016-01-01']);
+        $player->teams()->attach($teamB->id);
+
+        $response = $this->actingAs($user)->get(route('players.edit', $player));
+
+        // Cebollita (birth_year_to 2016) is the YOUNGER of the two, so it
+        // sorts before Infantil (2012) -- see Team::sortedByCategoryAge().
+        $response->assertOk()
+            ->assertSeeInOrder(['Planteles de este club', 'CEBOLLITA', 'INFANTIL'])
+            ->assertSee($teamA->name.' (ya está)')
+            ->assertSee($teamB->name.' (ya está)');
+    }
+
+    public function test_a_candidate_team_the_player_is_not_on_yet_has_no_ya_esta_label(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $teamA = $this->makeTeamForClub($club, 'Infantil', 2012);
+        $teamB = $this->makeTeamForClub($club, 'Cebollita', 2016);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id, 'birth_date' => '2016-01-01']);
+
+        $response = $this->actingAs($user)->get(route('players.edit', $player));
+
+        $response->assertOk()
+            ->assertSee($teamA->name.' (ya está)')
+            ->assertDontSee($teamB->name.' (ya está)');
+    }
+
     private function makeTeamForClub(Club $club, string $categoryName, ?int $birthYearTo): Team
     {
         $category = Category::factory()->create([

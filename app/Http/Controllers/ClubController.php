@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ClubRequest;
 use App\Models\Club;
+use App\Models\Player;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,48 +14,68 @@ use Illuminate\View\View;
 class ClubController extends Controller
 {
     /**
-     * Two ways to browse the same data, picked via ?view= (defaults to
+     * Three ways to browse the same catalog, picked via ?view= (defaults to
      * "category"): organized by category (and, within it, by group) --
      * how an organizer actually browses "who plays where", since a plain
      * club-by-club list would bury a club fielding several
-     * categories/groups -- or organized by club, for "what does THIS club
-     * field" instead. Both are built from the same underlying $allTeams
-     * query, just grouped differently, so switching views costs no extra
-     * queries.
+     * categories/groups -- organized by club, for "what does THIS club
+     * field" instead -- or a global player search by name/document,
+     * unscoped to any one club, for "is this kid already registered
+     * somewhere" (see Player::searchForOrganizer()). The first two share
+     * one $allTeams query grouped differently, so switching between them
+     * costs no extra queries; "jugadores" skips that query entirely since
+     * it doesn't need it.
      */
     public function index(Request $request): View
     {
         $this->authorize('viewAny', Club::class);
 
-        $view = $request->query('view') === 'club' ? 'club' : 'category';
+        $view = match ($request->query('view')) {
+            'club' => 'club',
+            'jugadores' => 'jugadores',
+            default => 'category',
+        };
 
         // Already ordered youngest-to-oldest -- see User::categories().
         $categories = Auth::user()->categories()
             ->with(['groups' => fn ($query) => $query->orderBy('order')])
             ->get();
 
-        $allTeams = Team::query()
-            ->whereIn('category_id', $categories->pluck('id'))
-            ->whereNull('tournament_id')
-            ->with(['club', 'category', 'group'])
-            ->withCount('globalPlayers')
-            ->get();
-
-        // Both groupings below read off $allTeams's own order for how their
-        // groups come out (the "club" view's per-club category sections in
-        // particular) -- sorting it here once covers both instead of each
-        // view re-sorting its own grouped result afterward.
-        $allTeams = Team::sortedByCategoryAge($allTeams);
-
-        $incompleteTeamIds = Team::idsWithIncompletePlayers($allTeams->pluck('id'));
-        $teams = $allTeams->groupBy(['category_id', 'group_id']);
-
         $clubs = Auth::user()->clubs()->orderBy('name')->get();
-        $teamsByClub = $allTeams->groupBy('club_id');
-
         $clubCount = $clubs->count();
 
-        return view('pages.clubs.index', compact('view', 'categories', 'teams', 'clubs', 'teamsByClub', 'clubCount', 'incompleteTeamIds'));
+        $teams = collect();
+        $teamsByClub = collect();
+        $incompleteTeamIds = [];
+        $players = collect();
+
+        if ($view === 'jugadores') {
+            // Preloaded once; the search itself happens entirely
+            // client-side as the organizer types -- see clubs/index.blade.php.
+            $players = Player::allForOrganizer(Auth::id());
+        } else {
+            $allTeams = Team::query()
+                ->whereIn('category_id', $categories->pluck('id'))
+                ->whereNull('tournament_id')
+                ->with(['club', 'category', 'group'])
+                ->withCount('globalPlayers')
+                ->get();
+
+            // Both groupings below read off $allTeams's own order for how
+            // their groups come out (the "club" view's per-club category
+            // sections in particular) -- sorting it here once covers both
+            // instead of each view re-sorting its own grouped result
+            // afterward.
+            $allTeams = Team::sortedByCategoryAge($allTeams);
+
+            $incompleteTeamIds = Team::idsWithIncompletePlayers($allTeams->pluck('id'));
+            $teams = $allTeams->groupBy(['category_id', 'group_id']);
+            $teamsByClub = $allTeams->groupBy('club_id');
+        }
+
+        return view('pages.clubs.index', compact(
+            'view', 'categories', 'teams', 'clubs', 'teamsByClub', 'clubCount', 'incompleteTeamIds', 'players'
+        ));
     }
 
     public function create(): View

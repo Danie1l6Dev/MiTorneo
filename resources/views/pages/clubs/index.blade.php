@@ -9,7 +9,11 @@
 
 <x-layouts::app :title="__('Clubes')">
     <div class="w-full space-y-8 animate-fade-in-up">
-        <x-ui.page-header :title="__('Clubes')" :subtitle="$view === 'club' ? __('Cada club, con las categorías en las que tiene plantel.') : __('Organizados por categoría -- un club con varios planteles aparece en cada una.')">
+        <x-ui.page-header :title="__('Clubes')" :subtitle="match($view) {
+            'club' => __('Cada club, con las categorías en las que tiene plantel.'),
+            'jugadores' => __('Buscá un jugador ya registrado por nombre o documento, en cualquier club/categoría.'),
+            default => __('Organizados por categoría -- un club con varios planteles aparece en cada una.'),
+        }">
             <x-slot:actions>
                 <flux:button :href="route('clubs.create')" variant="primary" icon="plus" wire:navigate>
                     {{ __('Nuevo club') }}
@@ -20,6 +24,7 @@
         <x-ui.nav-tabs :tabs="[
             ['label' => __('Por categoría'), 'icon' => 'rectangle-stack', 'href' => route('clubs.index', ['view' => 'category']), 'active' => $view === 'category'],
             ['label' => __('Por club'), 'icon' => 'shield-check', 'href' => route('clubs.index', ['view' => 'club']), 'active' => $view === 'club'],
+            ['label' => __('Jugadores'), 'icon' => 'magnifying-glass', 'href' => route('clubs.index', ['view' => 'jugadores']), 'active' => $view === 'jugadores'],
         ]" />
 
         @if (session('status'))
@@ -30,7 +35,82 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
-        @if ($clubCount === 0)
+        @if ($view === 'jugadores')
+            {{-- All of the organizer's players are preloaded and filtered
+                 entirely client-side as they type -- same pattern (and same
+                 reasoning: this whole catalog is small enough that a live
+                 search endpoint would be overkill) as
+                 x-ui.match-lineup-search's own player search. Every row is
+                 rendered server-side up front; only its visibility toggles,
+                 via a per-row precomputed lowercase "name + documento"
+                 haystack checked against the shared `query`. --}}
+            <div class="space-y-6" x-data="{ query: '' }">
+                <div class="mx-auto w-full max-w-xl">
+                    <flux:input
+                        type="search"
+                        x-model="query"
+                        icon="magnifying-glass"
+                        :placeholder="__('Nombre o documento del jugador...')"
+                        autofocus
+                    />
+                </div>
+
+                @if ($players->isEmpty())
+                    <x-ui.empty-state icon="magnifying-glass" :message="__('Todavía no tenés jugadores registrados en ningún club.')" />
+                @else
+                    @php
+                        $jsHaystacks = \Illuminate\Support\Js::from(
+                            $players->map(fn ($player) => mb_strtolower($player->full_name.' '.$player->document_number))->values()
+                        );
+                    @endphp
+
+                    <div x-show="query.trim() === ''" x-cloak>
+                        <x-ui.empty-state icon="magnifying-glass" :message="__('Escribí un nombre o número de documento para buscar.')" />
+                    </div>
+
+                    <div x-show="query.trim() !== '' && ! {{ $jsHaystacks }}.some((h) => h.includes(query.trim().toLowerCase()))" x-cloak>
+                        <x-ui.empty-state icon="magnifying-glass" :message="__('No se encontró ningún jugador con esa búsqueda.')" />
+                    </div>
+
+                    <div class="mx-auto w-full max-w-3xl space-y-3">
+                        @foreach ($players as $player)
+                            @php
+                                $jsHaystack = \Illuminate\Support\Js::from(mb_strtolower($player->full_name.' '.$player->document_number));
+                            @endphp
+
+                            <a
+                                href="{{ route('players.edit', $player) }}"
+                                wire:navigate
+                                x-show="query.trim() !== '' && {{ $jsHaystack }}.includes(query.trim().toLowerCase())"
+                                x-cloak
+                                class="hover-lift block overflow-hidden rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel"
+                            >
+                                <div class="flex flex-wrap items-center justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <flux:heading size="lg" class="truncate">{{ $player->full_name }}</flux:heading>
+                                        @if ($player->document_number)
+                                            <flux:text class="text-zinc-500 dark:text-white/50">{{ __('Documento') }}: {{ $player->document_number }}</flux:text>
+                                        @endif
+                                    </div>
+
+                                    @unless ($player->is_active)
+                                        <flux:badge size="sm" color="zinc">{{ __('Inactivo') }}</flux:badge>
+                                    @endunless
+                                </div>
+
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    @forelse ($player->allTeams() as $team)
+                                        <flux:badge size="sm" color="cyan">{{ $team->club?->name ?? $team->name }} · {{ $team->category->name }}</flux:badge>
+                                    @empty
+                                        <flux:badge size="sm" color="zinc">{{ __('Sin plantel') }}</flux:badge>
+                                    @endforelse
+                                </div>
+                            </a>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @elseif ($clubCount === 0)
             <x-ui.empty-state icon="shield-check" :message="__('Todavía no has registrado ningún club.')">
                 <x-slot:action>
                     <flux:button :href="route('clubs.create')" variant="primary" size="sm" icon="plus" wire:navigate>

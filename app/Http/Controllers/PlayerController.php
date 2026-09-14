@@ -135,14 +135,18 @@ class PlayerController extends Controller
     {
         $this->authorize('update', $player);
 
-        // Lets a player who's missing their birth_date (the backfill-era
-        // gap T01-11/T01-27 is about) get enrolled into another plantel of
-        // their own club the moment that date is filled in here, instead
-        // of a separate visit once it "unlocks" -- see
-        // Player::candidateTeamsForEnrollment().
-        $candidateTeams = $player->candidateTeamsForEnrollment();
+        // One combined list for the view: planteles this player is already
+        // on (shown checked and locked -- this form only ever adds a
+        // membership, see update() below) alongside the ones they could
+        // still join now that their birth_date unlocks the age check (the
+        // backfill-era gap T01-11/T01-27 is about) -- see
+        // Player::candidateTeamsForEnrollment(). Mixing both into one list
+        // reads as "this player's planteles", not just "what's missing".
+        $player->load(['team.category', 'team.club', 'teams.category', 'teams.club']);
+        $currentTeams = $player->allTeams();
+        $clubTeams = Team::sortedByCategoryAge($currentTeams->merge($player->candidateTeamsForEnrollment()));
 
-        return view('pages.players.edit', compact('player', 'candidateTeams'));
+        return view('pages.players.edit', compact('player', 'clubTeams', 'currentTeams'));
     }
 
     public function update(PlayerRequest $request, Player $player): RedirectResponse

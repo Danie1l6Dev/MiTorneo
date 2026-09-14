@@ -1,5 +1,12 @@
 @php
-    $teamsByCategory = $candidateTeams
+    // One combined list -- planteles the player is already on (pre-checked,
+    // locked) alongside the ones they could still join -- grouped by
+    // category (and group within it) the same way the club-level
+    // enrollment checkboxes already are. Mixing both into one list instead
+    // of showing "already enrolled" separately from "could still add" is
+    // what actually reads as "this player's planteles" at a glance -- see
+    // PlayerController::edit().
+    $teamsByCategory = $clubTeams
         ->groupBy('category.name')
         ->map(fn ($teams) => $teams->groupBy(fn ($team) => $team->group->name ?? __('Sin grupo')));
 @endphp
@@ -23,11 +30,11 @@
 
                 @if ($teamsByCategory->isNotEmpty())
                     <div class="space-y-4">
-                        <flux:label>{{ __('Sumarlo también a otro plantel de este club (opcional)') }}</flux:label>
+                        <flux:label>{{ __('Planteles de este club') }}</flux:label>
 
                         <template x-if="!birthDate">
                             <flux:text class="text-sm text-amber-500">
-                                {{ __('Carga la fecha de nacimiento para habilitar las categorías correspondientes.') }}
+                                {{ __('Carga la fecha de nacimiento para habilitar las categorías a las que todavía puede sumarse.') }}
                             </flux:text>
                         </template>
 
@@ -40,22 +47,50 @@
                                 @foreach ($teamsByGroup as $groupName => $groupTeams)
                                     @foreach ($groupTeams as $team)
                                         @php
+                                            $isCurrent = $currentTeams->contains('id', $team->id);
                                             $byTo = $team->category->birth_year_to;
-                                            $disabledExpr = $byTo === null
+                                            $ageDisabledExpr = $byTo === null
                                                 ? '!birthDate'
                                                 : "!birthDate || parseInt(birthDate.split('-')[0]) < {$byTo}";
                                             $label = $team->name;
                                             if ($groupTeams->count() > 1 || $teamsByGroup->count() > 1) {
                                                 $label .= ' — '.$groupName;
                                             }
+                                            if ($isCurrent) {
+                                                $label .= ' ('.__('ya está').')';
+                                            }
                                         @endphp
 
+                                        {{-- An already-current team is shown
+                                             checked and locked -- this form
+                                             only ever ADDS a membership
+                                             (syncWithoutDetaching in
+                                             PlayerController::update()), it
+                                             never removes one, so there's
+                                             nothing to actually submit for
+                                             it and unchecking it couldn't
+                                             mean anything anyway. --}}
+                                        {{--
+                                            Blade's @if/@else can't be used
+                                            inline inside a component tag's
+                                            own attribute list (it gets
+                                            treated as a literal attribute
+                                            named "@if", not compiled) --
+                                            :disabled handles the static
+                                            (already-current) case and
+                                            x-bind:disabled the reactive
+                                            (age-gated) one; for a current
+                                            team the x-bind expression is
+                                            just the literal 'true', so both
+                                            agree instead of fighting.
+                                        --}}
                                         <flux:checkbox
                                             name="team_ids[]"
                                             value="{{ $team->id }}"
                                             label="{{ $label }}"
-                                            x-bind:disabled="{{ $disabledExpr }}"
-                                            :checked="in_array($team->id, (array) old('team_ids', []))"
+                                            :checked="$isCurrent || in_array($team->id, (array) old('team_ids', []))"
+                                            :disabled="$isCurrent"
+                                            x-bind:disabled="{{ $isCurrent ? 'true' : $ageDisabledExpr }}"
                                         />
                                     @endforeach
                                 @endforeach

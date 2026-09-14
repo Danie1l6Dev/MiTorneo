@@ -99,6 +99,50 @@ class Player extends Model
     }
 
     /**
+     * Every Team this player is actually rostered on right now, combining
+     * the legacy $team_id column with the player_team pivot into one
+     * deduplicated list -- what the global player search (Clubes ›
+     * Jugadores) shows per match, since a player can be on more than one
+     * plantel. $team and $teams must already be eager-loaded by the caller
+     * (see searchForOrganizer()) to avoid an N+1 per result.
+     *
+     * @return Collection<int, Team>
+     */
+    public function allTeams(): Collection
+    {
+        return collect([$this->team])
+            ->merge($this->teams)
+            ->filter()
+            ->unique('id')
+            ->values();
+    }
+
+    /**
+     * Every player of this organizer's own catalog, across every club/
+     * category -- not scoped to one team. This is what the Clubes
+     * "Jugadores" view preloads for its live, client-side name/document
+     * search (see match-lineup-search.blade.php for the exact same
+     * preload-and-filter pattern, and why a live search endpoint would be
+     * overkill at this catalog's actual size). Built on the same ownership
+     * check findForOrganizer() already uses (team_id or the player_team
+     * pivot).
+     *
+     * @return Collection<int, Player>
+     */
+    public static function allForOrganizer(int $ownerId): Collection
+    {
+        return static::query()
+            ->where(function ($ownerQuery) use ($ownerId) {
+                $ownerQuery->whereHas('teams.club', fn ($q) => $q->where('user_id', $ownerId))
+                    ->orWhereHas('team.club', fn ($q) => $q->where('user_id', $ownerId))
+                    ->orWhereHas('team.tournament', fn ($q) => $q->where('user_id', $ownerId));
+            })
+            ->with(['team.category', 'team.club', 'teams.category', 'teams.club'])
+            ->orderBy('full_name')
+            ->get();
+    }
+
+    /**
      * Planteles of this player's own club(s) they're NOT already on --
      * exactly what T01-27's "completa la fecha de nacimiento para
      * habilitar otras categorías" checkbox list on the player edit page
