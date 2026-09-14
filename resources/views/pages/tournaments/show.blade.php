@@ -124,7 +124,20 @@
                                  <button> inside an <a> (invalid HTML, and unreliable to click). --}}
                             <a href="{{ route('categories.show', $category) }}" wire:navigate class="absolute inset-0 z-0 rounded-3xl" aria-label="{{ $category->name }}"></a>
 
-                            <div class="relative flex items-start justify-between gap-3">
+                            {{-- pointer-events-none on every wrapper below is
+                                 what actually makes the stretched link above
+                                 clickable everywhere: without it, each of
+                                 these divs -- even the empty space in the one
+                                 with a real button, and even without its own
+                                 z-index -- still occupies its full box and
+                                 (painting after the anchor in DOM order)
+                                 intercepts the click instead of letting it
+                                 fall through, which is exactly what made
+                                 "click anywhere on the card" actually mean
+                                 "click one specific unlabeled sliver of it".
+                                 Only the real controls opt back in with
+                                 pointer-events-auto. --}}
+                            <div class="relative flex items-start justify-between gap-3 pointer-events-none">
                                 <div class="flex min-w-0 items-center gap-3">
                                     <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-500/15 text-cyan-400">
                                         <flux:icon icon="rectangle-group" variant="micro" class="size-5" />
@@ -141,23 +154,27 @@
                                 </div>
                             </div>
 
-                            <div class="relative mt-5 text-sm text-zinc-500 dark:text-white/60">
+                            <div class="relative mt-5 text-sm text-zinc-500 dark:text-white/60 pointer-events-none">
                                 {{ trans_choice(':count plantel inscrito|:count planteles inscritos', $globalTeamCounts[$category->id] ?? 0, ['count' => $globalTeamCounts[$category->id] ?? 0]) }}
                             </div>
 
-                            <div class="relative z-10 mt-5 flex items-center justify-between gap-2">
-                                <flux:button :href="route('tournaments.global-categories.teams.edit', [$tournament, $category])" variant="ghost" size="sm" wire:navigate>
-                                    {{ $categoryLocked ? __('Ver planteles') : __('Elegir planteles') }}
-                                </flux:button>
+                            <div class="relative z-10 mt-5 flex items-center justify-between gap-2 pointer-events-none">
+                                <div class="pointer-events-auto">
+                                    <flux:button :href="route('tournaments.global-categories.teams.edit', [$tournament, $category])" variant="ghost" size="sm" wire:navigate>
+                                        {{ $categoryLocked ? __('Ver planteles') : __('Elegir planteles') }}
+                                    </flux:button>
+                                </div>
 
                                 @unless ($categoryLocked)
-                                    <x-ui.confirm-delete-form
-                                        :action="route('tournaments.global-categories.destroy', [$tournament, $category])"
-                                        :heading="__('¿Quitar :category de este torneo?', ['category' => $category->name])"
-                                        :description="__('También se quitan los planteles que hayas elegido para ella en este torneo.')"
-                                    >
-                                        <flux:button variant="ghost" size="sm" icon="x-mark" />
-                                    </x-ui.confirm-delete-form>
+                                    <div class="pointer-events-auto">
+                                        <x-ui.confirm-delete-form
+                                            :action="route('tournaments.global-categories.destroy', [$tournament, $category])"
+                                            :heading="__('¿Quitar :category de este torneo?', ['category' => $category->name])"
+                                            :description="__('También se quitan los planteles que hayas elegido para ella en este torneo.')"
+                                        >
+                                            <flux:button variant="ghost" size="sm" icon="x-mark" />
+                                        </x-ui.confirm-delete-form>
+                                    </div>
                                 @endunless
                             </div>
                         </div>
