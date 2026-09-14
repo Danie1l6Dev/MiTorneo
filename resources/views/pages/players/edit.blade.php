@@ -110,6 +110,59 @@
                     </flux:button>
                 </div>
             </form>
+
+            @php $extraTeams = $currentTeams->reject(fn ($team) => $team->id === $player->team_id); @endphp
+
+            {{-- Deliberately OUTSIDE the form above (nesting a second
+                 <form> inside it -- what x-ui.confirm-delete-form needs for
+                 its own confirm step -- isn't valid HTML) but still inside
+                 the same card, right under it, since this is really just
+                 another action on the same "planteles" list, not a
+                 separate concern. Only an EXTRA plantel (the player_team
+                 pivot) can be quit one at a time here; the primary team_id
+                 isn't a pivot row and has nothing to individually detach --
+                 see "Eliminar del club" below for removing the player
+                 entirely. --}}
+            @if ($extraTeams->isNotEmpty())
+                <div class="mt-6 space-y-2 border-t border-zinc-200 pt-6 dark:border-white/10">
+                    <flux:label>{{ __('Quitar de un plantel') }}</flux:label>
+
+                    @foreach ($extraTeams as $team)
+                        <div class="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 px-4 py-2.5 dark:border-white/10">
+                            <flux:text>{{ $team->club?->name ?? $team->name }} · {{ $team->category->name }}</flux:text>
+
+                            <x-ui.confirm-delete-form
+                                :action="route('players.teams.destroy', [$player, $team])"
+                                variant="warning"
+                                icon="minus-circle"
+                                :heading="__('¿Quitar de este plantel?')"
+                                :description="__(':name ya no va a figurar en :category. Sus goles/tarjetas ya registrados ahí no se ven afectados.', ['name' => $player->full_name, 'category' => $team->category->name])"
+                                :confirm-label="__('Quitar')"
+                            >
+                                <flux:button variant="ghost" size="sm">{{ __('Quitar') }}</flux:button>
+                            </x-ui.confirm-delete-form>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
         </div>
+
+        @if ($player->team->club)
+            <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
+                <flux:heading size="sm" class="mb-2">{{ __('Eliminar del club') }}</flux:heading>
+                <flux:text class="mb-4 text-zinc-500 dark:text-white/50">
+                    {{ __('Saca a :name de :club por completo, en todas sus categorías. Se bloquea si ya tiene goles, tarjetas o sanciones registradas ahí -- para ese caso, usá "Desactivar" en su lugar.', ['name' => $player->full_name, 'club' => $player->team->club->name]) }}
+                </flux:text>
+
+                <x-ui.confirm-delete-form
+                    :action="route('clubs.players.destroy', [$player->team->club, $player])"
+                    :heading="__('¿Eliminar a :name de :club?', ['name' => $player->full_name, 'club' => $player->team->club->name])"
+                    :description="__('Esta acción no se puede deshacer.')"
+                    :confirm-label="__('Eliminar del club')"
+                >
+                    <flux:button variant="danger" icon="trash">{{ __('Eliminar del club') }}</flux:button>
+                </x-ui.confirm-delete-form>
+            </div>
+        @endif
     </div>
 </x-layouts::app>

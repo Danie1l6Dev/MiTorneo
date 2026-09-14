@@ -23,4 +23,9 @@ class PlayerPolicy
     {
         return $user->id === $player->team->ownerId();
     }
+
+    public function delete(User $user, Player $player): bool
+    {
+        return $user->id === $player->team->ownerId();
+    }
 }

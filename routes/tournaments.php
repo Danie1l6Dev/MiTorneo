@@ -83,6 +83,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('clubs/{club}/players', [PlayerController::class, 'storeForClub'])
         ->name('clubs.players.store');
 
+    // Removes every plantel this player has at $club -- see
+    // PlayerController::destroyFromClub() for what that actually involves
+    // (blocked if there's real match history to lose).
+    Route::delete('clubs/{club}/players/{player}', [PlayerController::class, 'destroyFromClub'])
+        ->name('clubs.players.destroy');
+
     Route::resource('categories.phases', CompetitionPhaseController::class)
         ->shallow()
         ->except('index');
@@ -101,6 +107,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::patch('players/{player}/toggle-active', [PlayerController::class, 'toggleActive'])
         ->name('players.toggle-active');
+
+    Route::delete('players/{player}/teams/{team}', [PlayerController::class, 'detachTeam'])
+        ->name('players.teams.destroy');
 
     Route::get('teams/{team}/coach/create', [CoachController::class, 'create'])
         ->name('teams.coach.create');

@@ -158,6 +158,15 @@ class PlayerRequest extends FormRequest
                 return;
             }
 
+            if ($routeTeam->club && ($blockedBy = $existingPlayer->blocksJoiningClub($routeTeam->club)) !== null) {
+                $validator->errors()->add('document_number', __(
+                    'Este jugador (:name) pertenece a otro club (:club). Desactivalo ahí primero para poder agregarlo a este club.',
+                    ['name' => $existingPlayer->full_name, 'club' => $blockedBy->name]
+                ));
+
+                return;
+            }
+
             if ($existingPlayer->birth_date === null) {
                 $validator->errors()->add('document_number', __(
                     'Este jugador (:name) ya está registrado pero no tiene fecha de nacimiento cargada -- complétala primero desde su ficha para poder sumarlo a otro plantel.',

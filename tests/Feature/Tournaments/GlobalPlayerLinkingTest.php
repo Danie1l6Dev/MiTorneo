@@ -2,9 +2,13 @@
 
 namespace Tests\Feature\Tournaments;
 
+use App\Enums\MatchEventType;
+use App\Enums\SanctionType;
 use App\Models\Category;
 use App\Models\Club;
+use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\User;
@@ -65,8 +69,9 @@ class GlobalPlayerLinkingTest extends TestCase
     public function test_a_player_already_registered_gets_linked_instead_of_duplicated(): void
     {
         $user = User::factory()->create();
-        $firstTeam = $this->makeTeam($user, 'Cebollita');
-        $secondTeam = $this->makeTeam($user, 'Infantil');
+        $club = Club::factory()->for($user)->create();
+        $firstTeam = $this->makeTeamForClub($club, 'Cebollita', null);
+        $secondTeam = $this->makeTeamForClub($club, 'Infantil', null);
 
         $player = Player::factory()->create([
             'team_id' => $firstTeam->id,
@@ -94,8 +99,9 @@ class GlobalPlayerLinkingTest extends TestCase
     public function test_linking_to_a_second_team_is_blocked_without_a_birth_date(): void
     {
         $user = User::factory()->create();
-        $firstTeam = $this->makeTeam($user);
-        $secondTeam = $this->makeTeam($user);
+        $club = Club::factory()->for($user)->create();
+        $firstTeam = $this->makeTeamForClub($club, 'Infantil', null);
+        $secondTeam = $this->makeTeamForClub($club, 'Cebollita', null);
 
         $player = Player::factory()->create([
             'team_id' => $firstTeam->id,
@@ -116,10 +122,11 @@ class GlobalPlayerLinkingTest extends TestCase
     public function test_linking_to_a_younger_category_than_the_players_age_is_blocked(): void
     {
         $user = User::factory()->create();
-        $firstTeam = $this->makeTeam($user, 'Infantil', birthYearTo: 2015);
+        $club = Club::factory()->for($user)->create();
+        $firstTeam = $this->makeTeamForClub($club, 'Infantil', 2015);
         // "Baby" here is a YOUNGER category (higher birth_year_to = born
         // more recently) than a player born in 2010.
-        $babyTeam = $this->makeTeam($user, 'Baby', birthYearTo: 2021);
+        $babyTeam = $this->makeTeamForClub($club, 'Baby', 2021);
 
         $player = Player::factory()->create([
             'team_id' => $firstTeam->id,
@@ -140,10 +147,11 @@ class GlobalPlayerLinkingTest extends TestCase
     public function test_linking_to_an_older_category_is_allowed(): void
     {
         $user = User::factory()->create();
-        $firstTeam = $this->makeTeam($user, 'Infantil', birthYearTo: 2015);
+        $club = Club::factory()->for($user)->create();
+        $firstTeam = $this->makeTeamForClub($club, 'Infantil', 2015);
         // "Juvenil" here is an OLDER category (lower birth_year_to) --
         // playing up is allowed.
-        $juvenilTeam = $this->makeTeam($user, 'Juvenil', birthYearTo: 2008);
+        $juvenilTeam = $this->makeTeamForClub($club, 'Juvenil', 2008);
 
         $player = Player::factory()->create([
             'team_id' => $firstTeam->id,
@@ -404,6 +412,246 @@ class GlobalPlayerLinkingTest extends TestCase
         $response->assertOk()
             ->assertSee($teamA->name.' (ya está)')
             ->assertDontSee($teamB->name.' (ya está)');
+    }
+
+    // ── Quitar de un plantel puntual (PlayerController::detachTeam) ────────
+
+    public function test_a_user_can_detach_a_player_from_an_extra_plantel(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $teamA = $this->makeTeamForClub($club, 'Infantil', null);
+        $teamB = $this->makeTeamForClub($club, 'Cebollita', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id]);
+        $player->teams()->attach($teamB->id);
+
+        $this->actingAs($user)->delete(route('players.teams.destroy', [$player, $teamB]))
+            ->assertRedirect(route('players.edit', $player));
+
+        $this->assertFalse($player->teams()->whereKey($teamB->id)->exists());
+        $this->assertSame($teamA->id, $player->fresh()->team_id);
+    }
+
+    public function test_a_user_cannot_detach_a_team_from_another_users_player(): void
+    {
+        $owner = User::factory()->create();
+        $club = Club::factory()->for($owner)->create();
+        $teamA = $this->makeTeamForClub($club, 'Infantil', null);
+        $teamB = $this->makeTeamForClub($club, 'Cebollita', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id]);
+        $player->teams()->attach($teamB->id);
+
+        $intruder = User::factory()->create();
+
+        $this->actingAs($intruder)->delete(route('players.teams.destroy', [$player, $teamB]))
+            ->assertForbidden();
+
+        $this->assertTrue($player->teams()->whereKey($teamB->id)->exists());
+    }
+
+    // ── Eliminar del club (PlayerController::destroyFromClub) ──────────────
+
+    public function test_a_player_with_no_other_club_is_deleted_entirely_when_removed(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $team = $this->makeTeamForClub($club, 'Infantil', null);
+        $player = Player::factory()->create(['team_id' => $team->id]);
+
+        $this->actingAs($user)->delete(route('clubs.players.destroy', [$club, $player]))
+            ->assertRedirect(route('clubs.show', $club));
+
+        $this->assertDatabaseMissing('players', ['id' => $player->id]);
+    }
+
+    public function test_a_player_still_belonging_to_another_club_is_reassigned_instead_of_deleted(): void
+    {
+        $user = User::factory()->create();
+        $clubA = Club::factory()->for($user)->create();
+        $clubB = Club::factory()->for($user)->create();
+        $teamA = $this->makeTeamForClub($clubA, 'Infantil', null);
+        $teamB = $this->makeTeamForClub($clubB, 'Cebollita', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id]);
+        $player->teams()->attach($teamB->id);
+
+        $this->actingAs($user)->delete(route('clubs.players.destroy', [$clubA, $player]))
+            ->assertRedirect(route('clubs.show', $clubA));
+
+        $player->refresh();
+        $this->assertDatabaseHas('players', ['id' => $player->id]);
+        $this->assertSame($teamB->id, $player->team_id);
+        $this->assertFalse($player->teams()->whereKey($teamB->id)->exists(), 'the promoted team should no longer also be a pivot row');
+    }
+
+    public function test_removing_is_blocked_when_the_player_has_a_goal_registered_at_that_club(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $team = $this->makeTeamForClub($club, 'Infantil', null);
+        $player = Player::factory()->create(['team_id' => $team->id]);
+
+        MatchEvent::factory()->create([
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+            'type' => MatchEventType::Goal,
+        ]);
+
+        $this->actingAs($user)->delete(route('clubs.players.destroy', [$club, $player]))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseHas('players', ['id' => $player->id]);
+    }
+
+    public function test_removing_is_blocked_when_the_player_has_a_sanction_at_that_club(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $team = $this->makeTeamForClub($club, 'Infantil', null);
+        $player = Player::factory()->create(['team_id' => $team->id]);
+
+        Sanction::factory()->create([
+            'team_id' => $team->id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $this->actingAs($user)->delete(route('clubs.players.destroy', [$club, $player]))
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseHas('players', ['id' => $player->id]);
+    }
+
+    public function test_removing_from_one_club_leaves_a_pivot_team_at_another_club_untouched(): void
+    {
+        $user = User::factory()->create();
+        $clubA = Club::factory()->for($user)->create();
+        $clubB = Club::factory()->for($user)->create();
+        $teamA = $this->makeTeamForClub($clubA, 'Infantil', null);
+        $teamB1 = $this->makeTeamForClub($clubA, 'Cebollita', null);
+        $teamB2 = $this->makeTeamForClub($clubB, 'Pony', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id]);
+        $player->teams()->attach([$teamB1->id, $teamB2->id]);
+
+        $this->actingAs($user)->delete(route('clubs.players.destroy', [$clubA, $player]));
+
+        $player->refresh();
+        $this->assertSame($teamB2->id, $player->team_id);
+        $this->assertFalse($player->teams()->whereKey($teamB1->id)->exists());
+    }
+
+    public function test_a_user_cannot_remove_a_player_from_another_users_club(): void
+    {
+        $owner = User::factory()->create();
+        $club = Club::factory()->for($owner)->create();
+        $team = $this->makeTeamForClub($club, 'Infantil', null);
+        $player = Player::factory()->create(['team_id' => $team->id]);
+
+        $intruder = User::factory()->create();
+
+        $this->actingAs($intruder)->delete(route('clubs.players.destroy', [$club, $player]))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('players', ['id' => $player->id]);
+    }
+
+    // ── Un jugador solo puede estar en un club a la vez ─────────────────────
+
+    public function test_registering_an_active_players_document_at_a_different_club_is_blocked(): void
+    {
+        $user = User::factory()->create();
+        $clubA = Club::factory()->for($user)->create(['name' => 'Club A']);
+        $clubB = Club::factory()->for($user)->create(['name' => 'Club B']);
+        $teamA = $this->makeTeamForClub($clubA, 'Infantil', null);
+        $teamB = $this->makeTeamForClub($clubB, 'Infantil', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id, 'document_number' => '888', 'is_active' => true]);
+
+        $this->actingAs($user)
+            ->post(route('teams.players.store', $teamB), [
+                'document_number' => '888',
+                'full_name' => 'Cualquier Nombre',
+            ])
+            ->assertSessionHasErrors('document_number');
+
+        $this->assertSame($teamA->id, $player->fresh()->team_id);
+        $this->assertFalse($player->fresh()->teams()->whereKey($teamB->id)->exists());
+    }
+
+    public function test_registering_an_inactive_players_document_at_a_different_club_moves_them(): void
+    {
+        $user = User::factory()->create();
+        $clubA = Club::factory()->for($user)->create();
+        $clubB = Club::factory()->for($user)->create();
+        $teamA = $this->makeTeamForClub($clubA, 'Infantil', null);
+        $teamAExtra = $this->makeTeamForClub($clubA, 'Cebollita', null);
+        $teamB = $this->makeTeamForClub($clubB, 'Infantil', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id, 'document_number' => '999', 'is_active' => false, 'birth_date' => '2012-01-01']);
+        $player->teams()->attach($teamAExtra->id);
+
+        $this->actingAs($user)
+            ->post(route('teams.players.store', $teamB), [
+                'document_number' => '999',
+                'full_name' => 'Cualquier Nombre',
+            ])
+            ->assertRedirect(route('teams.show', $teamB));
+
+        $player->refresh();
+        $this->assertSame($teamB->id, $player->team_id);
+        $this->assertTrue($player->is_active);
+        $this->assertFalse($player->teams()->whereKey($teamAExtra->id)->exists(), 'old club link should be dropped');
+    }
+
+    public function test_club_level_enrollment_blocks_an_active_player_from_another_club(): void
+    {
+        $user = User::factory()->create();
+        $clubA = Club::factory()->for($user)->create(['name' => 'Club Origen']);
+        $clubB = Club::factory()->for($user)->create();
+        $teamA = $this->makeTeamForClub($clubA, 'Infantil', null);
+        $teamB = $this->makeTeamForClub($clubB, 'Infantil', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id, 'document_number' => '1010', 'is_active' => true]);
+
+        $this->actingAs($user)
+            ->post(route('clubs.players.store', $clubB), [
+                'document_number' => '1010',
+                'full_name' => 'Cualquier Nombre',
+                'birth_date' => '2012-01-01',
+                'team_ids' => [$teamB->id],
+            ])
+            ->assertSessionHasErrors('document_number');
+
+        $this->assertSame($teamA->id, $player->fresh()->team_id);
+    }
+
+    public function test_club_level_enrollment_moves_an_inactive_player_from_another_club(): void
+    {
+        $user = User::factory()->create();
+        $clubA = Club::factory()->for($user)->create();
+        $clubB = Club::factory()->for($user)->create();
+        $teamA = $this->makeTeamForClub($clubA, 'Infantil', null);
+        $teamB = $this->makeTeamForClub($clubB, 'Infantil', null);
+
+        $player = Player::factory()->create(['team_id' => $teamA->id, 'document_number' => '1111', 'is_active' => false, 'birth_date' => '2012-01-01']);
+
+        $this->actingAs($user)
+            ->post(route('clubs.players.store', $clubB), [
+                'document_number' => '1111',
+                'full_name' => 'Cualquier Nombre',
+                'birth_date' => '2012-01-01',
+                'team_ids' => [$teamB->id],
+            ])
+            ->assertRedirect(route('clubs.show', $clubB));
+
+        $player->refresh();
+        $this->assertSame($teamB->id, $player->team_id);
+        $this->assertTrue($player->is_active);
     }
 
     private function makeTeamForClub(Club $club, string $categoryName, ?int $birthYearTo): Team

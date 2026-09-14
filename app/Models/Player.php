@@ -82,6 +82,40 @@ class Player extends Model
     }
 
     /**
+     * The club this player currently belongs to -- null for a still-legacy
+     * per-tournament player (no club anywhere in their team_id/team_ids
+     * chain) or one whose primary team has none. A player only ever
+     * belongs to ONE club at a time: team_id and every player_team row are
+     * always teams of that same club -- see blocksJoiningClub() for the
+     * rule this enables.
+     */
+    public function currentClub(): ?Club
+    {
+        return $this->team?->club;
+    }
+
+    /**
+     * Whether this player can't be added to $club right now because
+     * they're still an ACTIVE part of a DIFFERENT club -- a player only
+     * ever belongs to one club at a time (see currentClub()), so joining a
+     * new one first requires deactivating them at their current one. That
+     * deliberately keeps their old club's goals/cards/sanctions on record
+     * instead of a move silently detaching them. Returns the blocking
+     * club, or null when there's nothing stopping the move (already at
+     * $club, not at any club yet, or inactive at their current one).
+     */
+    public function blocksJoiningClub(Club $club): ?Club
+    {
+        $current = $this->currentClub();
+
+        if ($current === null || $current->id === $club->id || ! $this->is_active) {
+            return null;
+        }
+
+        return $current;
+    }
+
+    /**
      * The club(s) this player is already part of, via any of their
      * current teams (legacy $team_id or player_team) that happen to be
      * global (have a club_id). Used to suggest "other planteles of the

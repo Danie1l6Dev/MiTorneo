@@ -49,6 +49,8 @@ class ClubPlayerRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            $club = $this->route('club');
+
             $teamIds = collect($this->input('team_ids', []))->filter()->map(fn ($id) => (int) $id);
             if ($teamIds->isEmpty()) {
                 return; // Already flagged by the 'required'/'exists' rules above.
@@ -56,6 +58,15 @@ class ClubPlayerRequest extends FormRequest
 
             $documentNumber = $this->input('document_number');
             $existingPlayer = $documentNumber ? Player::findForOrganizer($documentNumber, Auth::id()) : null;
+
+            if ($existingPlayer && $club instanceof Club && ($blockedBy = $existingPlayer->blocksJoiningClub($club)) !== null) {
+                $validator->errors()->add('document_number', __(
+                    'Este jugador (:name) pertenece a otro club (:club). Desactivalo ahí primero para poder agregarlo a este club.',
+                    ['name' => $existingPlayer->full_name, 'club' => $blockedBy->name]
+                ));
+
+                return;
+            }
 
             if ($existingPlayer && $existingPlayer->birth_date === null) {
                 $validator->errors()->add('document_number', __(
