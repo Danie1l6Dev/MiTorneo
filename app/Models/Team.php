@@ -89,6 +89,30 @@ class Team extends Model
     }
 
     /**
+     * Sorts an already-fetched batch of teams by their own category's age,
+     * youngest first -- the same ordering Category::scopeOrderedByAge()
+     * applies at the DB level, mirrored here in PHP for every place teams
+     * are listed/checkboxed grouped by category (a club's own roster list,
+     * the enrollment checkboxes on a player's create/edit form...), since a
+     * JOIN-based DB scope would risk clobbering whatever ->with()/
+     * ->withCount() the caller already chained. Each team's `category` must
+     * already be eager-loaded -- this never queries on its own.
+     *
+     * @param  Collection<int, Team>  $teams
+     * @return Collection<int, Team>
+     */
+    public static function sortedByCategoryAge(Collection $teams): Collection
+    {
+        return $teams->sortBy(fn (Team $team): array => [
+            $team->category->birth_year_to === null ? 1 : 0,
+            -($team->category->birth_year_to ?? 0),
+            -($team->category->birth_year_from ?? 0),
+            $team->category->name,
+            $team->name,
+        ])->values();
+    }
+
+    /**
      * The club this roster belongs to -- a club has one Team per
      * category(+group) it fields, this is that link.
      *

@@ -34,15 +34,19 @@ class ClubsIndexViewsTest extends TestCase
     {
         $user = User::factory()->create();
         $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
-        $categoryA = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Infantil', 'uses_groups' => false]);
-        $categoryB = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Cebollita', 'uses_groups' => false]);
+        // Cebollita (born later, birth_year_to 2019) is the YOUNGER
+        // category here -- a larger birth_year_to always means younger,
+        // see Category::scopeOrderedByAge() -- so it must list before the
+        // older Infantil (birth_year_to 2013), regardless of creation order.
+        $categoryA = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Infantil', 'uses_groups' => false, 'birth_year_to' => 2013]);
+        $categoryB = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Cebollita', 'uses_groups' => false, 'birth_year_to' => 2019]);
         Team::factory()->create(['club_id' => $club->id, 'category_id' => $categoryA->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Nilmar']);
         Team::factory()->create(['club_id' => $club->id, 'category_id' => $categoryB->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Nilmar']);
 
         $response = $this->actingAs($user)->get(route('clubs.index', ['view' => 'club']));
 
         $response->assertOk()
-            ->assertSeeInOrder(['NILMAR', 'INFANTIL', 'CEBOLLITA']);
+            ->assertSeeInOrder(['NILMAR', 'CEBOLLITA', 'INFANTIL']);
 
         // Exactly one "Nilmar" club card, not one per category as the
         // category view would show.

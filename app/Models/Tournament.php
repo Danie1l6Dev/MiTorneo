@@ -106,18 +106,22 @@ class Tournament extends Model
      */
     public function categories(): HasMany
     {
-        return $this->hasMany(Category::class);
+        return $this->hasMany(Category::class)->orderedByAge();
     }
 
     /**
      * Which categories (from the organizer's global catalog) this
-     * tournament includes -- via the tournament_category pivot.
+     * tournament includes -- via the tournament_category pivot. Ordered
+     * youngest-to-oldest (Category::scopeOrderedByAge()), same as
+     * categories() above, so this tournament's own category listing
+     * (its show page, the public portal, ...) reads consistently with the
+     * rest of the app.
      *
      * @return BelongsToMany<Category, $this>
      */
     public function globalCategories(): BelongsToMany
     {
-        return $this->belongsToMany(Category::class, 'tournament_category');
+        return $this->belongsToMany(Category::class, 'tournament_category')->orderedByAge();
     }
 
     /**

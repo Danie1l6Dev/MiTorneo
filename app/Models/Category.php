@@ -6,6 +6,7 @@ use App\Enums\CategoryStatus;
 use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\CategoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -47,6 +48,27 @@ class Category extends Model
             'status' => CategoryStatus::class,
             'uses_groups' => 'boolean',
         ];
+    }
+
+    /**
+     * Youngest category first, oldest last -- everywhere categories are
+     * listed in the app (global catalog, a tournament's own categories, the
+     * clubs-by-category view, the enrollment checkboxes on a player's
+     * form...) sorts this way instead of by the older, organizer-set
+     * $order/$name. birth_year_to is what actually encodes age here: a
+     * LARGER value means a YOUNGER category (its kids were born later) --
+     * see Player::ageEligibleForCategory() for the same convention used to
+     * decide play-up eligibility. A category with no age range configured
+     * yet sorts last (its age is simply unknown, never assumed), then falls
+     * back to $name for a stable, readable order among ties/unknowns.
+     */
+    public function scopeOrderedByAge(Builder $query): Builder
+    {
+        return $query
+            ->orderByRaw('birth_year_to IS NULL')
+            ->orderByDesc('birth_year_to')
+            ->orderByDesc('birth_year_from')
+            ->orderBy('name');
     }
 
     /**

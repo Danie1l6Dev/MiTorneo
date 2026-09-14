@@ -82,12 +82,17 @@ class User extends Authenticatable implements PasskeyUser
      * This organizer's global category catalog -- excludes legacy
      * per-tournament rows (tournament_id set), see
      * docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+     * Ordered youngest-to-oldest (Category::scopeOrderedByAge()) by
+     * default, so every listing built from this relation (the catalog
+     * index, club/team creation forms, the tournament "add category"
+     * picker, ...) is consistent without each call site remembering to
+     * sort it itself.
      *
      * @return HasMany<Category, $this>
      */
     public function categories(): HasMany
     {
-        return $this->hasMany(Category::class)->whereNull('tournament_id');
+        return $this->hasMany(Category::class)->whereNull('tournament_id')->orderedByAge();
     }
 
     /**

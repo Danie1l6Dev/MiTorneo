@@ -49,7 +49,6 @@ class TournamentCategoryController extends Controller
 
         $availableCategories = Auth::user()->categories()
             ->whereNotIn('id', $alreadyIncluded)
-            ->orderBy('name')
             ->get();
 
         // Distinguishes, for the empty state, "you have no categories at

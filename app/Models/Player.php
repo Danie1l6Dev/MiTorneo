@@ -116,12 +116,14 @@ class Player extends Model
 
         $alreadyLinked = $this->teams()->pluck('teams.id')->push($this->team_id)->filter()->unique();
 
-        return Team::query()
+        $teams = Team::query()
             ->whereIn('club_id', $clubIds)
             ->whereNotIn('id', $alreadyLinked)
             ->with(['category', 'group'])
             ->orderBy('name')
             ->get();
+
+        return Team::sortedByCategoryAge($teams);
     }
 
     /**

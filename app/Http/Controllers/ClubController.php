@@ -28,10 +28,9 @@ class ClubController extends Controller
 
         $view = $request->query('view') === 'club' ? 'club' : 'category';
 
+        // Already ordered youngest-to-oldest -- see User::categories().
         $categories = Auth::user()->categories()
             ->with(['groups' => fn ($query) => $query->orderBy('order')])
-            ->orderBy('order')
-            ->orderBy('name')
             ->get();
 
         $allTeams = Team::query()
@@ -40,6 +39,12 @@ class ClubController extends Controller
             ->with(['club', 'category', 'group'])
             ->withCount('globalPlayers')
             ->get();
+
+        // Both groupings below read off $allTeams's own order for how their
+        // groups come out (the "club" view's per-club category sections in
+        // particular) -- sorting it here once covers both instead of each
+        // view re-sorting its own grouped result afterward.
+        $allTeams = Team::sortedByCategoryAge($allTeams);
 
         $incompleteTeamIds = Team::idsWithIncompletePlayers($allTeams->pluck('id'));
         $teams = $allTeams->groupBy(['category_id', 'group_id']);
@@ -56,7 +61,7 @@ class ClubController extends Controller
     {
         $this->authorize('create', Club::class);
 
-        $categories = Auth::user()->categories()->with('groups')->orderBy('name')->get();
+        $categories = Auth::user()->categories()->with('groups')->get();
 
         return view('pages.clubs.create', compact('categories'));
     }
@@ -104,13 +109,14 @@ class ClubController extends Controller
         $this->authorize('view', $club);
 
         $club->load(['teams' => fn ($query) => $query->with(['category', 'group'])->orderBy('name')]);
+        $club->setRelation('teams', Team::sortedByCategoryAge($club->teams));
 
         $incompleteTeamIds = Team::idsWithIncompletePlayers($club->teams->pluck('id'));
 
         // Only categories from THIS organizer's own catalog can ever host a
         // new plantel for this club -- see the age/category rules in
         // docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
-        $availableCategories = Auth::user()->categories()->orderBy('name')->get();
+        $availableCategories = Auth::user()->categories()->get();
 
         return view('pages.clubs.show', compact('club', 'availableCategories', 'incompleteTeamIds'));
     }

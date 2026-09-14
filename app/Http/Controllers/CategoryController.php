@@ -21,10 +21,9 @@ class CategoryController extends Controller
     {
         $this->authorize('viewAny', Category::class);
 
+        // Already ordered youngest-to-oldest -- see User::categories().
         $categories = Auth::user()->categories()
             ->withCount(['groups', 'teams'])
-            ->orderBy('order')
-            ->orderBy('name')
             ->get();
 
         return view('pages.categories.index', compact('categories'));

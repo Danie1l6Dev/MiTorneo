@@ -35,7 +35,7 @@ class TeamController extends Controller
     {
         $this->authorize('create', [Team::class, $club]);
 
-        $categories = Auth::user()->categories()->with('groups')->orderBy('name')->get();
+        $categories = Auth::user()->categories()->with('groups')->get();
 
         return view('pages.clubs.teams.create', compact('club', 'categories'));
     }
