@@ -209,14 +209,55 @@ class Sanction extends Model
     }
 
     /**
-     * Every match this sanction's team plays or has played, across the
-     * WHOLE tournament (every phase) -- ordered the same way the
-     * phase/bracket structure itself is ordered: by CompetitionPhase's own
-     * `order` column (league before playoffs before a final round, etc.),
-     * then by `round_number` within that phase (matchday 1 before matchday
-     * 2, quarterfinals before semifinals), then by id as the last tiebreak
-     * for two fixtures scheduled in the same round. Both ordering fields
-     * are the SAME ones LeagueScheduleService/KnockoutBracketService
+     * Which Team ids this sanction's own subject (player or coach) actually
+     * plays for -- what teamMatchSequence() searches matches over. A
+     * suspension belongs to the SUBJECT, not to the team they happened to
+     * be on when the card was shown (see this class's own docblock): a
+     * player promoted to an older category's team mid-suspension, or one
+     * who's since joined a second plantel, must keep owing fechas there
+     * too. Player::allTeams() already covers exactly that -- the legacy
+     * $team_id plus every player_team link, i.e. every plantel this player
+     * is currently rostered on, regardless of category/club. The origin
+     * $team_id is always unioned in even if the player has since left that
+     * team entirely: matchesAfterOrigin() locates the origin match by id
+     * inside teamMatchSequence(), so dropping it from the id list would
+     * make the origin match itself unfindable and silently break every
+     * fechas calculation for this sanction.
+     *
+     * A coach has no equivalent multi-team roster -- see Coach's own
+     * docblock, one Coach row per team, never shared across teams -- so a
+     * coach's sequence still comes from their single $team_id alone.
+     *
+     * @return list<int>
+     */
+    public function subjectTeamIds(): array
+    {
+        if ($this->coach_id !== null) {
+            return [$this->team_id];
+        }
+
+        return array_values($this->player->allTeams()->pluck('id')->push($this->team_id)->unique()->map(fn (int $id): int => $id)->all());
+    }
+
+    /**
+     * Every match this sanction's subject plays or has played -- across
+     * every team they're rostered on (see subjectTeamIds()) and every
+     * tournament those teams enter, not just the one tournament that
+     * originated this sanction. That's what lets an unfinished suspension
+     * (not enough matches left in the origin tournament to serve all its
+     * fechas) carry over into whatever tournament/category the subject
+     * next appears in, instead of quietly going unserved forever.
+     *
+     * Ordered chronologically: by the owning Tournament's own creation
+     * order first (organizers create next season's tournament after the
+     * current one, so creation order tracks real-world sequence -- there's
+     * no structured tournament start date to use instead), then, same as
+     * before within one tournament, by CompetitionPhase's own `order`
+     * column (league before playoffs before a final round, etc.), then by
+     * `round_number` within that phase (matchday 1 before matchday 2,
+     * quarterfinals before semifinals), then by id as the last tiebreak for
+     * two fixtures scheduled in the same round. Those three intra-tournament
+     * fields are the SAME ones LeagueScheduleService/KnockoutBracketService
      * already use to build the calendar/bracket in the first place --
      * nothing here is invented just for sanctions. A cancelled match is
      * left out entirely: it never happened, so it can neither serve a
@@ -226,15 +267,20 @@ class Sanction extends Model
      */
     public function teamMatchSequence(): Collection
     {
+        $teamIds = $this->subjectTeamIds();
+
         return TournamentMatch::query()
-            ->where(function (Builder $query): void {
-                $query->where('home_team_id', $this->team_id)->orWhere('away_team_id', $this->team_id);
+            ->where(function (Builder $query) use ($teamIds): void {
+                $query->whereIn('home_team_id', $teamIds)->orWhereIn('away_team_id', $teamIds);
             })
             ->where('status', '!=', MatchStatus::Cancelled)
-            ->with('competitionPhase')
+            ->with(['competitionPhase', 'tournament'])
             ->get()
-            ->sort(fn (TournamentMatch $a, TournamentMatch $b): int => [$a->competitionPhase->order, $a->round_number ?? PHP_INT_MAX, $a->id]
-                <=> [$b->competitionPhase->order, $b->round_number ?? PHP_INT_MAX, $b->id])
+            ->sort(fn (TournamentMatch $a, TournamentMatch $b): int => [
+                $a->tournament->created_at->timestamp, $a->tournament_id, $a->competitionPhase->order, $a->round_number ?? PHP_INT_MAX, $a->id,
+            ] <=> [
+                $b->tournament->created_at->timestamp, $b->tournament_id, $b->competitionPhase->order, $b->round_number ?? PHP_INT_MAX, $b->id,
+            ])
             ->values();
     }
 
