@@ -49,7 +49,7 @@ class ClubController extends Controller
             ->whereIn('category_id', $categories->pluck('id'))
             ->whereNull('tournament_id')
             ->with(['club', 'category', 'group'])
-            ->withCount('globalPlayers')
+            ->withCount(['players', 'globalPlayers'])
             ->get();
 
         // Both groupings below read off $allTeams's own order for how
@@ -123,7 +123,7 @@ class ClubController extends Controller
     {
         $this->authorize('view', $club);
 
-        $club->load(['teams' => fn ($query) => $query->with(['category', 'group'])->orderBy('name')]);
+        $club->load(['teams' => fn ($query) => $query->with(['category', 'group'])->withCount(['players', 'globalPlayers'])->orderBy('name')]);
         $club->setRelation('teams', Team::sortedByCategoryAge($club->teams));
 
         $incompleteTeamIds = Team::idsWithIncompletePlayers($club->teams->pluck('id'));

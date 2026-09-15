@@ -191,6 +191,23 @@ class Team extends Model
     }
 
     /**
+     * Every player rostered on this team, across BOTH links: their
+     * primary one (players.team_id, i.e. players()) and any secondary
+     * one (the player_team pivot, i.e. globalPlayers()) -- see that
+     * relation's own docblock for why a count of globalPlayers() alone
+     * misses almost every player, since a player's first/primary team is
+     * always the team_id link, never the pivot. Reads players_count/
+     * global_players_count off ->withCount(['players', 'globalPlayers'])
+     * when the caller already eager-loaded them, falling back to a fresh
+     * query otherwise.
+     */
+    public function rosterPlayersCount(): int
+    {
+        return ($this->players_count ?? $this->players()->count())
+            + ($this->global_players_count ?? $this->globalPlayers()->count());
+    }
+
+    /**
      * Every player who could be called up to play a match for this team:
      * this team's own roster (legacy team_id + player_team pivot, kept
      * regardless of whether it still fits the age rule below -- an existing

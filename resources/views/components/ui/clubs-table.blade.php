@@ -59,7 +59,7 @@
                     </a>
 
                     <div class="flex shrink-0 items-center gap-2">
-                        <flux:badge size="sm" color="zinc">{{ trans_choice(':count jugador|:count jugadores', $team->global_players_count, ['count' => $team->global_players_count]) }}</flux:badge>
+                        <flux:badge size="sm" color="zinc">{{ trans_choice(':count jugador|:count jugadores', $team->rosterPlayersCount(), ['count' => $team->rosterPlayersCount()]) }}</flux:badge>
                         <flux:button :href="route('teams.show', $team)" variant="ghost" size="sm" wire:navigate>{{ __('Ver plantel') }}</flux:button>
                     </div>
                 </div>

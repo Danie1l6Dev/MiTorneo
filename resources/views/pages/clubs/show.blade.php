@@ -93,7 +93,7 @@
 
                                                 <div class="flex shrink-0 items-center gap-2">
                                                     <flux:badge size="sm" color="zinc">
-                                                        {{ trans_choice(':count jugador|:count jugadores', $team->globalPlayers()->count(), ['count' => $team->globalPlayers()->count()]) }}
+                                                        {{ trans_choice(':count jugador|:count jugadores', $team->rosterPlayersCount(), ['count' => $team->rosterPlayersCount()]) }}
                                                     </flux:badge>
 
                                                     <x-ui.confirm-delete-form

@@ -4,6 +4,7 @@ namespace Tests\Feature\Tournaments;
 
 use App\Models\Category;
 use App\Models\Club;
+use App\Models\Player;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -76,6 +77,31 @@ class ClubsIndexViewsTest extends TestCase
         $response = $this->actingAs($user)->get(route('clubs.index', ['view' => 'club']));
 
         $response->assertOk()->assertSee('CLUB NUEVO');
+    }
+
+    /**
+     * A player's primary squad is players.team_id (Team::players()), not
+     * the player_team pivot (Team::globalPlayers()) -- the "jugadores"
+     * badge counting only globalPlayers() showed 0 for a team whose
+     * players were all added the normal, primary way. See
+     * Team::rosterPlayersCount().
+     */
+    public function test_the_club_and_category_views_count_players_added_via_their_primary_team(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Infantil', 'uses_groups' => false]);
+        $team = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Nilmar']);
+        Player::factory()->count(3)->create(['team_id' => $team->id]);
+
+        $clubView = $this->actingAs($user)->get(route('clubs.index', ['view' => 'club']));
+        $clubView->assertOk()->assertSee('3 jugadores');
+
+        $categoryView = $this->actingAs($user)->get(route('clubs.index'));
+        $categoryView->assertOk()->assertSee('3 jugadores');
+
+        $showView = $this->actingAs($user)->get(route('clubs.show', $club));
+        $showView->assertOk()->assertSee('3 jugadores');
     }
 
     public function test_a_users_own_clubs_and_categories_do_not_leak_into_another_organizers_club_view(): void
