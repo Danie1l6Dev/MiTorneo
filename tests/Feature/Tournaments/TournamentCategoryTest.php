@@ -133,7 +133,7 @@ class TournamentCategoryTest extends TestCase
             ->put(route('tournaments.global-categories.teams.update', [$tournament, $category]), [
                 'team_ids' => [$teamOne->id],
             ])
-            ->assertRedirect(route('tournaments.show', $tournament));
+            ->assertRedirect(route('tournaments.categories.show', [$tournament, $category]));
 
         $this->assertTrue($tournament->globalTeams()->whereKey($teamOne->id)->exists());
         $this->assertFalse($tournament->globalTeams()->whereKey($teamTwo->id)->exists());

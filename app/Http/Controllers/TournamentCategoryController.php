@@ -189,6 +189,6 @@ class TournamentCategoryController extends Controller
         $tournament->globalTeams()->detach($categoryTeamIds);
         $tournament->globalTeams()->attach($validated['team_ids'] ?? []);
 
-        return to_route('tournaments.show', $tournament)->with('status', __('Planteles actualizados para :category.', ['category' => $category->name]));
+        return to_route('tournaments.categories.show', [$tournament, $category])->with('status', __('Planteles actualizados para :category.', ['category' => $category->name]));
     }
 }
