@@ -161,4 +161,32 @@ class Category extends Model
 
         return $tournament->globalTeams()->where('teams.category_id', $this->id)->get();
     }
+
+    /**
+     * The one tournament a bare Category's tournament-scoped child (a new
+     * Group or CompetitionPhase) should be attributed to. A still-legacy
+     * category (pre-T02-01, `tournament_id` set directly) resolves to that
+     * tournament unchanged. A promoted catalog category resolves via the
+     * tournament_category pivot -- unambiguous today because a category's
+     * competition structure is never actually shared between two
+     * tournaments yet (see
+     * docs/plan-reestructuracion/02-unificacion-categorias-torneo.md,
+     * T02-03). Aborts with a clear message instead of guessing if that ever
+     * changes before this does.
+     */
+    public function resolveSoleTournament(): Tournament
+    {
+        if ($this->tournament_id) {
+            return $this->tournament;
+        }
+
+        $tournaments = $this->tournaments()->get();
+
+        abort_if($tournaments->isEmpty(), 404, __('Esta categoría todavía no está inscrita en ningún torneo.'));
+        abort_if($tournaments->count() > 1, 422, __(
+            'Esta categoría está inscrita en más de un torneo -- todavía no se puede hacer esto así de ambiguo.'
+        ));
+
+        return $tournaments->first();
+    }
 }

@@ -1,15 +1,13 @@
 <x-layouts::app :title="$group->name">
     <div class="w-full space-y-8 animate-fade-in-up">
         <x-ui.page-header :title="$group->name">
+            @php $groupTournament = $group->resolvedTournament(); @endphp
+
             <x-slot:breadcrumbs>
-                <x-ui.breadcrumbs :items="$group->category->tournament_id ? [
+                <x-ui.breadcrumbs :items="[
                     ['label' => __('Mis torneos'), 'href' => route('dashboard')],
-                    ['label' => $group->category->tournament->name, 'href' => route('tournaments.show', $group->category->tournament)],
-                    ['label' => $group->category->name, 'href' => route('categories.show', $group->category)],
-                    ['label' => $group->name],
-                ] : [
-                    ['label' => __('Categorías'), 'href' => route('categories.index')],
-                    ['label' => $group->category->name, 'href' => route('categories.show', $group->category)],
+                    ['label' => $groupTournament->name, 'href' => route('tournaments.show', $groupTournament)],
+                    ['label' => $group->category->name, 'href' => route('tournaments.categories.show', [$groupTournament, $group->category])],
                     ['label' => $group->name],
                 ]" />
             </x-slot:breadcrumbs>

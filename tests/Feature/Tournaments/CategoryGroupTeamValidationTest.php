@@ -143,7 +143,7 @@ class CategoryGroupTeamValidationTest extends TestCase
 
         $this->actingAs($user)
             ->delete(route('groups.destroy', $group))
-            ->assertRedirect(route('categories.show', $category));
+            ->assertRedirect(route('tournaments.categories.show', [$tournament, $category]));
 
         $this->assertDatabaseMissing('groups', ['id' => $group->id]);
     }

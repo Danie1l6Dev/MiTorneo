@@ -62,7 +62,7 @@
                         @unless ($locked)
                             <flux:button type="submit" variant="primary">{{ __('Guardar planteles') }}</flux:button>
                         @endunless
-                        <flux:button :href="route('tournaments.show', $tournament)" variant="ghost" wire:navigate>{{ $locked ? __('Volver') : __('Cancelar') }}</flux:button>
+                        <flux:button :href="route('tournaments.categories.show', [$tournament, $category])" variant="ghost" wire:navigate>{{ $locked ? __('Volver') : __('Cancelar') }}</flux:button>
                     </div>
                 </form>
             </div>

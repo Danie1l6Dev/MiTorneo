@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\CompetitionPhase;
+use App\Models\Group;
 use App\Models\Team;
 use App\Models\Tournament;
 use Illuminate\Http\RedirectResponse;
@@ -100,6 +101,46 @@ class TournamentCategoryController extends Controller
         return back()->with('status', __('Categoría quitada del torneo.'));
     }
 
+    /**
+     * This tournament's own edition of a catalog category: its groups and
+     * phases -- both tournament-scoped (see Group::resolvedTournament() and
+     * CompetitionPhase's own $tournament_id) -- and the roster enrolled
+     * here. The category's own template fields (name, age range, "usa
+     * grupos") are organizer-wide, not tied to this tournament, so they
+     * stay on categories.show (reached from the sidebar catalog); this page
+     * only links there to edit them.
+     */
+    public function show(Tournament $tournament, Category $category): View
+    {
+        $this->authorize('view', $tournament);
+
+        $belongsToTournament = $category->tournament_id
+            ? $category->tournament_id === $tournament->id
+            : $tournament->globalCategories()->whereKey($category->id)->exists();
+
+        abort_unless($belongsToTournament, 404);
+
+        $groups = Group::query()
+            ->where('category_id', $category->id)
+            ->where(fn ($query) => $query->whereNull('tournament_id')->orWhere('tournament_id', $tournament->id))
+            ->withCount('teams')
+            ->orderBy('order')
+            ->get();
+
+        $teams = $category->teamsForTournament($tournament);
+
+        $phases = CompetitionPhase::query()
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $category->id)
+            ->withCount('matches')
+            ->orderBy('order')
+            ->get();
+
+        $locked = $this->hasStartedPhase($tournament, $category);
+
+        return view('pages.tournaments.categories.show', compact('tournament', 'category', 'groups', 'teams', 'phases', 'locked'));
+    }
+
     public function editTeams(Tournament $tournament, Category $category): View
     {
         $this->authorize('update', $tournament);
@@ -148,6 +189,6 @@ class TournamentCategoryController extends Controller
         $tournament->globalTeams()->detach($categoryTeamIds);
         $tournament->globalTeams()->attach($validated['team_ids'] ?? []);
 
-        return to_route('tournaments.show', $tournament)->with('status', __('Planteles actualizados para :category.', ['category' => $category->name]));
+        return to_route('tournaments.categories.show', [$tournament, $category])->with('status', __('Planteles actualizados para :category.', ['category' => $category->name]));
     }
 }

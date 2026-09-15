@@ -100,14 +100,14 @@ class PhaseEligibilityTest extends TestCase
         $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
         CompetitionPhase::factory()->for($tournament)->for($category)->create(['type' => CompetitionPhaseType::League, 'order' => 1]);
 
-        $this->actingAs($user)->get(route('categories.phases.create', $category))->assertRedirect(route('categories.show', $category));
+        $this->actingAs($user)->get(route('categories.phases.create', $category))->assertRedirect(route('tournaments.categories.show', [$tournament, $category]));
 
         $response = $this->actingAs($user)->post(route('categories.phases.store', $category), [
             'name' => 'Otra liga',
             'type' => CompetitionPhaseType::League->value,
         ]);
 
-        $response->assertRedirect(route('categories.show', $category));
+        $response->assertRedirect(route('tournaments.categories.show', [$tournament, $category]));
         $this->assertDatabaseMissing('competition_phases', ['name' => 'Otra liga']);
     }
 

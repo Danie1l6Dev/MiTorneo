@@ -53,6 +53,37 @@ class PromotedCategoryPhaseScopingTest extends TestCase
         $this->assertSame(0, CompetitionPhase::query()->count());
     }
 
+    /**
+     * The bare categories.phases.store route (above) can't tell which of
+     * two tournaments a shared category's phase is for -- but
+     * tournaments.categories.phases.store doesn't have to guess, since the
+     * tournament is right there in the URL (reached from that tournament's
+     * own edition of the category, tournaments.categories.show). This is
+     * what actually closes the "future work" gap called out in
+     * resolveSoleTournament()'s docblock.
+     */
+    public function test_a_category_shared_by_two_tournaments_can_get_a_phase_via_the_tournament_scoped_route(): void
+    {
+        $organizer = User::factory()->create();
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $organizer->id, 'name' => 'Infantil', 'uses_groups' => false]);
+        $tournamentA = Tournament::factory()->for($organizer)->create();
+        $tournamentB = Tournament::factory()->for($organizer)->create();
+        $tournamentA->globalCategories()->attach($category->id);
+        $tournamentB->globalCategories()->attach($category->id);
+
+        $this->actingAs($organizer)
+            ->post(route('tournaments.categories.phases.store', [$tournamentB, $category]), ['name' => 'Liga', 'type' => 'league'])
+            ->assertRedirect();
+
+        $phase = CompetitionPhase::query()->sole();
+        $this->assertSame($tournamentB->id, $phase->tournament_id);
+        $this->assertSame($category->id, $phase->category_id);
+
+        // Tournament A's own chain is untouched -- still free to get its own
+        // independent first phase later.
+        $this->assertSame(0, $category->competitionPhases()->where('tournament_id', $tournamentA->id)->count());
+    }
+
     public function test_the_first_phase_team_count_is_scoped_to_this_tournaments_own_roster_not_every_team_the_category_has(): void
     {
         $organizer = User::factory()->create();
@@ -116,8 +147,15 @@ class PromotedCategoryPhaseScopingTest extends TestCase
      * category genuinely couldn't have phases yet) -- once every category
      * gets promoted, that condition is never true again, so it silently
      * hid every category's existing phases and match history.
+     *
+     * A promoted category's groups/phases now live on its tournament's own
+     * edition of the category (tournaments.categories.show) rather than on
+     * the global catalog page (categories.show) -- the catalog page is just
+     * the reusable template (name, age range, "usa grupos") plus the
+     * roster, since the same catalog category could in principle be run
+     * differently by more than one tournament.
      */
-    public function test_a_promoted_categorys_existing_phases_are_still_visible_on_its_page(): void
+    public function test_a_promoted_categorys_existing_phases_are_still_visible_on_its_tournament_page(): void
     {
         $organizer = User::factory()->create();
         $tournament = Tournament::factory()->for($organizer)->create();
@@ -129,9 +167,16 @@ class PromotedCategoryPhaseScopingTest extends TestCase
         $category->refresh();
         $this->assertNull($category->tournament_id);
 
-        $response = $this->actingAs($organizer)->get(route('categories.show', $category));
+        $response = $this->actingAs($organizer)->get(route('tournaments.categories.show', [$tournament, $category]));
 
         $response->assertOk()->assertSee('LIGA APERTURA');
+
+        // The catalog page itself no longer shows this tournament-specific
+        // phase -- only the tournament-scoped page does.
+        $this->actingAs($organizer)
+            ->get(route('categories.show', $category))
+            ->assertOk()
+            ->assertDontSee('LIGA APERTURA');
     }
 
     /**

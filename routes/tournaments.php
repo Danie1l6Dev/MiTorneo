@@ -46,6 +46,23 @@ Route::middleware(['auth'])->group(function () {
     Route::put('tournaments/{tournament}/global-categories/{category}/teams', [TournamentCategoryController::class, 'updateTeams'])
         ->name('tournaments.global-categories.teams.update');
 
+    // This tournament's own edition of a catalog category -- its groups and
+    // phases, which belong to THIS tournament, not to the category's global
+    // template (that lives at categories.show, reached from the sidebar
+    // catalog instead). See TournamentCategoryController::show().
+    Route::get('tournaments/{tournament}/categories/{category}', [TournamentCategoryController::class, 'show'])
+        ->name('tournaments.categories.show');
+
+    // Same as categories.phases.create/store, but with the tournament given
+    // explicitly in the URL -- the only way to create a first phase for a
+    // catalog category that's inscribed in more than one tournament (see
+    // CompetitionPhaseController::createForTournament()).
+    Route::get('tournaments/{tournament}/categories/{category}/phases/create', [CompetitionPhaseController::class, 'createForTournament'])
+        ->name('tournaments.categories.phases.create');
+
+    Route::post('tournaments/{tournament}/categories/{category}/phases', [CompetitionPhaseController::class, 'storeForTournament'])
+        ->name('tournaments.categories.phases.store');
+
     // Referees are global to the organizer, not nested under a tournament --
     // this is a standalone top-level resource, same as tournaments.
     Route::resource('referees', RefereeController::class)->except('destroy');
