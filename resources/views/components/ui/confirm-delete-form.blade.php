@@ -33,43 +33,58 @@
     $confirmButtonVariant = $variant === 'warning' ? 'primary' : 'danger';
 @endphp
 
-<flux:modal.trigger name="{{ $modalName }}">
-    {{ $slot }}
-</flux:modal.trigger>
+{{--
+    Wrapped in a real (non-`contents`) element -- unlike the trigger div
+    above, <flux:modal> renders its own host element (a <ui-modal> custom
+    element) INLINE at this position in the DOM, sized to 0x0 while closed
+    but still a genuine box, not display:none. Left as a direct sibling of
+    the trigger, it becomes a second flex item wherever this component sits
+    inside a `flex justify-between` row (a delete button paired with a
+    label, e.g. phases/show.blade.php's "Eliminar calendario") -- with 3
+    items instead of 2, space-between splits the gap in two and strands the
+    visible button short of the row's far edge instead of flush against it.
+    A plain wrapping div absorbs that extra box so this component always
+    counts as exactly one flex item, everywhere it's used.
+--}}
+<div class="inline-block">
+    <flux:modal.trigger name="{{ $modalName }}">
+        {{ $slot }}
+    </flux:modal.trigger>
 
-<flux:modal name="{{ $modalName }}" class="max-w-sm">
-    <div class="space-y-5">
-        <div class="flex items-start gap-4">
-            <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl {{ $iconWrapClasses }}">
-                <flux:icon :icon="$icon" variant="outline" class="size-5" />
+    <flux:modal name="{{ $modalName }}" class="max-w-sm">
+        <div class="space-y-5">
+            <div class="flex items-start gap-4">
+                <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl {{ $iconWrapClasses }}">
+                    <flux:icon :icon="$icon" variant="outline" class="size-5" />
+                </div>
+
+                <div class="space-y-1 pt-1">
+                    <flux:heading size="lg">{{ $heading }}</flux:heading>
+
+                    @if ($description)
+                        <flux:text class="text-zinc-500 dark:text-white/60">{{ $description }}</flux:text>
+                    @endif
+                </div>
             </div>
 
-            <div class="space-y-1 pt-1">
-                <flux:heading size="lg">{{ $heading }}</flux:heading>
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancelar') }}</flux:button>
+                </flux:modal.close>
 
-                @if ($description)
-                    <flux:text class="text-zinc-500 dark:text-white/60">{{ $description }}</flux:text>
-                @endif
+                <form method="POST" action="{{ $action }}">
+                    @csrf
+                    @if (strtoupper($method) !== 'POST')
+                        @method($method)
+                    @endif
+
+                    @isset($fields)
+                        {{ $fields }}
+                    @endisset
+
+                    <flux:button type="submit" :variant="$confirmButtonVariant">{{ $confirmLabel }}</flux:button>
+                </form>
             </div>
         </div>
-
-        <div class="flex justify-end gap-2">
-            <flux:modal.close>
-                <flux:button variant="ghost">{{ __('Cancelar') }}</flux:button>
-            </flux:modal.close>
-
-            <form method="POST" action="{{ $action }}">
-                @csrf
-                @if (strtoupper($method) !== 'POST')
-                    @method($method)
-                @endif
-
-                @isset($fields)
-                    {{ $fields }}
-                @endisset
-
-                <flux:button type="submit" :variant="$confirmButtonVariant">{{ $confirmLabel }}</flux:button>
-            </form>
-        </div>
-    </div>
-</flux:modal>
+    </flux:modal>
+</div>

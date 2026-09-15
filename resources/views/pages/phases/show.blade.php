@@ -367,7 +367,7 @@
                         </flux:text>
                     </div>
                 @else
-                    <div class="flex items-center justify-between gap-4 rounded-2xl border border-red-500/20 p-5 dark:border-red-400/20 glass-panel">
+                    <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-500/20 p-5 dark:border-red-400/20 glass-panel">
                         <div class="space-y-1">
                             <flux:heading size="sm">{{ __('Eliminar calendario') }}</flux:heading>
                             <flux:text class="text-zinc-500 dark:text-white/60">
