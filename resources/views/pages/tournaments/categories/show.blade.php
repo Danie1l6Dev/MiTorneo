@@ -142,7 +142,7 @@
                 <flux:heading size="lg">{{ __('Fases') }}</flux:heading>
 
                 @if ($phases->isEmpty() && Auth::user()->can('create', [\App\Models\CompetitionPhase::class, $category]))
-                    <flux:button :href="route('categories.phases.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
+                    <flux:button :href="route('tournaments.categories.phases.create', [$tournament, $category])" variant="primary" size="sm" icon="plus" wire:navigate>
                         {{ __('Nueva fase') }}
                     </flux:button>
                 @endif

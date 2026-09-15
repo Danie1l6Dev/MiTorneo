@@ -3,7 +3,7 @@
         <x-ui.page-header :title="__('Nueva fase de competición')" :subtitle="$category->name" />
 
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
-            <form method="POST" action="{{ route('categories.phases.store', $category) }}" class="space-y-6">
+            <form method="POST" action="{{ route('tournaments.categories.phases.store', [$tournament, $category]) }}" class="space-y-6">
                 @csrf
 
                 @include('pages.phases._fields')

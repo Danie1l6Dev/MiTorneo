@@ -23,9 +23,33 @@ class CompetitionPhaseController extends Controller
 {
     public function create(Category $category, PhaseEligibilityService $eligibilityService): View|RedirectResponse
     {
+        // Authorize BEFORE resolving a tournament: a category with no
+        // tournament at all must fail with the policy's 403, not with
+        // resolveSoleTournament()'s 404 -- and PHP evaluates this method's
+        // arguments (including resolveSoleTournament()) before entering its
+        // body, so that call can't be inlined into the createForm() call
+        // below without running ahead of this check.
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        $tournament = $category->resolveSoleTournament();
+        return $this->createForm($category, $category->resolveSoleTournament(), $eligibilityService);
+    }
+
+    /**
+     * Same as create(), but for a category inscribed in more than one
+     * tournament -- reached from that tournament's own edition of the
+     * category (tournaments.categories.show), where which tournament is
+     * meant is never ambiguous because it's right there in the URL. See
+     * Category::resolveSoleTournament()'s docblock for the case this
+     * sidesteps.
+     */
+    public function createForTournament(Tournament $tournament, Category $category, PhaseEligibilityService $eligibilityService): View|RedirectResponse
+    {
+        return $this->createForm($category, $tournament, $eligibilityService);
+    }
+
+    private function createForm(Category $category, Tournament $tournament, PhaseEligibilityService $eligibilityService): View|RedirectResponse
+    {
+        $this->authorize('create', [CompetitionPhase::class, $category]);
 
         if ($redirect = $this->guardFirstPhase($category, $tournament)) {
             return $redirect;
@@ -38,9 +62,25 @@ class CompetitionPhaseController extends Controller
 
     public function store(CompetitionPhaseRequest $request, Category $category, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
     {
+        // See create()'s comment: authorize before resolveSoleTournament()
+        // can abort with a 404 ahead of the policy's own 403.
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        $tournament = $category->resolveSoleTournament();
+        return $this->storePhase($request, $category, $category->resolveSoleTournament(), $eligibilityService, $bracketService);
+    }
+
+    /**
+     * Same as store(), but for a category inscribed in more than one
+     * tournament -- see createForTournament().
+     */
+    public function storeForTournament(CompetitionPhaseRequest $request, Tournament $tournament, Category $category, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
+    {
+        return $this->storePhase($request, $category, $tournament, $eligibilityService, $bracketService);
+    }
+
+    private function storePhase(CompetitionPhaseRequest $request, Category $category, Tournament $tournament, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
+    {
+        $this->authorize('create', [CompetitionPhase::class, $category]);
 
         if ($redirect = $this->guardFirstPhase($category, $tournament)) {
             return $redirect;
