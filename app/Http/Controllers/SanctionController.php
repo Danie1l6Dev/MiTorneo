@@ -16,8 +16,8 @@ class SanctionController extends Controller
         $this->authorize('viewAny', Sanction::class);
 
         $sanctions = Sanction::query()
-            ->whereHas('team.tournament', fn ($query) => $query->where('user_id', Auth::id()))
-            ->with(['player', 'coach', 'team.tournament', 'match.category'])
+            ->whereHas('match.tournament', fn ($query) => $query->where('user_id', Auth::id()))
+            ->with(['player', 'coach', 'team', 'match.tournament', 'match.category'])
             ->latest('id')
             ->get();
 

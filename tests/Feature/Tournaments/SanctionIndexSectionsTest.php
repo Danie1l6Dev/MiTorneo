@@ -227,4 +227,55 @@ class SanctionIndexSectionsTest extends TestCase
     {
         $this->get(route('sanctions.index'))->assertRedirect(route('login'));
     }
+
+    /**
+     * A category created through the real global-catalog flow
+     * (CategoryController::store()) has $user_id set and $tournament_id
+     * null -- see Category's own docblock and
+     * docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
+     * Its teams inherit that: nothing in the real create flow ever
+     * populates team.tournament_id anymore, only the tournament_team pivot
+     * (Tournament::globalTeams()->attach(), see
+     * TournamentCategoryController::updateTeams()) links a team to a
+     * tournament. The index query must resolve ownership through
+     * match.tournament (always set directly -- see TournamentMatchFactory)
+     * rather than team.tournament, or a sanction on one of these teams
+     * silently disappears from the page even though it was created
+     * correctly.
+     */
+    public function test_a_sanction_still_appears_when_its_team_has_no_legacy_tournament_id(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+
+        $category = Category::factory()->create([
+            'tournament_id' => null,
+            'user_id' => $user->id,
+            'uses_groups' => false,
+        ]);
+        $tournament->globalCategories()->attach($category->id);
+
+        $phase = CompetitionPhase::factory()->for($category)->create(['tournament_id' => $tournament->id]);
+
+        $team = Team::factory()->create(['category_id' => $category->id, 'tournament_id' => null, 'group_id' => null]);
+        $opponent = Team::factory()->create(['category_id' => $category->id, 'tournament_id' => null, 'group_id' => null]);
+        $tournament->globalTeams()->attach([$team->id, $opponent->id]);
+
+        $match = TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $team->id,
+            'away_team_id' => $opponent->id,
+            'round_number' => 1,
+            'status' => MatchStatus::Finished,
+        ]);
+
+        $this->makeSanction($team, $match, SanctionStatus::Pending, fullName: 'Global Pérez');
+
+        $response = $this->actingAs($user)->get(route('sanctions.index'));
+
+        $response->assertOk()
+            ->assertSeeText('GLOBAL PÉREZ')
+            ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->count() === 1);
+    }
 }
