@@ -328,6 +328,37 @@ class GlobalPlayerLinkingTest extends TestCase
         $this->assertTrue($player->teams()->whereKey($otherTeam->id)->exists());
     }
 
+    /**
+     * Reported by the client: adding the birth_date of a player whose only
+     * checked box was their own current plantel (rendered checked+disabled,
+     * so it shouldn't be submitted at all -- see the edit view's comment)
+     * still showed "no se pudo sumar a algún plantel elegido" -- a stray
+     * resubmission of that same team_id. It's already on the player, so
+     * there's nothing to reject: this must save cleanly with no error.
+     */
+    public function test_editing_a_player_submitting_their_own_current_team_id_is_not_an_error(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $originalTeam = $this->makeTeamForClub($club, 'Cebollita', 2017);
+
+        $player = Player::factory()->create([
+            'team_id' => $originalTeam->id,
+            'birth_date' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->put(route('players.update', $player), [
+                'full_name' => $player->full_name,
+                'birth_date' => '2017-01-15',
+                'team_ids' => [$originalTeam->id],
+            ])
+            ->assertRedirect(route('teams.show', $originalTeam))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertNotNull($player->fresh()->birth_date);
+    }
+
     public function test_editing_a_player_cannot_enroll_them_into_an_ineligible_category(): void
     {
         $user = User::factory()->create();
@@ -346,6 +377,10 @@ class GlobalPlayerLinkingTest extends TestCase
             ->assertSessionHasErrors('team_ids');
 
         $this->assertFalse($player->fresh()->teams()->whereKey($babyTeam->id)->exists());
+        // The rejected plantel must never roll back the birth_date that was
+        // otherwise valid -- that's the whole point of checking team_ids
+        // separately from the rest, see PlayerController::update().
+        $this->assertNotNull($player->fresh()->birth_date);
     }
 
     public function test_editing_a_player_only_offers_teams_from_their_own_club(): void
@@ -364,7 +399,9 @@ class GlobalPlayerLinkingTest extends TestCase
                 'birth_date' => '2012-01-01',
                 'team_ids' => [$unrelatedTeam->id],
             ])
-            ->assertSessionHasErrors('team_ids.0');
+            ->assertSessionHasErrors('team_ids');
+
+        $this->assertFalse($player->fresh()->teams()->whereKey($unrelatedTeam->id)->exists());
     }
 
     /**

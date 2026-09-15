@@ -6,7 +6,6 @@ use App\Models\Player;
 use App\Models\Team;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -110,13 +109,13 @@ class PlayerRequest extends FormRequest
         // -- exactly what closes the gap this feature was built for: a
         // backfilled player finally getting their birth_date filled in
         // right here should be able to go straight into another category
-        // in the same step, not a separate visit.
-        if ($player instanceof Player) {
-            $candidateIds = $player->candidateTeamsForEnrollment()->pluck('id');
-            $rules['team_ids'] = ['nullable', 'array'];
-            $rules['team_ids.*'] = ['integer', Rule::in($candidateIds)];
-        }
-
+        // in the same step, not a separate visit. Deliberately NOT
+        // validated here: whether a picked team is a real candidate and
+        // age-eligible depends on the birth_date THIS submission is
+        // setting, and a bad pick must never roll back the birth_date/other
+        // fields that were otherwise fine -- see
+        // PlayerController::update(), which checks and links them itself
+        // after saving the rest.
         return $rules;
     }
 
@@ -125,8 +124,6 @@ class PlayerRequest extends FormRequest
         $player = $this->route('player');
 
         if ($player instanceof Player) {
-            $this->withEditTeamLinkValidator($validator, $player);
-
             return;
         }
 
@@ -181,47 +178,6 @@ class PlayerRequest extends FormRequest
                     'Por su fecha de nacimiento, :name no puede jugar en la categoría :category.',
                     ['name' => $existingPlayer->full_name, 'category' => $routeTeam->category->name]
                 ));
-            }
-        });
-    }
-
-    /**
-     * Editing a player can also link them to another plantel of the same
-     * club in the same submission (see rules()'s 'team_ids') -- checked
-     * against the birth_date THIS submission is setting, not whatever the
-     * player had before, since completing that date is exactly what's
-     * supposed to unlock this.
-     */
-    private function withEditTeamLinkValidator(Validator $validator, Player $player): void
-    {
-        $validator->after(function (Validator $validator) use ($player): void {
-            $teamIds = collect($this->input('team_ids', []))->filter()->map(fn ($id) => (int) $id);
-            if ($teamIds->isEmpty()) {
-                return;
-            }
-
-            $birthDateInput = $this->input('birth_date') ?: $player->birth_date;
-            if (! $birthDateInput) {
-                $validator->errors()->add('team_ids', __('Carga primero la fecha de nacimiento.'));
-
-                return;
-            }
-
-            $probe = new Player(['birth_date' => Carbon::parse($birthDateInput)]);
-            $teams = Team::query()->whereKey($teamIds)->with('category')->get()->keyBy('id');
-
-            foreach ($teamIds as $teamId) {
-                $team = $teams->get($teamId);
-                if (! $team) {
-                    continue; // Already flagged by the 'in' rule above.
-                }
-
-                if (! $probe->ageEligibleForCategory($team->category)) {
-                    $validator->errors()->add('team_ids', __(
-                        'Por su fecha de nacimiento, no puede jugar en :category (:team).',
-                        ['category' => $team->category->name, 'team' => $team->name]
-                    ));
-                }
             }
         });
     }

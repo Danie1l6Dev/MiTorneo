@@ -195,20 +195,54 @@ class PlayerController extends Controller
     {
         $this->authorize('update', $player);
 
+        // birth_date/full_name/document_number/jersey_number are saved
+        // unconditionally, before team_ids is even looked at: a backfilled
+        // player finally getting their birth_date filled in must always
+        // stick, even if an extra plantel checkbox picked alongside it
+        // turns out not to be a real candidate (see below) -- see
+        // PlayerRequest::rules()'s docblock for why that check doesn't live
+        // in the FormRequest itself.
         $validated = $request->validated();
-        $teamIds = Arr::pull($validated, 'team_ids', []);
-
         $player->update($validated);
 
-        if ($teamIds !== []) {
-            $player->teams()->syncWithoutDetaching($teamIds);
+        // The already-current checkboxes are rendered checked+disabled and
+        // are never meant to be submitted (see the view's comment), but a
+        // stale resubmission can still carry one in team_ids -- silently
+        // dropping anything the player is already on (instead of treating
+        // it as "not a real candidate") is what keeps that harmless instead
+        // of surfacing a bogus error for a plantel they already have.
+        $alreadyLinkedIds = $player->allTeams()->pluck('id');
+
+        $requestedTeamIds = collect($request->input('team_ids', []))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->diff($alreadyLinkedIds);
+
+        if ($requestedTeamIds->isEmpty()) {
+            return to_route('teams.show', $player->team)->with('status', __('Jugador actualizado correctamente.'));
         }
 
-        $message = $teamIds !== []
-            ? __('Jugador actualizado y vinculado a :count plantel(es) más.', ['count' => count($teamIds)])
+        $candidates = $player->candidateTeamsForEnrollment()->keyBy('id');
+        $linkableIds = $requestedTeamIds->filter(
+            fn ($id) => $candidates->has($id) && $player->ageEligibleForCategory($candidates->get($id)->category)
+        );
+
+        if ($linkableIds->isNotEmpty()) {
+            $player->teams()->syncWithoutDetaching($linkableIds);
+        }
+
+        $status = $linkableIds->isNotEmpty()
+            ? __('Jugador actualizado y vinculado a :count plantel(es) más.', ['count' => $linkableIds->count()])
             : __('Jugador actualizado correctamente.');
 
-        return to_route('teams.show', $player->team)->with('status', $message);
+        if ($requestedTeamIds->count() > $linkableIds->count()) {
+            return back()->withInput()->with('status', $status)->withErrors([
+                'team_ids' => __('No se pudo sumar a algún plantel elegido: no es de este club o su fecha de nacimiento no lo permite.'),
+            ]);
+        }
+
+        return to_route('teams.show', $player->team)->with('status', $status);
     }
 
     /**
