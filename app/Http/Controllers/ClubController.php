@@ -14,17 +14,18 @@ use Illuminate\View\View;
 class ClubController extends Controller
 {
     /**
-     * Three ways to browse the same catalog, picked via ?view= (defaults to
-     * "category"): organized by category (and, within it, by group) --
-     * how an organizer actually browses "who plays where", since a plain
-     * club-by-club list would bury a club fielding several
+     * Three ways to browse the same catalog, switched client-side (Alpine,
+     * no reload) between: organized by category (and, within it, by
+     * group) -- how an organizer actually browses "who plays where",
+     * since a plain club-by-club list would bury a club fielding several
      * categories/groups -- organized by club, for "what does THIS club
      * field" instead -- or a global player search by name/document,
      * unscoped to any one club, for "is this kid already registered
-     * somewhere" (see Player::searchForOrganizer()). The first two share
-     * one $allTeams query grouped differently, so switching between them
-     * costs no extra queries; "jugadores" skips that query entirely since
-     * it doesn't need it.
+     * somewhere" (see Player::searchForOrganizer()). All three are
+     * rendered up front so switching between them costs no request; the
+     * catalog is small enough per organizer that computing all of them
+     * every load is cheap. ?view= still picks which tab starts active, so
+     * an existing deep link keeps working.
      */
     public function index(Request $request): View
     {
@@ -44,34 +45,27 @@ class ClubController extends Controller
         $clubs = Auth::user()->clubs()->orderBy('name')->get();
         $clubCount = $clubs->count();
 
-        $teams = collect();
-        $teamsByClub = collect();
-        $incompleteTeamIds = [];
-        $players = collect();
+        $allTeams = Team::query()
+            ->whereIn('category_id', $categories->pluck('id'))
+            ->whereNull('tournament_id')
+            ->with(['club', 'category', 'group'])
+            ->withCount('globalPlayers')
+            ->get();
 
-        if ($view === 'jugadores') {
-            // Preloaded once; the search itself happens entirely
-            // client-side as the organizer types -- see clubs/index.blade.php.
-            $players = Player::allForOrganizer(Auth::id());
-        } else {
-            $allTeams = Team::query()
-                ->whereIn('category_id', $categories->pluck('id'))
-                ->whereNull('tournament_id')
-                ->with(['club', 'category', 'group'])
-                ->withCount('globalPlayers')
-                ->get();
+        // Both groupings below read off $allTeams's own order for how
+        // their groups come out (the "club" view's per-club category
+        // sections in particular) -- sorting it here once covers both
+        // instead of each view re-sorting its own grouped result
+        // afterward.
+        $allTeams = Team::sortedByCategoryAge($allTeams);
 
-            // Both groupings below read off $allTeams's own order for how
-            // their groups come out (the "club" view's per-club category
-            // sections in particular) -- sorting it here once covers both
-            // instead of each view re-sorting its own grouped result
-            // afterward.
-            $allTeams = Team::sortedByCategoryAge($allTeams);
+        $incompleteTeamIds = Team::idsWithIncompletePlayers($allTeams->pluck('id'));
+        $teams = $allTeams->groupBy(['category_id', 'group_id']);
+        $teamsByClub = $allTeams->groupBy('club_id');
 
-            $incompleteTeamIds = Team::idsWithIncompletePlayers($allTeams->pluck('id'));
-            $teams = $allTeams->groupBy(['category_id', 'group_id']);
-            $teamsByClub = $allTeams->groupBy('club_id');
-        }
+        // Preloaded once; the search itself happens entirely client-side
+        // as the organizer types -- see clubs/index.blade.php.
+        $players = Player::allForOrganizer(Auth::id());
 
         return view('pages.clubs.index', compact(
             'view', 'categories', 'teams', 'clubs', 'teamsByClub', 'clubCount', 'incompleteTeamIds', 'players'
