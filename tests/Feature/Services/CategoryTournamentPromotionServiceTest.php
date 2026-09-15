@@ -106,6 +106,27 @@ class CategoryTournamentPromotionServiceTest extends TestCase
         $this->assertFalse($tournamentA->globalCategories()->whereKey($categoryB->id)->exists());
     }
 
+    public function test_two_tournaments_with_the_same_category_name_in_different_case_are_still_disambiguated(): void
+    {
+        // Category::name is uppercased on save (NormalizesToUppercase), so
+        // "Teterito" and "TETERITO" collide the moment both are promoted --
+        // the disambiguation check has to compare names case-insensitively
+        // or it never notices the clash before it happens.
+        $organizer = User::factory()->create();
+        $tournamentA = Tournament::factory()->for($organizer)->create(['name' => 'Torneo A']);
+        $tournamentB = Tournament::factory()->for($organizer)->create(['name' => 'Torneo B']);
+        $categoryA = Category::factory()->for($tournamentA)->create(['name' => 'Teterito']);
+        $categoryB = Category::factory()->for($tournamentB)->create(['name' => 'TETERITO']);
+
+        $this->service->run(execute: true);
+
+        $categoryA->refresh();
+        $categoryB->refresh();
+        $this->assertNotSame($categoryA->id, $categoryB->id);
+        $this->assertSame('TETERITO', $categoryA->name);
+        $this->assertSame('TETERITO (TORNEO B)', $categoryB->name);
+    }
+
     public function test_it_disambiguates_against_a_pre_existing_global_category(): void
     {
         $organizer = User::factory()->create();

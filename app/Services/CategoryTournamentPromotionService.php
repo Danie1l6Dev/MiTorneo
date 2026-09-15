@@ -68,10 +68,13 @@ class CategoryTournamentPromotionService
         // Seeded with names already claimed by a PRE-EXISTING global
         // category (from an earlier run, or a manually created one) so a
         // legacy category never silently reuses -- or gets merged into --
-        // one it isn't actually the same row as.
+        // one it isn't actually the same row as. Compared in uppercase
+        // because Category::name is uppercased on save (NormalizesToUppercase)
+        // -- without this, "Teterito" and "TETERITO" look like different
+        // names here but collide silently the moment both are saved.
         $claimedNames = [];
         foreach (Category::query()->whereNull('tournament_id')->get(['user_id', 'name']) as $existing) {
-            $claimedNames[$existing->user_id.'|'.$existing->name] = true;
+            $claimedNames[$existing->user_id.'|'.mb_strtoupper($existing->name)] = true;
         }
 
         foreach ($legacy as $category) {
@@ -82,11 +85,11 @@ class CategoryTournamentPromotionService
 
             $finalName = $originalName;
             $disambiguated = false;
-            if (isset($claimedNames[$userId.'|'.$finalName])) {
+            if (isset($claimedNames[$userId.'|'.mb_strtoupper($finalName)])) {
                 $finalName = "{$originalName} ({$tournament->name})";
                 $disambiguated = true;
             }
-            $claimedNames[$userId.'|'.$finalName] = true;
+            $claimedNames[$userId.'|'.mb_strtoupper($finalName)] = true;
 
             if ($execute) {
                 $category->user_id = $userId;
