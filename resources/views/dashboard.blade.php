@@ -14,8 +14,8 @@
 
         <div class="mx-auto grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5 lg:max-w-3xl">
             <x-ui.stat-card :label="__('Tus torneos')" :value="$tournamentsCount" icon="trophy" color="green" />
-            <x-ui.stat-card :label="__('Categorías')" :value="$tournaments->sum('categories_count')" icon="rectangle-group" color="cyan" />
-            <x-ui.stat-card :label="__('Equipos')" :value="$tournaments->sum('teams_count')" icon="user-group" color="amber" />
+            <x-ui.stat-card :label="__('Categorías')" :value="$tournaments->sum('global_categories_count')" icon="rectangle-group" color="cyan" />
+            <x-ui.stat-card :label="__('Equipos')" :value="$tournaments->sum('global_teams_count')" icon="user-group" color="amber" />
             <x-ui.stat-card :label="__('Partidos')" :value="$tournaments->sum('matches_count')" icon="calendar-days" color="accent" />
         </div>
 
