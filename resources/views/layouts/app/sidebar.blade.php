@@ -62,7 +62,26 @@
                             {{ __('Árbitros') }}
                         </flux:sidebar.item>
 
-                        <flux:sidebar.item icon="shield-exclamation" :href="route('sanctions.index')" :current="request()->routeIs('sanctions.*')" wire:navigate>
+                        @php
+                            // Cuantas sanciones de este organizador siguen "Faltan por
+                            // resolver" en pages/sanctions/index.blade.php -- mismo
+                            // criterio (status Pending) que SanctionController::index()
+                            // usa para esa misma sección, para que el número del sidebar
+                            // nunca se desincronice de lo que esa página realmente cuenta.
+                            $pendingSanctionsCount = \App\Models\Sanction::query()
+                                ->whereHas('match.tournament', fn ($query) => $query->where('user_id', auth()->id()))
+                                ->where('status', \App\Enums\SanctionStatus::Pending)
+                                ->count();
+                        @endphp
+
+                        <flux:sidebar.item
+                            icon="shield-exclamation"
+                            :href="route('sanctions.index')"
+                            :current="request()->routeIs('sanctions.*')"
+                            :badge="$pendingSanctionsCount > 0 ? $pendingSanctionsCount : null"
+                            badge-color="red"
+                            wire:navigate
+                        >
                             {{ __('Sanciones') }}
                         </flux:sidebar.item>
                     @endif

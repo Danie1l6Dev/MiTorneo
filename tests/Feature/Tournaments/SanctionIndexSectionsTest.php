@@ -278,4 +278,57 @@ class SanctionIndexSectionsTest extends TestCase
             ->assertSeeText('GLOBAL PÉREZ')
             ->assertViewHas('pendingSanctions', fn ($sanctions) => $sanctions->count() === 1);
     }
+
+    // ── Badge del sidebar ────────────────────────────────────────────────
+
+    /**
+     * layouts/app/sidebar.blade.php shows a badge on the "Sanciones" item
+     * with how many of the organizer's own sanctions are still Pending --
+     * same count as the "Faltan por resolver" section. Only Pending counts:
+     * a Resolved sanction (active or already fulfilled) doesn't need the
+     * organizer's attention anymore, so it must not inflate the badge.
+     */
+    public function test_the_sidebar_badge_shows_the_pending_sanctions_count(): void
+    {
+        $user = User::factory()->create();
+
+        [$teamPending, $matchPending] = $this->makeTeamWithOriginMatch($user);
+        $this->makeSanction($teamPending, $matchPending, SanctionStatus::Pending, fullName: 'Pendiente Uno');
+
+        [$teamPendingTwo, $matchPendingTwo] = $this->makeTeamWithOriginMatch($user);
+        $this->makeSanction($teamPendingTwo, $matchPendingTwo, SanctionStatus::Pending, fullName: 'Pendiente Dos');
+
+        [$teamResolved, $matchResolved] = $this->makeTeamWithOriginMatch($user);
+        $this->makeFollowUpMatch($matchResolved, 2, MatchStatus::Finished);
+        $this->makeSanction($teamResolved, $matchResolved, SanctionStatus::Resolved, matchesBanned: 1, fullName: 'Resuelto Ya');
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk()->assertSee('data-flux-navlist-badge>2', false)->assertSeeInOrder(['Sanciones', '2']);
+    }
+
+    public function test_the_sidebar_shows_no_badge_when_there_are_no_pending_sanctions(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk()->assertDontSee('data-flux-navlist-badge>', false);
+    }
+
+    public function test_the_sidebar_badge_only_counts_the_authenticated_users_own_pending_sanctions(): void
+    {
+        $owner = User::factory()->create();
+        [$ownTeam, $ownMatch] = $this->makeTeamWithOriginMatch($owner);
+        $this->makeSanction($ownTeam, $ownMatch, SanctionStatus::Pending);
+
+        $otherUser = User::factory()->create();
+        [$otherTeam, $otherMatch] = $this->makeTeamWithOriginMatch($otherUser);
+        $this->makeSanction($otherTeam, $otherMatch, SanctionStatus::Pending);
+        $this->makeSanction($otherTeam, $otherMatch, SanctionStatus::Pending, fullName: 'Segundo Ajeno');
+
+        $response = $this->actingAs($owner)->get(route('dashboard'));
+
+        $response->assertOk()->assertSeeInOrder(['Sanciones', '1']);
+    }
 }
