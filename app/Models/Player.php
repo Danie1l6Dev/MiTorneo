@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A roster entry for a team (a club's plantel in one category/group).
@@ -202,6 +203,64 @@ class Player extends Model
             ->get();
 
         return Team::sortedByCategoryAge($teams);
+    }
+
+    /**
+     * The subset of candidateTeamsForEnrollment() that actually fits this
+     * player once $fromTeam's category no longer does: same club as
+     * $fromTeam, age-eligible, sorted youngest-first so the CLOSEST allowed
+     * category -- the one right above $fromTeam's -- comes first.
+     * ageEligibleForCategory() has no upper limit on how much OLDER a
+     * category can be (playing up is always allowed), so this list can
+     * legitimately hold several older categories at once; ->first() is what
+     * bulk promotion (PlayerController::promoteEligible()) uses to always
+     * move someone to the nearest one deterministically instead of stalling
+     * on "which of these", while the single-player picker shows the whole
+     * list so a human can deliberately place someone further up. Empty when
+     * $fromTeam has no club (a legacy per-tournament team has no sibling
+     * roster to promote into) or when nothing in this club's catalog fits
+     * them yet (they'd need an even older category the club hasn't fielded
+     * a team for).
+     *
+     * @return Collection<int, Team>
+     */
+    public function promotionCandidateTeams(Team $fromTeam): Collection
+    {
+        if ($fromTeam->club_id === null) {
+            return collect();
+        }
+
+        return $this->candidateTeamsForEnrollment()
+            ->where('club_id', $fromTeam->club_id)
+            ->filter(fn (Team $team): bool => $this->ageEligibleForCategory($team->category))
+            ->values();
+    }
+
+    /**
+     * Moves this player from $from to $to -- replacing the link, not adding
+     * a second one alongside it. Whichever way they were actually linked to
+     * $from (the legacy team_id column, or a player_team row) is what gets
+     * replaced; a player_team jersey_number carries over to the new row.
+     * team_id is set directly (not via update()) since it's deliberately
+     * left out of #[Fillable] -- mass assignment would silently no-op here,
+     * the same reason storeForTeam()/storeForClub() set it this way too.
+     */
+    public function promoteFromTeam(Team $from, Team $to): void
+    {
+        if ($this->team_id === $from->id) {
+            $this->team_id = $to->id;
+            $this->save();
+
+            return;
+        }
+
+        $jerseyNumber = DB::table('player_team')
+            ->where('player_id', $this->id)
+            ->where('team_id', $from->id)
+            ->value('jersey_number');
+
+        $this->teams()->detach($from->id);
+        $this->teams()->attach($to->id, ['jersey_number' => $jerseyNumber]);
     }
 
     /**

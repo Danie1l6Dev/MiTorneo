@@ -128,6 +128,20 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('players/{player}/teams/{team}', [PlayerController::class, 'detachTeam'])
         ->name('players.teams.destroy');
 
+    // Moves a single player out of $team once its category no longer fits
+    // them (age rule) into whichever older category in the same club does
+    // -- see Player::promotionCandidateTeams()/promoteFromTeam().
+    Route::get('teams/{team}/players/{player}/promote', [PlayerController::class, 'promoteForm'])
+        ->name('teams.players.promote.create');
+
+    Route::post('teams/{team}/players/{player}/promote', [PlayerController::class, 'promote'])
+        ->name('teams.players.promote.store');
+
+    // Bulk version: promotes every unambiguous case in $team's roster at
+    // once, see PlayerController::promoteEligible().
+    Route::post('teams/{team}/players/promote-eligible', [PlayerController::class, 'promoteEligible'])
+        ->name('teams.players.promote-eligible');
+
     Route::get('teams/{team}/coach/create', [CoachController::class, 'create'])
         ->name('teams.coach.create');
 

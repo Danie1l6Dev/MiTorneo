@@ -209,18 +209,20 @@ class Team extends Model
 
     /**
      * Every player who could be called up to play a match for this team:
-     * this team's own roster (legacy team_id + player_team pivot, kept
-     * regardless of whether it still fits the age rule below -- an existing
-     * enrollment is never revoked here) plus, for a global team, every
-     * other roster of the SAME club whose player is age-eligible to play UP
-     * into this team's category (Player::ageEligibleForCategory() already
-     * allows a natural-or-older fit, never younger). Unlike that method's
-     * own default, a play-up candidate with no birth_date is NOT included
-     * here -- ageEligibleForCategory() treats missing data as "don't block"
-     * everywhere else (enrollment, the age-eligibility banner), but this
-     * search is the one place a missing birth_date can silently let someone
-     * in who might not actually qualify, so it's excluded instead until
-     * that date is filled in. This is deliberately broader than
+     * this team's own roster (legacy team_id + player_team pivot) that
+     * STILL fits this team's category's age rule, plus, for a global team,
+     * every other roster of the SAME club whose player is age-eligible to
+     * play UP into this team's category (Player::ageEligibleForCategory()
+     * already allows a natural-or-older fit, never younger). An own-roster
+     * player is only kept without a birth_date on file (missing data isn't
+     * held against an existing enrollment, matching
+     * ageEligibleForCategory()'s own "don't block" default) -- once they
+     * DO have one and it no longer fits (e.g. after the category's allowed
+     * years were edited), they drop out of this list until promoted to a
+     * category that fits, see Player::promotionCandidateTeams(). A play-up
+     * candidate from a sibling club roster is held to the stricter rule
+     * either way: missing birth_date excludes them here, unlike everywhere
+     * else that field is optional. This is deliberately broader than
      * globalPlayers()/players() alone -- see MatchLineup/MatchEventController
      * for what actually gates a match's quick-add roster to a subset of
      * this list. A team with no club (still a legacy per-tournament team)
@@ -235,6 +237,7 @@ class Team extends Model
             return $this->players()->get()
                 ->merge($this->globalPlayers()->get())
                 ->unique('id')
+                ->filter(fn (Player $player): bool => $player->ageEligibleForCategory($this->category))
                 ->sortBy('full_name')
                 ->values();
         }
@@ -248,10 +251,37 @@ class Team extends Model
             })
             ->with(['team.category', 'teams'])
             ->get()
-            ->filter(fn (Player $player): bool => $player->team_id === $this->id
-                || $player->teams->contains('id', $this->id)
-                || ($player->birth_date !== null && $player->ageEligibleForCategory($this->category)))
+            ->filter(fn (Player $player): bool => $player->ageEligibleForCategory($this->category)
+                && ($player->team_id === $this->id
+                    || $player->teams->contains('id', $this->id)
+                    || $player->birth_date !== null))
             ->unique('id')
+            ->sortBy('full_name')
+            ->values();
+    }
+
+    /**
+     * This team's own roster (legacy team_id + player_team pivot) filtered
+     * down to whoever no longer fits its category's age rule -- typically
+     * because the category's allowed years were edited after they were
+     * already rostered. clubPlayersEligibleForLineup() silently drops these
+     * from the convocatoria search panel instead of offering them for
+     * call-up; this is what actually surfaces who's missing and why, see
+     * the "Ya no pueden jugar en esta categoría" card on the match edit
+     * page. Resolved via Player::promotionCandidateTeams()/promoteFromTeam().
+     *
+     * @return Collection<int, Player>
+     */
+    public function ineligibleRosterPlayers(): Collection
+    {
+        $roster = $this->players()->get();
+
+        if (! $this->tournament_id) {
+            $roster = $roster->merge($this->globalPlayers()->get())->unique('id');
+        }
+
+        return $roster
+            ->filter(fn (Player $player): bool => ! $player->ageEligibleForCategory($this->category))
             ->sortBy('full_name')
             ->values();
     }

@@ -2,6 +2,8 @@
     $subtitle = collect([$team->short_name, $team->category->name, $team->group?->name])
         ->filter()
         ->implode(' · ');
+
+    $ineligibleCount = $roster->filter(fn ($player) => ! $player->ageEligibleForCategory($team->category))->count();
 @endphp
 
 <x-layouts::app :title="$team->name">
@@ -17,6 +19,8 @@
                 ] : [
                     ['label' => __('Clubes'), 'href' => route('clubs.index')],
                     ['label' => $team->club->name, 'href' => route('clubs.show', $team->club)],
+                    ['label' => $team->category->name, 'href' => route('categories.show', $team->category)],
+                    ...($team->group ? [['label' => $team->group->name, 'href' => route('groups.show', $team->group)]] : []),
                     ['label' => $team->name],
                 ]" />
             </x-slot:breadcrumbs>
@@ -55,9 +59,27 @@
                     </flux:text>
                 </div>
 
-                <flux:button :href="$team->club_id ? route('clubs.players.create', $team->club) : route('teams.players.create', $team)" variant="primary" size="sm" icon="plus" wire:navigate>
-                    {{ __('Agregar jugador') }}
-                </flux:button>
+                <div class="flex flex-wrap items-center gap-2">
+                    @if ($ineligibleCount > 0)
+                        <x-ui.confirm-delete-form
+                            :action="route('teams.players.promote-eligible', $team)"
+                            method="POST"
+                            variant="warning"
+                            icon="arrow-up-circle"
+                            :heading="__('¿Promover a los jugadores mayores?')"
+                            :description="__('Cada jugador que ya no cumple el rango de :category se mueve automáticamente a la categoría más vieja siguiente de este club donde sí entra por edad. Los que todavía no tienen ninguna categoría más vieja disponible en el club quedan para promover manualmente desde su fila.', ['category' => $team->category->name])"
+                            :confirm-label="__('Promover')"
+                        >
+                            <flux:button variant="ghost" size="sm" icon="arrow-up-circle">
+                                {{ __('Promover a los mayores (:count)', ['count' => $ineligibleCount]) }}
+                            </flux:button>
+                        </x-ui.confirm-delete-form>
+                    @endif
+
+                    <flux:button :href="$team->club_id ? route('clubs.players.create', $team->club) : route('teams.players.create', $team)" variant="primary" size="sm" icon="plus" wire:navigate>
+                        {{ __('Agregar jugador') }}
+                    </flux:button>
+                </div>
             </div>
 
             @if ($roster->isEmpty())
@@ -65,7 +87,7 @@
             @else
                 <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                     @foreach ($roster as $player)
-                        <x-ui.player-row :player="$player" />
+                        <x-ui.player-row :player="$player" :team="$team" />
                     @endforeach
                 </div>
             @endif

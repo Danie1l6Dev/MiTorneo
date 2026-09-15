@@ -201,6 +201,7 @@
         ])>
             @unless ($pending)
                 <div class="space-y-4 lg:order-1">
+                    <x-ui.match-ineligible-players :players="$homeIneligiblePlayers" :team="$match->homeTeam" />
                     <x-ui.match-lineup-search :match="$match" :team="$match->homeTeam" :candidates="$homeSearchCandidates" :club-has-eligible-players="$homeClubHasEligiblePlayers" />
                     <x-ui.match-roster-panel :team="$match->homeTeam" :players="$homeAvailablePlayers" :lineups="$homeLineups" :hide-coach="$homeCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->home_team_id" />
@@ -467,6 +468,7 @@
 
             @unless ($pending)
                 <div class="space-y-4 lg:order-3">
+                    <x-ui.match-ineligible-players :players="$awayIneligiblePlayers" :team="$match->awayTeam" />
                     <x-ui.match-lineup-search :match="$match" :team="$match->awayTeam" :candidates="$awaySearchCandidates" :club-has-eligible-players="$awayClubHasEligiblePlayers" />
                     <x-ui.match-roster-panel :team="$match->awayTeam" :players="$awayAvailablePlayers" :lineups="$awayLineups" :hide-coach="$awayCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->away_team_id" />

@@ -65,6 +65,15 @@ class TournamentMatchController extends Controller
         $homeClubHasEligiblePlayers = $homeEligiblePlayers->isNotEmpty();
         $awayClubHasEligiblePlayers = $awayEligiblePlayers->isNotEmpty();
 
+        // Own-roster players clubPlayersEligibleForLineup() just excluded
+        // above because they no longer fit this category's age rule (most
+        // often after the category's allowed years were edited) -- shown
+        // as their own "still needs promoting" card so that silent
+        // exclusion doesn't read as the roster just being incomplete. See
+        // Team::ineligibleRosterPlayers().
+        $homeIneligiblePlayers = $match->homeTeam?->ineligibleRosterPlayers() ?? collect();
+        $awayIneligiblePlayers = $match->awayTeam?->ineligibleRosterPlayers() ?? collect();
+
         // Purely informational -- the scoreboard stays the source of truth
         // for the result/standings/bracket, this only flags the goal events
         // logged so far disagreeing with it, without blocking anything.
@@ -106,7 +115,8 @@ class TournamentMatchController extends Controller
             'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds',
             'oldQueuedEvents', 'referees', 'homeUnavailableSanctions', 'awayUnavailableSanctions',
             'homeLineups', 'awayLineups', 'homeCandidates', 'awayCandidates',
-            'homeClubHasEligiblePlayers', 'awayClubHasEligiblePlayers'
+            'homeClubHasEligiblePlayers', 'awayClubHasEligiblePlayers',
+            'homeIneligiblePlayers', 'awayIneligiblePlayers'
         ));
     }
 

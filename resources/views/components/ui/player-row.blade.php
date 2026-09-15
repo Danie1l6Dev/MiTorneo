@@ -1,6 +1,12 @@
 @props([
     'player',
+    'team' => null,
 ])
+
+@php
+    $category = $team?->category;
+    $ageIneligible = $category && ! $player->ageEligibleForCategory($category);
+@endphp
 
 <div {{ $attributes->class('flex items-center justify-between gap-3 px-4 py-3' . ($player->is_active ? '' : ' opacity-60')) }}>
     <div class="flex min-w-0 items-center gap-3">
@@ -20,6 +26,12 @@
                 <flux:icon.exclamation-triangle variant="micro" class="size-4 text-amber-500" />
             </flux:tooltip>
         @endunless
+
+        @if ($ageIneligible)
+            <flux:tooltip :content="__('Ya no es permitido en esta categoría este jugador -- click para promoverlo')">
+                <flux:button :href="route('teams.players.promote.create', [$team, $player])" variant="ghost" size="sm" icon="arrow-up-circle" class="text-red-500" wire:navigate />
+            </flux:tooltip>
+        @endif
 
         <x-ui.person-status-badge :active="$player->is_active" />
 

@@ -10,6 +10,7 @@ use App\Models\Player;
 use App\Models\Sanction;
 use App\Models\Team;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -367,5 +368,107 @@ class PlayerController extends Controller
         $player->save();
 
         return back()->with('status', __('Estado del jugador actualizado.'));
+    }
+
+    /**
+     * Picker for promoting a single player out of $team once its category
+     * no longer fits them (e.g. after the category's allowed years were
+     * edited) -- see Player::promotionCandidateTeams(). Reachable even when
+     * there are zero or several candidates: the view explains either case
+     * instead of assuming there's exactly one.
+     */
+    public function promoteForm(Team $team, Player $player): View
+    {
+        $this->authorize('update', $team);
+
+        $team->load(['category', 'club']);
+        $candidates = $player->promotionCandidateTeams($team);
+
+        return view('pages.players.promote', compact('team', 'player', 'candidates'));
+    }
+
+    /**
+     * Moves $player from $team to whichever of promotionCandidateTeams()
+     * the request picked -- or, when there's only one, defaults to it so a
+     * plain confirm (no explicit choice) still works from promoteForm().
+     * Anything outside that candidate set (tampering, or the category
+     * catalog having changed since the picker was rendered) is rejected the
+     * same way an empty candidate set is: back with an error, nothing moved.
+     */
+    public function promote(Request $request, Team $team, Player $player): RedirectResponse
+    {
+        $this->authorize('update', $team);
+
+        $candidates = $player->promotionCandidateTeams($team)->keyBy('id');
+        $destinationId = $request->integer('destination_team_id') ?: $candidates->keys()->first();
+        $destination = $destinationId ? $candidates->get($destinationId) : null;
+
+        if (! $destination) {
+            return back()->with('error', __(
+                'No hay ninguna categoría más permitida disponible en este club para :name todavía.',
+                ['name' => $player->full_name]
+            ));
+        }
+
+        $player->promoteFromTeam($team, $destination);
+
+        return to_route('teams.show', $team)->with('status', __(
+            ':name fue promovido a :category.',
+            ['name' => $player->full_name, 'category' => $destination->category->name]
+        ));
+    }
+
+    /**
+     * Bulk version of promote() for $team's whole roster: every player
+     * currently age-ineligible for $team's category gets moved to the
+     * CLOSEST fitting category in this club (promotionCandidateTeams() is
+     * already sorted youngest-first, so ->first() is the one right above
+     * $team's own). Deliberately always picks that nearest one rather than
+     * only acting when there's exactly one candidate -- ageEligibleForCategory()
+     * allows playing up into ANY older category with no upper limit, so
+     * requiring a single candidate would mean this almost never fires once
+     * a club has more than one category older than $team's. The only case
+     * left for the single-player picker instead is a player with literally
+     * zero candidates: this club hasn't fielded any older category yet.
+     */
+    public function promoteEligible(Team $team): RedirectResponse
+    {
+        $this->authorize('update', $team);
+
+        $ineligible = $team->ineligibleRosterPlayers();
+
+        $promoted = 0;
+        $skipped = 0;
+
+        foreach ($ineligible as $player) {
+            $destination = $player->promotionCandidateTeams($team)->first();
+
+            if ($destination) {
+                $player->promoteFromTeam($team, $destination);
+                $promoted++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        if ($promoted === 0 && $skipped === 0) {
+            return back()->with('status', __('No hay jugadores para promover en este plantel.'));
+        }
+
+        $status = trans_choice(
+            ':count jugador promovido a la categoría siguiente.|:count jugadores promovidos a la categoría siguiente.',
+            $promoted,
+            ['count' => $promoted]
+        );
+
+        if ($skipped > 0) {
+            $status .= ' '.trans_choice(
+                ':count jugador no tiene todavía una categoría más vieja disponible en este club -- revisalo manualmente desde su fila en el plantel.|:count jugadores no tienen todavía una categoría más vieja disponible en este club -- revisalos manualmente desde su fila en el plantel.',
+                $skipped,
+                ['count' => $skipped]
+            );
+        }
+
+        return back()->with('status', $status);
     }
 }
