@@ -12,10 +12,11 @@
             </x-slot:actions>
         </x-ui.page-header>
 
-        <div class="mx-auto grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5 lg:max-w-3xl">
+        <div class="mx-auto grid grid-cols-2 gap-4 sm:grid-cols-5 sm:gap-5 lg:max-w-4xl">
             <x-ui.stat-card :label="__('Tus torneos')" :value="$tournamentsCount" icon="trophy" color="green" />
-            <x-ui.stat-card :label="__('Categorías')" :value="$tournaments->sum('global_categories_count')" icon="rectangle-group" color="cyan" />
-            <x-ui.stat-card :label="__('Equipos')" :value="$tournaments->sum('global_teams_count')" icon="user-group" color="amber" />
+            <x-ui.stat-card :label="__('Categorías')" :value="$tournaments->sum('global_categories_count')" icon="rectangle-stack" color="cyan" />
+            <x-ui.stat-card :label="__('Clubes')" :value="$tournaments->sum('global_clubs_count')" icon="shield-check" color="amber" />
+            <x-ui.stat-card :label="__('Planteles')" :value="$tournaments->sum('global_teams_count')" icon="user-group" color="cyan" />
             <x-ui.stat-card :label="__('Partidos')" :value="$tournaments->sum('matches_count')" icon="calendar-days" color="accent" />
         </div>
 
@@ -39,7 +40,7 @@
                             size="lg"
                             :stats="[
                                 trans_choice(':count categoría|:count categorías', $tournament->global_categories_count, ['count' => $tournament->global_categories_count]),
-                                trans_choice(':count equipo|:count equipos', $tournament->global_teams_count, ['count' => $tournament->global_teams_count]),
+                                trans_choice(':count club|:count clubes', $tournament->global_clubs_count, ['count' => $tournament->global_clubs_count]),
                                 trans_choice(':count partido|:count partidos', $tournament->matches_count, ['count' => $tournament->matches_count]),
                             ]"
                         >
