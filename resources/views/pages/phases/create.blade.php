@@ -10,7 +10,7 @@
 
                 <div class="flex items-center gap-3">
                     <flux:button type="submit" variant="primary">{{ __('Crear fase') }}</flux:button>
-                    <flux:button :href="route('categories.show', $category)" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
+                    <flux:button :href="route('tournaments.categories.show', [$tournament, $category])" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
                 </div>
             </form>
         </div>

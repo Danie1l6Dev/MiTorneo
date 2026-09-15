@@ -122,7 +122,7 @@
                                  above it (relative + z-10) to intercept their own clicks first --
                                  this keeps everything visually inside one card without nesting a
                                  <button> inside an <a> (invalid HTML, and unreliable to click). --}}
-                            <a href="{{ route('categories.show', $category) }}" wire:navigate class="absolute inset-0 z-0 rounded-3xl" aria-label="{{ $category->name }}"></a>
+                            <a href="{{ route('tournaments.categories.show', [$tournament, $category]) }}" wire:navigate class="absolute inset-0 z-0 rounded-3xl" aria-label="{{ $category->name }}"></a>
 
                             {{-- pointer-events-none on every wrapper below is
                                  what actually makes the stretched link above

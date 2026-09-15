@@ -16,7 +16,9 @@ class GroupController extends Controller
     {
         $this->authorize('create', [Group::class, $category]);
 
-        return view('pages.groups.create', compact('category'));
+        $tournament = $category->resolveSoleTournament();
+
+        return view('pages.groups.create', compact('category', 'tournament'));
     }
 
     public function store(GroupRequest $request, Category $category): RedirectResponse
@@ -67,11 +69,12 @@ class GroupController extends Controller
             ));
         }
 
+        $tournament = $group->resolvedTournament();
         $category = $group->category;
 
         $group->delete();
 
-        return to_route('categories.show', $category);
+        return to_route('tournaments.categories.show', [$tournament, $category]);
     }
 
     /**

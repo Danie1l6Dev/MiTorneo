@@ -13,7 +13,7 @@
                 <x-ui.breadcrumbs :items="[
                     ['label' => __('Mis torneos'), 'href' => route('dashboard')],
                     ['label' => $phase->tournament->name, 'href' => route('tournaments.show', $phase->tournament)],
-                    ['label' => $phase->category->name, 'href' => route('categories.show', $phase->category)],
+                    ['label' => $phase->category->name, 'href' => route('tournaments.categories.show', [$phase->tournament, $phase->category])],
                     ['label' => $phase->name],
                 ]" />
             </x-slot:breadcrumbs>
@@ -40,7 +40,7 @@
 
             <flux:text class="mt-2 text-sm text-zinc-500">
                 {{ __('Los grupos de esta categoría se gestionan desde') }}
-                <a href="{{ route('categories.show', $phase->category) }}" wire:navigate class="underline">{{ __('la página de la categoría') }}</a>.
+                <a href="{{ route('tournaments.categories.show', [$phase->tournament, $phase->category]) }}" wire:navigate class="underline">{{ __('la página de la categoría') }}</a>.
             </flux:text>
 
             <x-slot:actions>

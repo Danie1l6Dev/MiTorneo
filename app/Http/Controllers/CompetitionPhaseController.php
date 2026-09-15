@@ -25,7 +25,7 @@ class CompetitionPhaseController extends Controller
     {
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        $tournament = $this->resolveTournament($category);
+        $tournament = $category->resolveSoleTournament();
 
         if ($redirect = $this->guardFirstPhase($category, $tournament)) {
             return $redirect;
@@ -33,14 +33,14 @@ class CompetitionPhaseController extends Controller
 
         $typeOptions = $eligibilityService->firstPhaseTypeOptions($category, $tournament);
 
-        return view('pages.phases.create', compact('category', 'typeOptions'));
+        return view('pages.phases.create', compact('category', 'tournament', 'typeOptions'));
     }
 
     public function store(CompetitionPhaseRequest $request, Category $category, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $category]);
 
-        $tournament = $this->resolveTournament($category);
+        $tournament = $category->resolveSoleTournament();
 
         if ($redirect = $this->guardFirstPhase($category, $tournament)) {
             return $redirect;
@@ -103,39 +103,12 @@ class CompetitionPhaseController extends Controller
     private function guardFirstPhase(Category $category, Tournament $tournament): ?RedirectResponse
     {
         if ($category->competitionPhases()->where('tournament_id', $tournament->id)->exists()) {
-            return to_route('categories.show', $category)->with('error', __(
+            return to_route('tournaments.categories.show', [$tournament, $category])->with('error', __(
                 'Esta categoría ya tiene una fase inicial. Para crear la siguiente, marca su fase de liga como finalizada y define los clasificados desde ahí.'
             ));
         }
 
         return null;
-    }
-
-    /**
-     * The tournament a bare Category's phase-related action (create/store)
-     * applies to. A still-legacy category (pre-T02-01, `tournament_id` set
-     * directly) resolves to that tournament unchanged -- this keeps working
-     * exactly as before promotion ever runs. A promoted catalog category
-     * resolves via the tournament_category pivot, unambiguous today because
-     * a category is never actually shared between two tournaments' phases
-     * yet (see docs/plan-reestructuracion/02-unificacion-categorias-torneo.md,
-     * T02-03: sharing one category's PHASES across tournaments is future
-     * work, not something the "inscripción" flow builds toward on its own).
-     * Aborts with a clear message instead of guessing if that ever changes
-     * before this does.
-     */
-    private function resolveTournament(Category $category): Tournament
-    {
-        if ($category->tournament_id) {
-            return $category->tournament;
-        }
-
-        $tournaments = $category->tournaments()->get();
-
-        abort_if($tournaments->isEmpty(), 404, __('Esta categoría todavía no está inscrita en ningún torneo.'));
-        abort_if($tournaments->count() > 1, 422, __('Esta categoría está inscrita en más de un torneo -- todavía no se puede crear una fase así de ambigua.'));
-
-        return $tournaments->first();
     }
 
     public function show(
@@ -287,10 +260,11 @@ class CompetitionPhaseController extends Controller
     {
         $this->authorize('delete', $phase);
 
+        $tournament = $phase->tournament;
         $category = $phase->category;
 
         $phase->delete();
 
-        return to_route('categories.show', $category);
+        return to_route('tournaments.categories.show', [$tournament, $category]);
     }
 }

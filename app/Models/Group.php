@@ -69,4 +69,16 @@ class Group extends Model
     {
         return $this->hasMany(TournamentMatch::class);
     }
+
+    /**
+     * The tournament this group belongs to -- its own $tournament_id when
+     * set (a still-legacy category, or a group created before its category
+     * was promoted to the catalog), otherwise the sole tournament its
+     * (global, catalog) category is currently enrolled in. See
+     * Category::resolveSoleTournament().
+     */
+    public function resolvedTournament(): Tournament
+    {
+        return $this->tournament_id ? $this->tournament : $this->category->resolveSoleTournament();
+    }
 }

@@ -116,8 +116,15 @@ class PromotedCategoryPhaseScopingTest extends TestCase
      * category genuinely couldn't have phases yet) -- once every category
      * gets promoted, that condition is never true again, so it silently
      * hid every category's existing phases and match history.
+     *
+     * A promoted category's groups/phases now live on its tournament's own
+     * edition of the category (tournaments.categories.show) rather than on
+     * the global catalog page (categories.show) -- the catalog page is just
+     * the reusable template (name, age range, "usa grupos") plus the
+     * roster, since the same catalog category could in principle be run
+     * differently by more than one tournament.
      */
-    public function test_a_promoted_categorys_existing_phases_are_still_visible_on_its_page(): void
+    public function test_a_promoted_categorys_existing_phases_are_still_visible_on_its_tournament_page(): void
     {
         $organizer = User::factory()->create();
         $tournament = Tournament::factory()->for($organizer)->create();
@@ -129,9 +136,16 @@ class PromotedCategoryPhaseScopingTest extends TestCase
         $category->refresh();
         $this->assertNull($category->tournament_id);
 
-        $response = $this->actingAs($organizer)->get(route('categories.show', $category));
+        $response = $this->actingAs($organizer)->get(route('tournaments.categories.show', [$tournament, $category]));
 
         $response->assertOk()->assertSee('LIGA APERTURA');
+
+        // The catalog page itself no longer shows this tournament-specific
+        // phase -- only the tournament-scoped page does.
+        $this->actingAs($organizer)
+            ->get(route('categories.show', $category))
+            ->assertOk()
+            ->assertDontSee('LIGA APERTURA');
     }
 
     /**
