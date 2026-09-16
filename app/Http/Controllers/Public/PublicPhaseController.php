@@ -55,6 +55,10 @@ class PublicPhaseController extends Controller
 
         $bracketSize = $boardService->bracketSizeTokens(count($bracketRounds));
 
+        $thirdPlaceMatch = $phase->type !== CompetitionPhaseType::League
+            ? $boardService->thirdPlaceMatch($phase)
+            : null;
+
         $standings = $phase->type === CompetitionPhaseType::League
             ? $standingsService->tablesForPhase($phase)
             : [];
@@ -68,7 +72,7 @@ class PublicPhaseController extends Controller
             : null;
 
         return view('pages.public.phases.show', compact(
-            'tournament', 'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize',
+            'tournament', 'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'thirdPlaceMatch',
             'champion', 'standings', 'statistics'
         ));
     }

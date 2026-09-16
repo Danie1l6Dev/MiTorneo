@@ -89,6 +89,10 @@ class PhaseAdvancementController extends Controller
             $newPhase->name = (string) $request->validated('name');
             $newPhase->type = $type;
             $newPhase->knockout_format = $isLeague ? null : ScheduleFormat::from($request->validated('knockout_format') ?? ScheduleFormat::SingleRound->value);
+            $newPhase->plays_third_place = $isLeague ? false : $request->boolean('plays_third_place');
+            $newPhase->final_knockout_format = $isLeague || ! $request->filled('final_knockout_format')
+                ? null
+                : ScheduleFormat::from($request->validated('final_knockout_format'));
             $newPhase->order = $phase->order + 1;
             $newPhase->save();
 

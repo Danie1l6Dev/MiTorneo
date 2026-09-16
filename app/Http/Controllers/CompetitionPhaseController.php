@@ -56,8 +56,9 @@ class CompetitionPhaseController extends Controller
         }
 
         $typeOptions = $eligibilityService->firstPhaseTypeOptions($category, $tournament);
+        $eligibleTeamCount = $eligibilityService->eligibleTeams($category, $tournament)->count();
 
-        return view('pages.phases.create', compact('category', 'tournament', 'typeOptions'));
+        return view('pages.phases.create', compact('category', 'tournament', 'typeOptions', 'eligibleTeamCount'));
     }
 
     public function store(CompetitionPhaseRequest $request, Category $category, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
@@ -103,6 +104,12 @@ class CompetitionPhaseController extends Controller
             $phase->knockout_format = $type === CompetitionPhaseType::League
                 ? null
                 : ScheduleFormat::from($request->validated('knockout_format') ?? ScheduleFormat::SingleRound->value);
+            $phase->plays_third_place = $type === CompetitionPhaseType::League
+                ? false
+                : $request->boolean('plays_third_place');
+            $phase->final_knockout_format = $type === CompetitionPhaseType::League || ! $request->filled('final_knockout_format')
+                ? null
+                : ScheduleFormat::from($request->validated('final_knockout_format'));
             // Only ever one first phase per category: everything after it is
             // chained from a finished phase's qualifiers via the advancement
             // flow, which is what assigns every later phase's order.
@@ -174,6 +181,10 @@ class CompetitionPhaseController extends Controller
 
         $bracketSize = $boardService->bracketSizeTokens(count($bracketRounds));
 
+        $thirdPlaceMatch = $phase->type !== CompetitionPhaseType::League
+            ? $boardService->thirdPlaceMatch($phase)
+            : null;
+
         $standings = $phase->type === CompetitionPhaseType::League
             ? $standingsService->tablesForPhase($phase)
             : [];
@@ -231,7 +242,7 @@ class CompetitionPhaseController extends Controller
             : null;
 
         return view('pages.phases.show', compact(
-            'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize',
+            'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'thirdPlaceMatch',
             'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal', 'statistics',
             'previousPhase', 'nextPhase'
         ));
@@ -243,8 +254,9 @@ class CompetitionPhaseController extends Controller
 
         $typeIsLocked = $phase->matches()->exists();
         $typeOptions = $this->isFirstPhase($phase) ? $eligibilityService->firstPhaseTypeOptions($phase->category, $phase->tournament) : null;
+        $eligibleTeamCount = $eligibilityService->eligibleTeams($phase->category, $phase->tournament)->count();
 
-        return view('pages.phases.edit', compact('phase', 'typeIsLocked', 'typeOptions'));
+        return view('pages.phases.edit', compact('phase', 'typeIsLocked', 'typeOptions', 'eligibleTeamCount'));
     }
 
     public function update(CompetitionPhaseRequest $request, CompetitionPhase $phase, PhaseEligibilityService $eligibilityService): RedirectResponse
@@ -274,13 +286,19 @@ class CompetitionPhaseController extends Controller
         }
 
         $phase->update($request->validated());
-        // Explicitly nulled rather than left to validated()'s merge: a
+        // Explicitly nulled/reset rather than left to validated()'s merge: a
         // 'prohibited' field absent from the request simply isn't present
         // in validated() at all, which would otherwise leave a stale format
         // behind when switching a still-matchless phase back to League.
         $phase->knockout_format = $type === CompetitionPhaseType::League
             ? null
             : ScheduleFormat::from($request->validated('knockout_format') ?? ScheduleFormat::SingleRound->value);
+        $phase->plays_third_place = $type === CompetitionPhaseType::League
+            ? false
+            : $request->boolean('plays_third_place');
+        $phase->final_knockout_format = $type === CompetitionPhaseType::League || ! $request->filled('final_knockout_format')
+            ? null
+            : ScheduleFormat::from($request->validated('final_knockout_format'));
         $phase->save();
 
         return to_route('phases.show', $phase);

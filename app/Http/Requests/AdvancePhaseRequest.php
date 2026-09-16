@@ -52,6 +52,12 @@ class AdvancePhaseRequest extends FormRequest
             // Ignored (and stored as null) for a league phase either way,
             // and defaults to a single match per cross when omitted.
             'knockout_format' => ['nullable', Rule::enum(ScheduleFormat::class)],
+            // Both ignored (and stored as null/false) for a league phase.
+            // plays_third_place is further gated in withValidator() below on
+            // the actual total qualifier count -- see
+            // PhaseEligibilityService::canPlayThirdPlace().
+            'plays_third_place' => ['sometimes', 'boolean'],
+            'final_knockout_format' => ['nullable', Rule::enum(ScheduleFormat::class)],
         ];
     }
 
@@ -163,6 +169,15 @@ class AdvancePhaseRequest extends FormRequest
             if (! $isLeague && ! $eligibilityService->isPowerOfTwo($totalQualifiers)) {
                 $validator->errors()->add('qualifiers_per_table', __(
                     'Para una fase eliminatoria el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...) para poder completar los cruces hasta la final. Con esta configuración serían :count.',
+                    ['count' => $totalQualifiers]
+                ));
+
+                return;
+            }
+
+            if (! $isLeague && $this->boolean('plays_third_place') && ! $eligibilityService->canPlayThirdPlace($totalQualifiers)) {
+                $validator->errors()->add('plays_third_place', __(
+                    'Se necesitan al menos 4 equipos clasificados en total para jugar un partido por el 3er y 4to puesto. Con esta configuración serían :count.',
                     ['count' => $totalQualifiers]
                 ));
             }

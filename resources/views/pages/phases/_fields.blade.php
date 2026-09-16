@@ -2,6 +2,7 @@
     $phase ??= null;
     $typeOptions ??= null;
     $typeIsLocked ??= false;
+    $eligibleTeamCount ??= 4;
 @endphp
 
 <flux:input
@@ -18,6 +19,8 @@
     $options = $typeOptions ?? collect(\App\Enums\CompetitionPhaseType::cases())
         ->map(fn ($type) => ['type' => $type, 'available' => true, 'reason' => null]);
     $currentFormat = old('knockout_format', $phase->knockout_format?->value ?? \App\Enums\ScheduleFormat::SingleRound->value);
+    $currentPlaysThirdPlace = (bool) old('plays_third_place', $phase->plays_third_place ?? false);
+    $currentFinalFormat = old('final_knockout_format', $phase->final_knockout_format?->value ?? '');
 @endphp
 
 <div class="space-y-4" x-data="{ type: '{{ $currentType }}' }">
@@ -67,6 +70,18 @@
                 <flux:text class="text-xs text-zinc-500">
                     {{ __('Esta fase ya tiene partidos generados: su formato de cruces no se puede cambiar.') }}
                 </flux:text>
+
+                <flux:text class="text-xs font-medium text-zinc-500">{{ __('Partido por el 3er y 4to puesto') }}</flux:text>
+                <flux:text class="text-sm">{{ $currentPlaysThirdPlace ? __('Sí') : __('No') }}</flux:text>
+                @if ($currentPlaysThirdPlace)
+                    <input type="hidden" name="plays_third_place" value="1">
+                @endif
+
+                @if ($currentFinalFormat !== '')
+                    <flux:text class="text-xs font-medium text-zinc-500">{{ __('Formato de la final') }}</flux:text>
+                    <flux:text class="text-sm">{{ $currentFinalFormat === \App\Enums\ScheduleFormat::HomeAndAway->value ? __('Ida y vuelta') : __('Partido único') }}</flux:text>
+                    <input type="hidden" name="final_knockout_format" value="{{ $currentFinalFormat }}">
+                @endif
             @else
                 <flux:radio.group name="knockout_format" label="{{ __('Formato de los cruces') }}">
                     @foreach (\App\Enums\ScheduleFormat::cases() as $format)
@@ -78,6 +93,39 @@
                         />
                     @endforeach
                 </flux:radio.group>
+
+                @if ($eligibleTeamCount >= 4)
+                    <flux:checkbox
+                        name="plays_third_place"
+                        value="1"
+                        label="{{ __('Jugar partido por el 3er y 4to puesto') }}"
+                        description="{{ __('Los dos equipos eliminados en semifinales juegan un partido único aparte, sin importar el formato del resto del cuadro.') }}"
+                        :checked="$currentPlaysThirdPlace"
+                    />
+                @endif
+
+                <div x-data="{ finalDiffers: {{ $currentFinalFormat !== '' ? 'true' : 'false' }} }" class="space-y-1.5">
+                    <flux:checkbox
+                        label="{{ __('La final tiene un formato distinto al resto del cuadro') }}"
+                        x-model="finalDiffers"
+                    />
+
+                    {{-- Same "remove from the DOM, not just hide" reasoning as
+                         knockout_format above: a radio's hidden internal
+                         input still submits its last-checked value if only
+                         x-show'd. --}}
+                    <template x-if="finalDiffers">
+                        <flux:radio.group name="final_knockout_format" label="{{ __('Formato de la final') }}">
+                            @foreach (\App\Enums\ScheduleFormat::cases() as $format)
+                                <flux:radio
+                                    value="{{ $format->value }}"
+                                    label="{{ $format === \App\Enums\ScheduleFormat::HomeAndAway ? __('Ida y vuelta') : __('Partido único') }}"
+                                    :checked="$currentFinalFormat === $format->value"
+                                />
+                            @endforeach
+                        </flux:radio.group>
+                    </template>
+                </div>
             @endif
         </div>
     </template>

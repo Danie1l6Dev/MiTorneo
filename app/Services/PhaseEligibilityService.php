@@ -35,6 +35,17 @@ class PhaseEligibilityService
     }
 
     /**
+     * Whether a bracket with $qualifierCount total qualifiers has an actual
+     * semifinal round to draw a 3er/4to puesto match's two losers from --
+     * only true from 4 qualifiers up (a 2-qualifier bracket is just the
+     * final, with no earlier round at all).
+     */
+    public function canPlayThirdPlace(int $qualifierCount): bool
+    {
+        return $qualifierCount >= 4;
+    }
+
+    /**
      * Null for League/Knockout (the user picks the qualifier count); the
      * fixed total a Semifinal or Final phase always needs otherwise.
      */

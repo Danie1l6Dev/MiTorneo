@@ -267,6 +267,21 @@
                                 </div>
                             </div>
                         @endforeach
+
+                        @if ($thirdPlaceMatch)
+                            <div class="space-y-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+                                        <flux:icon.bolt variant="micro" class="size-4" />
+                                    </div>
+                                    <flux:heading size="sm" class="text-base!">{{ __('3er y 4to puesto') }}</flux:heading>
+                                </div>
+
+                                <div class="flex flex-wrap justify-center gap-4">
+                                    <x-ui.match-card :match="$thirdPlaceMatch" :href="route('public.tournaments.matches.show', [$tournament, $thirdPlaceMatch])" />
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="hidden overflow-x-auto pb-4 lg:block">
@@ -329,6 +344,24 @@
                                 </div>
                             @endforeach
                         </div>
+
+                        @if ($thirdPlaceMatch)
+                            <div class="mt-8 flex justify-center">
+                                <div class="flex {{ $bracketSize['column'] }} flex-col items-center">
+                                    <div class="mb-3 text-center text-xs font-semibold text-zinc-500 uppercase tracking-wider dark:text-white/50">
+                                        {{ __('3er y 4to puesto') }}
+                                    </div>
+                                    <x-ui.bracket-match-card
+                                        :match="$thirdPlaceMatch"
+                                        :href="route('public.tournaments.matches.show', [$tournament, $thirdPlaceMatch])"
+                                        :allow-picker="false"
+                                        :card-class="$bracketSize['card']"
+                                        :row-class="$bracketSize['row']"
+                                        :text-class="$bracketSize['text']"
+                                    />
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     @include('pages.phases._champion-card', ['team' => $champion])

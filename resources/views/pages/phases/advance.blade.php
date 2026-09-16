@@ -135,6 +135,46 @@
                                 @endforeach
                             </flux:radio.group>
                         </div>
+
+                        {{-- Only Knockout/Semifinal can ever reach a real
+                             semifinal round (Final always has exactly 2
+                             qualifiers -- there's nothing to draw two losers
+                             from). Whether the CHOSEN qualifier count
+                             actually reaches 4 is validated server-side
+                             (AdvancePhaseRequest), since for Knockout it
+                             depends on an input the organizer is still
+                             filling in here. --}}
+                        <div
+                            x-show="['{{ \App\Enums\CompetitionPhaseType::Knockout->value }}', '{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}'].includes(type)"
+                            x-cloak
+                        >
+                            <flux:checkbox
+                                name="plays_third_place"
+                                value="1"
+                                label="{{ __('Jugar partido por el 3er y 4to puesto') }}"
+                                description="{{ __('Los dos equipos eliminados en semifinales juegan un partido único aparte, sin importar el formato del resto del cuadro.') }}"
+                                :checked="old('plays_third_place')"
+                            />
+                        </div>
+
+                        <div x-data="{ finalDiffers: {{ old('final_knockout_format') ? 'true' : 'false' }} }" class="space-y-1.5">
+                            <flux:checkbox
+                                label="{{ __('La final tiene un formato distinto al resto del cuadro') }}"
+                                x-model="finalDiffers"
+                            />
+
+                            <template x-if="finalDiffers">
+                                <flux:radio.group name="final_knockout_format" label="{{ __('Formato de la final') }}">
+                                    @foreach (\App\Enums\ScheduleFormat::cases() as $format)
+                                        <flux:radio
+                                            value="{{ $format->value }}"
+                                            label="{{ $format === \App\Enums\ScheduleFormat::HomeAndAway ? __('Ida y vuelta') : __('Partido único') }}"
+                                            :checked="old('final_knockout_format') === $format->value"
+                                        />
+                                    @endforeach
+                                </flux:radio.group>
+                            </template>
+                        </div>
                     </div>
                 </template>
 

@@ -22,12 +22,14 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property CompetitionPhaseType $type
  * @property ScheduleFormat|null $knockout_format
+ * @property bool $plays_third_place
+ * @property ScheduleFormat|null $final_knockout_format
  * @property int $order
  * @property int|null $champion_team_id
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'type', 'knockout_format', 'order'])]
+#[Fillable(['name', 'type', 'knockout_format', 'plays_third_place', 'final_knockout_format', 'order'])]
 class CompetitionPhase extends Model
 {
     /** @use HasFactory<CompetitionPhaseFactory> */
@@ -41,6 +43,8 @@ class CompetitionPhase extends Model
         return [
             'type' => CompetitionPhaseType::class,
             'knockout_format' => ScheduleFormat::class,
+            'plays_third_place' => 'boolean',
+            'final_knockout_format' => ScheduleFormat::class,
         ];
     }
 

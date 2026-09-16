@@ -33,48 +33,105 @@ class KnockoutBracketService
      * second leg) and is what feeds the next round / gets read by
      * resolveWinner().
      *
+     * $phase->final_knockout_format, when set, overrides $knockout_format for
+     * the final cross only -- the organizer can e.g. keep every earlier cross
+     * to a single match but make the final itself ida y vuelta, or vice
+     * versa. Null (the default) means the final follows the general format
+     * like every other cross, exactly as before this option existed.
+     *
+     * $phase->plays_third_place, when true, additionally creates one extra
+     * 3er/4to puesto match -- always a single match regardless of either
+     * format above -- wired to "the loser of" each of the two crosses in the
+     * round right before the final. Silently skipped for a 2-qualifier
+     * bracket (the final IS round 1 there, so there's no earlier round to
+     * draw two losers from) even if the flag is set.
+     *
      * @param  Collection<int, Team>  $qualifiers
      */
     public function generateBracket(CompetitionPhase $phase, Collection $qualifiers): void
     {
         $format = $phase->knockout_format ?? ScheduleFormat::SingleRound;
+        $finalFormat = $phase->final_knockout_format ?? $format;
         $pool = $qualifiers->all();
+
+        // A 2-qualifier bracket's only cross IS the final -- round 1 and the
+        // final are the same thing, so it must use $finalFormat too.
+        $round1IsFinal = count($pool) === 2;
 
         $previousRound = collect();
 
         foreach (array_chunk($pool, 2) as [$home, $away]) {
-            $previousRound->push($this->createCross($phase, 1, $home->id, $away->id, null, null, $format));
+            $previousRound->push($this->createCross($phase, 1, $home->id, $away->id, null, null, $round1IsFinal ? $finalFormat : $format));
         }
 
         $roundNumber = 1;
+        // The two decisive matches of the round right before the final --
+        // i.e. the semifinal crosses -- captured so a 3er/4to puesto match
+        // can wire their losers as its own two sides. Stays null for a
+        // 2-qualifier bracket, where no such round exists.
+        $semifinalCrosses = null;
 
         while ($previousRound->count() > 1) {
             $roundNumber++;
+            // This iteration is about to reduce $previousRound down to the
+            // single final cross exactly when it currently holds 2 crosses --
+            // i.e. $previousRound right now IS the semifinal round.
+            $isFinalRound = $previousRound->count() === 2;
+
+            if ($isFinalRound) {
+                $semifinalCrosses = $previousRound->values()->all();
+            }
+
             $currentRound = collect();
 
             foreach ($previousRound->chunk(2) as $pair) {
                 [$homeSource, $awaySource] = $pair->values()->all();
 
-                $currentRound->push($this->createCross($phase, $roundNumber, null, null, $homeSource, $awaySource, $format));
+                $currentRound->push($this->createCross($phase, $roundNumber, null, null, $homeSource, $awaySource, $isFinalRound ? $finalFormat : $format));
             }
 
             $previousRound = $currentRound;
         }
+
+        if ($phase->plays_third_place && $semifinalCrosses !== null) {
+            $this->createThirdPlaceMatch($phase, $roundNumber, $semifinalCrosses[0], $semifinalCrosses[1]);
+        }
     }
 
     /**
-     * Propagate a just-finished match's cross winner into whichever pending
+     * The extra 3er/4to puesto cross: always a single match (see
+     * generateBracket()'s docblock), sharing the final's own round_number
+     * but flagged is_third_place so PhaseBoardService::bracketRounds() never
+     * counts it as a second cross of that round -- that would both inflate
+     * the round's match count (breaking its "Final" label, derived purely
+     * from cross count) and corrupt championFromBracket()'s reading of the
+     * final cross.
+     */
+    private function createThirdPlaceMatch(CompetitionPhase $phase, int $roundNumber, TournamentMatch $semifinalCrossA, TournamentMatch $semifinalCrossB): void
+    {
+        $match = $this->createMatch($phase, $roundNumber, null, null);
+        $match->is_third_place = true;
+        $match->save();
+
+        $this->createParticipant($match, MatchParticipantSide::Home, $semifinalCrossA, MatchParticipantSourceType::MatchLoser);
+        $this->createParticipant($match, MatchParticipantSide::Away, $semifinalCrossB, MatchParticipantSourceType::MatchLoser);
+    }
+
+    /**
+     * Propagate a just-finished match's cross winner (and, for a semifinal
+     * feeding a 3er/4to puesto match, its loser too) into whichever pending
      * match has that cross wired as one of its sides, if any. A cross with
-     * nothing downstream (e.g. the final, or any league match) simply has no
-     * MatchParticipant referencing its decisive match, so this is a no-op
-     * for those -- and so is finishing a two-legged cross's first leg, since
-     * only the decisive (second) leg is ever wired as a source.
+     * nothing downstream (e.g. the final with no 3er/4to puesto match, or
+     * any league match) simply has no MatchParticipant referencing its
+     * decisive match, so this is a no-op for those -- and so is finishing a
+     * two-legged cross's first leg, since only the decisive (second) leg is
+     * ever wired as a source.
      */
     public function resolveWinner(TournamentMatch $finishedMatch): void
     {
         $participants = MatchParticipant::query()
             ->where('source_match_id', $finishedMatch->id)
-            ->where('type', MatchParticipantSourceType::MatchWinner)
+            ->whereIn('type', [MatchParticipantSourceType::MatchWinner, MatchParticipantSourceType::MatchLoser])
             ->get();
 
         if ($participants->isEmpty()) {
@@ -87,13 +144,21 @@ class KnockoutBracketService
             return;
         }
 
+        $loserTeamId = $finishedMatch->tieLoserTeamId();
+
         foreach ($participants as $participant) {
+            $teamId = $participant->type === MatchParticipantSourceType::MatchLoser ? $loserTeamId : $winnerTeamId;
+
+            if ($teamId === null) {
+                continue;
+            }
+
             $targetMatch = $participant->match;
 
             if ($participant->side === MatchParticipantSide::Home) {
-                $targetMatch->home_team_id = $winnerTeamId;
+                $targetMatch->home_team_id = $teamId;
             } else {
-                $targetMatch->away_team_id = $winnerTeamId;
+                $targetMatch->away_team_id = $teamId;
             }
 
             $targetMatch->save();
@@ -165,12 +230,12 @@ class KnockoutBracketService
         return $match;
     }
 
-    private function createParticipant(TournamentMatch $match, MatchParticipantSide $side, TournamentMatch $sourceMatch): void
+    private function createParticipant(TournamentMatch $match, MatchParticipantSide $side, TournamentMatch $sourceMatch, MatchParticipantSourceType $type = MatchParticipantSourceType::MatchWinner): void
     {
         $participant = new MatchParticipant;
         $participant->match_id = $match->id;
         $participant->side = $side;
-        $participant->type = MatchParticipantSourceType::MatchWinner;
+        $participant->type = $type;
         $participant->source_match_id = $sourceMatch->id;
         $participant->save();
     }

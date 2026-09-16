@@ -39,6 +39,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $away_penalty_score
  * @property MatchStatus $status
  * @property bool $is_walkover
+ * @property bool $is_third_place
  * @property int|null $walkover_team_id
  * @property int|null $round_number
  * @property Carbon|null $scheduled_at
@@ -57,6 +58,7 @@ class TournamentMatch extends Model
         return [
             'status' => MatchStatus::class,
             'is_walkover' => 'boolean',
+            'is_third_place' => 'boolean',
             'scheduled_at' => 'datetime',
         ];
     }
@@ -357,6 +359,26 @@ class TournamentMatch extends Model
         }
 
         return null;
+    }
+
+    /**
+     * The other side of tieWinnerTeamId() -- null under the exact same
+     * conditions (cross not decided yet). Feeds a 3er/4to puesto match's
+     * sides (see KnockoutBracketService), wired to "the loser of" each
+     * semifinal cross instead of its winner. Safe to read $this->home_team_id/
+     * away_team_id directly even for a two-legged cross's decisive (second)
+     * leg: aggregation only decides WHICH total wins, never who's playing on
+     * which side of this specific match.
+     */
+    public function tieLoserTeamId(): ?int
+    {
+        $winnerTeamId = $this->tieWinnerTeamId();
+
+        if ($winnerTeamId === null) {
+            return null;
+        }
+
+        return $winnerTeamId === $this->home_team_id ? $this->away_team_id : $this->home_team_id;
     }
 
     /**

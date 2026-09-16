@@ -16,6 +16,7 @@ enum MatchParticipantSourceType: string
 {
     case Team = 'team';
     case MatchWinner = 'match_winner';
+    case MatchLoser = 'match_loser';
     case StandingPosition = 'standing_position';
 
     public function label(): string
@@ -23,6 +24,7 @@ enum MatchParticipantSourceType: string
         return match ($this) {
             self::Team => 'Equipo determinado',
             self::MatchWinner => 'Ganador de otro partido',
+            self::MatchLoser => 'Perdedor de otro partido',
             self::StandingPosition => 'Posición de una tabla',
         };
     }

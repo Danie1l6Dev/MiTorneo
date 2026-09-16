@@ -99,6 +99,12 @@ class PhaseBoardService
     {
         return $phase->matches()
             ->with(['homeTeam', 'awayTeam', 'goals', 'redCards', 'firstLeg'])
+            // The optional 3er/4to puesto match shares its round_number with
+            // the final but is never one of its crosses -- counting it here
+            // would inflate that round's match count, breaking its label
+            // (derived purely from cross count, see knockoutRoundLabel()).
+            // See thirdPlaceMatch() for how it's fetched instead.
+            ->where('is_third_place', false)
             ->orderBy('round_number')
             ->orderBy('id')
             ->get()
@@ -154,6 +160,23 @@ class PhaseBoardService
             16 => __('Dieciseisavos de final'),
             default => __('Ronda de :count', ['count' => $matchesInRound * 2]),
         };
+    }
+
+    /**
+     * The phase's 3er/4to puesto match, if the organizer opted into one when
+     * the bracket was generated (CompetitionPhase::$plays_third_place) --
+     * null for a phase without one (never opted in, or a bracket too small
+     * to have a semifinal round to draw losers from). Always a single match,
+     * fetched separately from bracketRounds() on purpose -- see that
+     * method's own note on why it's excluded from the normal per-round cross
+     * count.
+     */
+    public function thirdPlaceMatch(CompetitionPhase $phase): ?TournamentMatch
+    {
+        return $phase->matches()
+            ->with(['homeTeam', 'awayTeam', 'goals', 'redCards'])
+            ->where('is_third_place', true)
+            ->first();
     }
 
     /**
