@@ -329,4 +329,50 @@ class Team extends Model
     {
         return $this->hasMany(Sanction::class);
     }
+
+    /**
+     * This team's own tournament_team row for $tournament -- where an
+     * expulsion (see TeamExpulsionService) is recorded. Null when this team
+     * was never linked to that tournament through the pivot at all (a
+     * legacy per-tournament team that's never been expelled, most commonly).
+     */
+    private function tournamentPivotRow(Tournament $tournament): ?\stdClass
+    {
+        return DB::table('tournament_team')
+            ->where('tournament_id', $tournament->id)
+            ->where('team_id', $this->id)
+            ->select('expelled_at', 'expulsion_reason')
+            ->first();
+    }
+
+    /**
+     * Whether this team was expelled from $tournament specifically -- an
+     * expulsion never carries over to another tournament the same global
+     * team later enters, nor to another Team row the same club fields in a
+     * different (or the same) category. See TeamExpulsionService::expel().
+     */
+    public function isExpelledFrom(Tournament $tournament): bool
+    {
+        return $this->tournamentPivotRow($tournament)?->expelled_at !== null;
+    }
+
+    /**
+     * The reason recorded for this team's expulsion from $tournament, if
+     * any -- null both when it was never expelled and when no reason was
+     * given.
+     */
+    public function expulsionReasonFor(Tournament $tournament): ?string
+    {
+        return $this->tournamentPivotRow($tournament)?->expulsion_reason;
+    }
+
+    /**
+     * When this team was expelled from $tournament, if at all.
+     */
+    public function expelledAtFor(Tournament $tournament): ?Carbon
+    {
+        $expelledAt = $this->tournamentPivotRow($tournament)?->expelled_at;
+
+        return $expelledAt ? Carbon::parse($expelledAt) : null;
+    }
 }

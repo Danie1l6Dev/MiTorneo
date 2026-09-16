@@ -38,6 +38,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $home_penalty_score
  * @property int|null $away_penalty_score
  * @property MatchStatus $status
+ * @property bool $is_walkover
+ * @property int|null $walkover_team_id
  * @property int|null $round_number
  * @property Carbon|null $scheduled_at
  * @property Carbon|null $created_at
@@ -54,6 +56,7 @@ class TournamentMatch extends Model
     {
         return [
             'status' => MatchStatus::class,
+            'is_walkover' => 'boolean',
             'scheduled_at' => 'datetime',
         ];
     }
@@ -147,6 +150,18 @@ class TournamentMatch extends Model
     public function awayTeam(): BelongsTo
     {
         return $this->belongsTo(Team::class, 'away_team_id');
+    }
+
+    /**
+     * The team that lost this match by forfeit (0-3, "Perdido por W") when
+     * it was expelled from its category before playing it -- null for every
+     * normally-played match. See TeamExpulsionService.
+     *
+     * @return BelongsTo<Team, $this>
+     */
+    public function walkoverTeam(): BelongsTo
+    {
+        return $this->belongsTo(Team::class, 'walkover_team_id');
     }
 
     /**

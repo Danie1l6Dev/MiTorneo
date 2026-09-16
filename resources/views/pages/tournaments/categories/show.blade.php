@@ -102,7 +102,11 @@
                             @else
                                 <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                                     @foreach ($groupTeams->sortBy('name') as $team)
-                                        <x-ui.team-row :team="$team" />
+                                        <x-ui.team-row :team="$team" :expelled="$team->isExpelledFrom($tournament)">
+                                            <x-slot:actions>
+                                                <x-ui.team-expulsion-action :tournament="$tournament" :category="$category" :team="$team" />
+                                            </x-slot:actions>
+                                        </x-ui.team-row>
                                     @endforeach
                                 </div>
                             @endif
@@ -120,7 +124,11 @@
 
                             <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-amber-500/30 dark:divide-white/5 glass-panel">
                                 @foreach ($unassigned->sortBy('name') as $team)
-                                    <x-ui.team-row :team="$team" />
+                                    <x-ui.team-row :team="$team" :expelled="$team->isExpelledFrom($tournament)">
+                                        <x-slot:actions>
+                                            <x-ui.team-expulsion-action :tournament="$tournament" :category="$category" :team="$team" />
+                                        </x-slot:actions>
+                                    </x-ui.team-row>
                                 @endforeach
                             </div>
                         </div>
@@ -129,7 +137,11 @@
             @else
                 <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                     @foreach ($teams->sortBy('name') as $team)
-                        <x-ui.team-row :team="$team" />
+                        <x-ui.team-row :team="$team" :expelled="$team->isExpelledFrom($tournament)">
+                            <x-slot:actions>
+                                <x-ui.team-expulsion-action :tournament="$tournament" :category="$category" :team="$team" />
+                            </x-slot:actions>
+                        </x-ui.team-row>
                     @endforeach
                 </div>
             @endif

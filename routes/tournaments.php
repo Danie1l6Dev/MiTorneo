@@ -15,6 +15,7 @@ use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\RefereeController;
 use App\Http\Controllers\SanctionController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TeamExpulsionController;
 use App\Http\Controllers\TournamentCategoryController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -62,6 +63,18 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('tournaments/{tournament}/categories/{category}/phases', [CompetitionPhaseController::class, 'storeForTournament'])
         ->name('tournaments.categories.phases.store');
+
+    // Expelling a plantel from this tournament's edition of a category --
+    // see TeamExpulsionService for what happens to its remaining matches.
+    // Reversible via the destroy route below, same as declaring a champion.
+    Route::get('tournaments/{tournament}/categories/{category}/teams/{team}/expel', [TeamExpulsionController::class, 'create'])
+        ->name('tournaments.categories.teams.expel.create');
+
+    Route::post('tournaments/{tournament}/categories/{category}/teams/{team}/expel', [TeamExpulsionController::class, 'store'])
+        ->name('tournaments.categories.teams.expel.store');
+
+    Route::delete('tournaments/{tournament}/categories/{category}/teams/{team}/expel', [TeamExpulsionController::class, 'destroy'])
+        ->name('tournaments.categories.teams.expel.destroy');
 
     // Referees are global to the organizer, not nested under a tournament --
     // this is a standalone top-level resource, same as tournaments.

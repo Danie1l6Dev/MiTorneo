@@ -85,6 +85,11 @@
     // card's own badge lights up if EITHER leg does.
     $firstLegGoalMismatch = $isSecondLeg && $match->firstLeg->hasGoalMismatch();
     $hasAnyGoalMismatch = $match->hasGoalMismatch() || $firstLegGoalMismatch;
+
+    // Same walkover a league match's x-ui.match-card labels "PERDIDO POR W"
+    // -- shown here as a small corner badge instead, since these rows are
+    // too compact for a third status line under the score.
+    $isWalkover = $match->is_walkover || ($isSecondLeg && $match->firstLeg->is_walkover);
 @endphp
 
 @php
@@ -230,6 +235,17 @@
         >
             <div class="flex size-4 animate-pulse items-center justify-center rounded-full bg-white shadow ring-1 ring-amber-500/50 dark:bg-zinc-900">
                 <flux:icon.exclamation-triangle variant="mini" class="size-2.5 text-amber-500 dark:text-amber-400" />
+            </div>
+        </flux:tooltip>
+    @endif
+
+    @if ($isWalkover)
+        <flux:tooltip
+            :content="__('Perdido por W')"
+            class="absolute -top-1.5 right-1/2 translate-x-1/2 {{ $hasAnyGoalMismatch ? 'mr-4' : '' }}"
+        >
+            <div class="flex size-4 items-center justify-center rounded-full bg-white shadow ring-1 ring-red-500/50 dark:bg-zinc-900">
+                <flux:icon.no-symbol variant="mini" class="size-2.5 text-red-500" />
             </div>
         </flux:tooltip>
     @endif

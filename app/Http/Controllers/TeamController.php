@@ -79,7 +79,12 @@ class TeamController extends Controller
 
         $activePlayersCount = $roster->where('is_active', true)->count();
 
-        return view('pages.teams.show', compact('team', 'roster', 'activePlayersCount'));
+        // Every tournament this global team is currently expelled from --
+        // see TeamExpulsionService. Empty for a legacy per-tournament team,
+        // which is never linked through the tournament_team pivot at all.
+        $expulsions = $team->tournaments()->wherePivotNotNull('expelled_at')->get();
+
+        return view('pages.teams.show', compact('team', 'roster', 'activePlayersCount', 'expulsions'));
     }
 
     public function store(TeamRequest $request, Category $category): RedirectResponse

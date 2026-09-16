@@ -40,6 +40,25 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
+        @foreach ($expulsions as $expulsionTournament)
+            <flux:callout variant="danger" icon="no-symbol" :heading="__('Expulsado de :tournament', ['tournament' => $expulsionTournament->name])">
+                @if ($team->expulsionReasonFor($expulsionTournament))
+                    {{ $team->expulsionReasonFor($expulsionTournament) }}
+                @endif
+
+                <x-slot:actions>
+                    <form method="POST" action="{{ route('tournaments.categories.teams.expel.destroy', [$expulsionTournament, $team->category, $team]) }}">
+                        @csrf
+                        @method('DELETE')
+
+                        <flux:button type="submit" variant="ghost" size="sm" icon="arrow-uturn-left">
+                            {{ __('Revertir expulsión') }}
+                        </flux:button>
+                    </form>
+                </x-slot:actions>
+            </flux:callout>
+        @endforeach
+
         <flux:separator variant="subtle" />
 
         <div class="space-y-4">

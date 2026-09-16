@@ -95,11 +95,15 @@
                 </div>
             </div>
 
-            <div class="mt-4 flex items-center justify-center">
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
                 @if ($pending)
                     <flux:badge size="sm" color="zinc">{{ mb_strtoupper(__('Por definir')) }}</flux:badge>
                 @else
                     <flux:badge size="sm" :color="$match->status->color()">{{ mb_strtoupper($match->status->label()) }}</flux:badge>
+                @endif
+
+                @if ($match->is_walkover)
+                    <flux:badge size="sm" color="red" icon="no-symbol">{{ mb_strtoupper(__('Perdido por W')) }}</flux:badge>
                 @endif
             </div>
         </{{ $tag }}>
