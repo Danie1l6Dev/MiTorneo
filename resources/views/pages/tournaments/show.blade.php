@@ -27,9 +27,9 @@
                      see MunicipalStandingsPdfController's docblock. Not a
                      general feature, so it's only ever shown to his account. --}}
                 @if (auth()->user()?->canExportMunicipalStandingsPdf())
-                    <flux:button :href="route('tournaments.standings.pdf', $tournament)" variant="ghost" icon="arrow-down-tray">
+                    <x-ui.pdf-export-button :href="route('tournaments.standings.pdf', $tournament)" :filename="'tabla-posiciones-'.str($tournament->name)->slug().'.pdf'" variant="ghost" icon="arrow-down-tray">
                         {{ __('Exportar tabla de posiciones') }}
-                    </flux:button>
+                    </x-ui.pdf-export-button>
                 @endif
 
                 <flux:button :href="route('tournaments.edit', $tournament)" variant="ghost" icon="pencil" wire:navigate>

@@ -395,9 +395,9 @@
                          see MunicipalStandingsPdfController's docblock. Not a
                          general feature, so it's only ever shown to his account. --}}
                     @if (auth()->user()?->canExportMunicipalStandingsPdf() && count($standings) > 0)
-                        <flux:button href="{{ route('phases.standings.pdf', $phase) }}" variant="ghost" size="sm" icon="arrow-down-tray">
+                        <x-ui.pdf-export-button :href="route('phases.standings.pdf', $phase)" :filename="'tabla-posiciones-'.str($category->name.'-'.$phase->name)->slug().'.pdf'" variant="ghost" size="sm" icon="arrow-down-tray">
                             {{ __('Exportar PDF') }}
-                        </flux:button>
+                        </x-ui.pdf-export-button>
                     @endif
                 </div>
 
