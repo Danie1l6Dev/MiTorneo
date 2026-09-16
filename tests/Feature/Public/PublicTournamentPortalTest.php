@@ -353,6 +353,22 @@ class PublicTournamentPortalTest extends TestCase
             ->assertSee(route('public.tournaments.matches.show', [$data['tournament'], $data['match']]), false);
     }
 
+    public function test_the_match_detail_page_always_shows_its_info_fields_even_when_unset(): void
+    {
+        $data = $this->makeFullTournament();
+
+        // The fixture's match has no scheduled_at/referee/group set -- the
+        // page must still show the "Fecha"/"Árbitro" fields with a
+        // placeholder, not silently omit them the way a conditional badge
+        // would.
+        $this->get(route('public.tournaments.matches.show', [$data['tournament'], $data['match']]))
+            ->assertOk()
+            ->assertSee(__('Fecha'))
+            ->assertSee(__('Árbitro'))
+            ->assertSee(__('Sin definir'))
+            ->assertSee(__('Sin asignar'));
+    }
+
     public function test_a_match_from_a_different_tournament_is_a_404(): void
     {
         $data = $this->makeFullTournament();

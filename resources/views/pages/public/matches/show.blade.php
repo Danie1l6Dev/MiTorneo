@@ -1,5 +1,4 @@
 @php
-    $finished = $match->status === \App\Enums\MatchStatus::Finished;
     $wentToExtraTime = $match->home_extra_time_score !== null && $match->away_extra_time_score !== null;
     $wentToPenalties = $match->home_penalty_score !== null && $match->away_penalty_score !== null;
     $homeRedCards = $match->home_team_id ? $match->redCardCountForTeam($match->home_team_id) : 0;
@@ -25,22 +24,63 @@
                 @if ($match->is_walkover)
                     <flux:badge size="sm" color="red" icon="no-symbol">{{ mb_strtoupper(__('Perdido por W')) }}</flux:badge>
                 @endif
-
-                @if ($match->scheduled_at)
-                    <flux:badge size="sm" color="zinc" icon="calendar-days">{{ $match->scheduled_at->format('d/m/Y H:i') }}</flux:badge>
-                @endif
-
-                @if ($match->referee)
-                    <flux:badge size="sm" color="zinc" icon="flag">{{ $match->referee->full_name }}</flux:badge>
-                @endif
             </div>
         </x-ui.page-header>
 
-        <flux:separator variant="subtle" />
+        {{-- Fecha/Árbitro/Jornada are always shown, even when unset -- an
+             empty badge that only appears once data exists (the previous
+             approach) reads as "this match has no referee/schedule feature"
+             instead of "nobody filled this in yet". Grupo is the one
+             exception: a category that doesn't use groups has nothing
+             meaningful to say there, so its card is left out entirely
+             instead of showing an always-empty "Sin grupo". --}}
+        @php $hasGroup = $match->group !== null; @endphp
 
-        @if ($finished && $match->hasGoalMismatch())
-            <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Los goles registrados como eventos no coinciden con el marcador de este partido.')" />
-        @endif
+        <div class="grid grid-cols-2 gap-3 {{ $hasGroup ? 'sm:grid-cols-4' : 'sm:grid-cols-3' }}">
+            <div class="rounded-2xl border border-zinc-200 p-4 dark:border-white/10 glass-panel">
+                <div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                    <flux:icon.calendar-days variant="micro" class="size-3.5" />
+                    {{ __('Fecha') }}
+                </div>
+                <div class="mt-1 truncate text-sm font-medium text-zinc-800 dark:text-white">
+                    {{ $match->scheduled_at?->format('d/m/Y H:i') ?? __('Sin definir') }}
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-zinc-200 p-4 dark:border-white/10 glass-panel">
+                <div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                    <flux:icon.flag variant="micro" class="size-3.5" />
+                    {{ __('Árbitro') }}
+                </div>
+                <div class="mt-1 truncate text-sm font-medium text-zinc-800 dark:text-white">
+                    {{ $match->referee?->full_name ?? __('Sin asignar') }}
+                </div>
+            </div>
+
+            <div class="rounded-2xl border border-zinc-200 p-4 dark:border-white/10 glass-panel">
+                <div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                    <flux:icon.squares-2x2 variant="micro" class="size-3.5" />
+                    {{ __('Jornada') }}
+                </div>
+                <div class="mt-1 truncate text-sm font-medium text-zinc-800 dark:text-white">
+                    {{ $match->round_number ?? __('Sin definir') }}
+                </div>
+            </div>
+
+            @if ($hasGroup)
+                <div class="rounded-2xl border border-zinc-200 p-4 dark:border-white/10 glass-panel">
+                    <div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                        <flux:icon.rectangle-group variant="micro" class="size-3.5" />
+                        {{ __('Grupo') }}
+                    </div>
+                    <div class="mt-1 truncate text-sm font-medium text-zinc-800 dark:text-white">
+                        {{ $match->group->name }}
+                    </div>
+                </div>
+            @endif
+        </div>
+
+        <flux:separator variant="subtle" />
 
         @if ($match->is_walkover)
             <flux:callout variant="danger" icon="no-symbol" :heading="$match->expulsionLockMessage()" />

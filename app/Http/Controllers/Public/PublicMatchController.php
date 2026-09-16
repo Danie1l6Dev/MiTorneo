@@ -34,6 +34,7 @@ class PublicMatchController extends Controller
             'awayTeam.coach',
             'competitionPhase',
             'category',
+            'group',
             'referee',
             'firstLeg',
             // Ordered by registration order, not minute -- see
