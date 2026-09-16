@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\Gender;
 use App\Models\Player;
 use App\Models\Team;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -25,5 +26,19 @@ class PlayerFactory extends Factory
             'jersey_number' => fake()->unique()->numberBetween(1, 99),
             'is_active' => true,
         ];
+    }
+
+    public function male(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'gender' => Gender::Male,
+        ]);
+    }
+
+    public function female(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'gender' => Gender::Female,
+        ]);
     }
 }

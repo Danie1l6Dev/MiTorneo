@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Gender;
 use App\Enums\MatchEventType;
 use App\Models\Concerns\NormalizesToUppercase;
 use Database\Factories\PlayerFactory;
@@ -32,11 +33,17 @@ use Illuminate\Support\Facades\DB;
  *                                   docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
  *                                   Without it, this player cannot be added to any category beyond the one
  *                                   the backfill already inferred from their current team.
+ * @property Gender|null $gender Nullable for the same reason as $birth_date --
+ *                               players loaded before this field existed
+ *                               don't have it, see the "dato incompleto"
+ *                               warning icon on the player row. Drives the
+ *                               Category::$female_extra_birth_years
+ *                               allowance in ageEligibleForCategory().
  * @property bool $is_active
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['full_name', 'document_number', 'jersey_number', 'birth_date'])]
+#[Fillable(['full_name', 'document_number', 'jersey_number', 'birth_date', 'gender'])]
 class Player extends Model
 {
     /** @use HasFactory<PlayerFactory> */
@@ -50,6 +57,7 @@ class Player extends Model
         return [
             'is_active' => 'boolean',
             'birth_date' => 'date',
+            'gender' => Gender::class,
         ];
     }
 
@@ -363,6 +371,14 @@ class Player extends Model
      * birth_year_to configured -- that absence is handled as its own,
      * separate policy at the call site (see PlayerRequest), not silently
      * enforced here.
+     *
+     * A mixed category can let girls play with boys while being a few years
+     * older than the boys' own cutoff (Category::$female_extra_birth_years)
+     * -- a LOWER threshold, since a lower birth_year_to admits earlier
+     * (older) birth years, same convention as everywhere else here. Only
+     * ever relaxes the check: a player with no $gender on file (or a male
+     * one) is judged by the category's plain $birth_year_to, never
+     * penalized for the missing data.
      */
     public function ageEligibleForCategory(Category $category): bool
     {
@@ -370,7 +386,13 @@ class Player extends Model
             return true;
         }
 
-        return (int) $this->birth_date->format('Y') >= $category->birth_year_to;
+        $threshold = $category->birth_year_to;
+
+        if ($this->gender === Gender::Female && $category->female_extra_birth_years) {
+            $threshold -= $category->female_extra_birth_years;
+        }
+
+        return (int) $this->birth_date->format('Y') >= $threshold;
     }
 
     /**

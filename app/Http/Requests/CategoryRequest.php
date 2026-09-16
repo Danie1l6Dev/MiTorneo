@@ -57,6 +57,7 @@ class CategoryRequest extends FormRequest
         if (! $tournamentId) {
             $rules['birth_year_from'] = ['nullable', 'integer', 'digits:4'];
             $rules['birth_year_to'] = ['nullable', 'integer', 'digits:4', 'gte:birth_year_from'];
+            $rules['female_extra_birth_years'] = ['nullable', 'integer', 'min:0', 'max:10'];
         }
 
         return $rules;

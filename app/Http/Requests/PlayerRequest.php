@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Gender;
 use App\Models\Player;
 use App\Models\Team;
 use Closure;
@@ -52,6 +53,7 @@ class PlayerRequest extends FormRequest
                 'full_name' => ['required', 'string', 'max:255'],
                 'document_number' => ['nullable', 'string', 'max:30'],
                 'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+                'gender' => ['nullable', Rule::enum(Gender::class)],
                 'jersey_number' => [
                     'nullable',
                     'integer',
@@ -77,6 +79,7 @@ class PlayerRequest extends FormRequest
         $rules = [
             'full_name' => ['required', 'string', 'max:255'],
             'birth_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'gender' => ['nullable', Rule::enum(Gender::class)],
             // Both optional for now -- a team can register a player before
             // their document/dorsal is settled. The 'unique' rule below never
             // even runs for a blank value: 'nullable' short-circuits the rest

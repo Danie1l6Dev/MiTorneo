@@ -29,11 +29,16 @@ use Illuminate\Support\Collection;
  * @property bool $uses_groups
  * @property int|null $birth_year_from
  * @property int|null $birth_year_to
+ * @property int|null $female_extra_birth_years Extra years a FEMALE player is
+ *                                              allowed to be older than $birth_year_to allows for everyone else --
+ *                                              some mixed categories (mostly the youngest ones) let girls play with
+ *                                              boys but a few years older. Null/0 means no allowance, i.e. the plain
+ *                                              $birth_year_to rule. See Player::ageEligibleForCategory().
  * @property int $order
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'description', 'status', 'uses_groups', 'order', 'birth_year_from', 'birth_year_to'])]
+#[Fillable(['name', 'description', 'status', 'uses_groups', 'order', 'birth_year_from', 'birth_year_to', 'female_extra_birth_years'])]
 class Category extends Model
 {
     /** @use HasFactory<CategoryFactory> */

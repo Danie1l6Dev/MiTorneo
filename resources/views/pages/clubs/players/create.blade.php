@@ -7,7 +7,7 @@
 @endphp
 
 <x-layouts::app :title="__('Agregar jugador')">
-    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ birthDate: '{{ old('birth_date') }}' }">
+    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ birthDate: '{{ old('birth_date') }}', gender: '{{ old('gender') }}' }">
         <x-ui.page-header :title="__('Agregar jugador')" :subtitle="$club->name" />
 
         <flux:callout variant="secondary" icon="information-circle" :heading="__('¿Ya juega en otro plantel tuyo?')">
@@ -43,6 +43,20 @@
                     required
                 />
 
+                <flux:select
+                    name="gender"
+                    label="{{ __('Género') }}"
+                    description="{{ __('Opcional. En categorías mixtas, habilita años extra permitidos para mujeres') }}"
+                    x-model="gender"
+                >
+                    <flux:select.option value="">{{ __('Sin especificar') }}</flux:select.option>
+                    @foreach (\App\Enums\Gender::cases() as $genderOption)
+                        <flux:select.option value="{{ $genderOption->value }}" :selected="$genderOption->value === old('gender')">
+                            {{ $genderOption->label() }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+
                 <div class="space-y-4">
                     <flux:label>{{ __('¿En qué planteles lo inscribes?') }}</flux:label>
 
@@ -57,18 +71,25 @@
                     @endif
 
                     @foreach ($teamsByCategory as $categoryName => $teamsByGroup)
+                        @php $categoryForHeader = $teamsByGroup->first()->first()->category; @endphp
+
                         <div class="space-y-1 rounded-xl border border-zinc-200 p-4 dark:border-white/10">
-                            <div class="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
-                                {{ $categoryName }}
+                            <div class="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                    {{ $categoryName }}
+                                </span>
+
+                                <x-ui.category-age-hint :category="$categoryForHeader" />
                             </div>
 
                             @foreach ($teamsByGroup as $groupName => $groupTeams)
                                 @foreach ($groupTeams as $team)
                                     @php
                                         $byTo = $team->category->birth_year_to;
+                                        $femaleExtra = (int) ($team->category->female_extra_birth_years ?? 0);
                                         $disabledExpr = $byTo === null
                                             ? '!birthDate'
-                                            : "!birthDate || parseInt(birthDate.split('-')[0]) < {$byTo}";
+                                            : "!birthDate || parseInt(birthDate.split('-')[0]) < ({$byTo} - (gender === 'female' ? {$femaleExtra} : 0))";
                                         $label = $team->name;
                                         if ($groupTeams->count() > 1 || $teamsByGroup->count() > 1) {
                                             $label .= ' — '.$groupName;

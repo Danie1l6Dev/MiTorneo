@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Gender;
 use App\Models\Club;
 use App\Models\Player;
 use App\Models\Team;
@@ -38,6 +39,7 @@ class ClubPlayerRequest extends FormRequest
             'full_name' => ['required', 'string', 'max:255'],
             'document_number' => ['nullable', 'string', 'max:30'],
             'birth_date' => ['required', 'date', 'before_or_equal:today'],
+            'gender' => ['nullable', Rule::enum(Gender::class)],
             'team_ids' => ['required', 'array', 'min:1'],
             'team_ids.*' => [
                 'integer',
@@ -82,7 +84,8 @@ class ClubPlayerRequest extends FormRequest
             // them (same as the single-team flow), it only drives the
             // check for a genuinely new player.
             $birthDate = $existingPlayer?->birth_date ?? Carbon::parse($this->input('birth_date'));
-            $probe = new Player(['birth_date' => $birthDate]);
+            $gender = $existingPlayer?->gender ?? $this->enum('gender', Gender::class);
+            $probe = new Player(['birth_date' => $birthDate, 'gender' => $gender]);
 
             $teams = Team::query()->whereKey($teamIds)->with('category')->get()->keyBy('id');
 

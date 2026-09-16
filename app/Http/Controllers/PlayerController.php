@@ -163,6 +163,7 @@ class PlayerController extends Controller
             'full_name' => $validated['full_name'],
             'document_number' => $documentNumber,
             'birth_date' => $validated['birth_date'],
+            'gender' => $validated['gender'] ?? null,
         ]);
         $player->team_id = $primaryTeamId;
         $player->save();

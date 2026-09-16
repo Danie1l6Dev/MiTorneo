@@ -58,6 +58,17 @@
             placeholder="{{ __('Ej. 2021') }}"
         />
     </div>
+
+    <flux:input
+        name="female_extra_birth_years"
+        type="number"
+        label="{{ __('Años extra permitidos para mujeres') }}"
+        description="{{ __('Opcional. Si esta categoría es mixta, las jugadoras mujeres pueden ser hasta esta cantidad de años más grandes que el límite de arriba.') }}"
+        value="{{ old('female_extra_birth_years', $category->female_extra_birth_years ?? '') }}"
+        min="0"
+        max="10"
+        placeholder="{{ __('Ej. 2') }}"
+    />
 @endif
 
 <flux:input

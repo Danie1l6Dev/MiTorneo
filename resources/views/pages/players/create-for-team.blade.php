@@ -34,6 +34,19 @@
                     value="{{ old('birth_date') }}"
                 />
 
+                <flux:select
+                    name="gender"
+                    label="{{ __('Género') }}"
+                    description="{{ __('Opcional. En categorías mixtas, habilita años extra permitidos para mujeres') }}"
+                >
+                    <flux:select.option value="">{{ __('Sin especificar') }}</flux:select.option>
+                    @foreach (\App\Enums\Gender::cases() as $genderOption)
+                        <flux:select.option value="{{ $genderOption->value }}" :selected="$genderOption->value === old('gender')">
+                            {{ $genderOption->label() }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+
                 <flux:input
                     type="number"
                     name="jersey_number"

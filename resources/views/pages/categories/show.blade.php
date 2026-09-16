@@ -22,6 +22,10 @@
                 @if ($category->birth_year_from && $category->birth_year_to)
                     <flux:badge size="sm" color="cyan">{{ __(':from–:to', ['from' => $category->birth_year_from, 'to' => $category->birth_year_to]) }}</flux:badge>
                 @endif
+
+                @if ($category->female_extra_birth_years)
+                    <flux:badge size="sm" color="pink">{{ __('Mujeres: +:years años', ['years' => $category->female_extra_birth_years]) }}</flux:badge>
+                @endif
             </div>
 
             <x-slot:actions>

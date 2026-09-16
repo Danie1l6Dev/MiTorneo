@@ -12,7 +12,7 @@
 @endphp
 
 <x-layouts::app :title="__('Editar jugador')">
-    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ birthDate: '{{ old('birth_date', optional($player->birth_date)->format('Y-m-d')) }}' }">
+    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ birthDate: '{{ old('birth_date', optional($player->birth_date)->format('Y-m-d')) }}', gender: '{{ old('gender', $player->gender?->value ?? '') }}' }">
         <x-ui.page-header :title="__('Editar jugador')" :subtitle="$player->team->name" />
 
         @unless ($player->birth_date)
@@ -39,9 +39,15 @@
                         </template>
 
                         @foreach ($teamsByCategory as $categoryName => $teamsByGroup)
+                            @php $categoryForHeader = $teamsByGroup->first()->first()->category; @endphp
+
                             <div class="space-y-1 rounded-xl border border-zinc-200 p-4 dark:border-white/10">
-                                <div class="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
-                                    {{ $categoryName }}
+                                <div class="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                    <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                        {{ $categoryName }}
+                                    </span>
+
+                                    <x-ui.category-age-hint :category="$categoryForHeader" />
                                 </div>
 
                                 @foreach ($teamsByGroup as $groupName => $groupTeams)
@@ -49,9 +55,10 @@
                                         @php
                                             $isCurrent = $currentTeams->contains('id', $team->id);
                                             $byTo = $team->category->birth_year_to;
+                                            $femaleExtra = (int) ($team->category->female_extra_birth_years ?? 0);
                                             $ageDisabledExpr = $byTo === null
                                                 ? '!birthDate'
-                                                : "!birthDate || parseInt(birthDate.split('-')[0]) < {$byTo}";
+                                                : "!birthDate || parseInt(birthDate.split('-')[0]) < ({$byTo} - (gender === 'female' ? {$femaleExtra} : 0))";
                                             $label = $team->name;
                                             if ($groupTeams->count() > 1 || $teamsByGroup->count() > 1) {
                                                 $label .= ' — '.$groupName;

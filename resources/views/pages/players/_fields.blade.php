@@ -26,6 +26,22 @@
     x-model="birthDate"
 />
 
+<flux:select
+    name="gender"
+    label="{{ __('Género') }}"
+    description="{{ __('Opcional. En categorías mixtas, habilita años extra permitidos para mujeres') }}"
+    x-model="gender"
+>
+    @php $currentGender = old('gender', $player->gender?->value ?? ''); @endphp
+
+    <flux:select.option value="">{{ __('Sin especificar') }}</flux:select.option>
+    @foreach (\App\Enums\Gender::cases() as $gender)
+        <flux:select.option value="{{ $gender->value }}" :selected="$gender->value === $currentGender">
+            {{ $gender->label() }}
+        </flux:select.option>
+    @endforeach
+</flux:select>
+
 <flux:input
     type="number"
     name="jersey_number"

@@ -27,6 +27,12 @@
             </flux:tooltip>
         @endunless
 
+        @unless ($player->gender)
+            <flux:tooltip :content="__('Falta el género -- necesario en categorías mixtas con años extra permitidos para mujeres')">
+                <flux:icon.exclamation-triangle variant="micro" class="size-4 text-amber-500" />
+            </flux:tooltip>
+        @endunless
+
         @if ($ageIneligible)
             <flux:tooltip :content="__('Ya no es permitido en esta categoría este jugador -- click para promoverlo')">
                 <flux:button :href="route('teams.players.promote.create', [$team, $player])" variant="ghost" size="sm" icon="arrow-up-circle" class="text-red-500" wire:navigate />
