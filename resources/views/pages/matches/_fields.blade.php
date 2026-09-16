@@ -14,7 +14,9 @@
     </div>
 </div>
 
-<flux:select name="status" label="{{ __('Estado') }}">
+@php $readonly ??= false; @endphp
+
+<flux:select name="status" label="{{ __('Estado') }}" :disabled="$readonly">
     @php $currentStatus = old('status', $match->status?->value ?? \App\Enums\MatchStatus::Scheduled->value); @endphp
 
     @foreach (\App\Enums\MatchStatus::cases() as $status)
@@ -34,9 +36,10 @@
     type="datetime-local"
     label="{{ __('Fecha y hora (opcional)') }}"
     value="{{ old('scheduled_at', $match->scheduled_at?->format('Y-m-d\TH:i')) }}"
+    :disabled="$readonly"
 />
 
-<flux:select name="referee_id" label="{{ __('Árbitro (opcional)') }}" placeholder="{{ __('Sin árbitro asignado') }}">
+<flux:select name="referee_id" label="{{ __('Árbitro (opcional)') }}" placeholder="{{ __('Sin árbitro asignado') }}" :disabled="$readonly">
     @php $currentReferee = old('referee_id', $match->referee_id ?? ''); @endphp
 
     @foreach ($referees as $referee)

@@ -207,6 +207,10 @@ class TournamentMatchController extends Controller
     {
         $this->authorize('update', $match);
 
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
+
         $match->update($request->validated());
 
         if ($match->home_score !== null && $match->away_score !== null) {
@@ -241,6 +245,10 @@ class TournamentMatchController extends Controller
     {
         $this->authorize('update', $match);
 
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
+
         $protectedEvent = $match->events->first(fn (MatchEvent $event): bool => $sanctions->protectedSanctionFor($event) !== null);
 
         if ($protectedEvent !== null) {
@@ -270,6 +278,10 @@ class TournamentMatchController extends Controller
     public function destroy(TournamentMatch $match): RedirectResponse
     {
         $this->authorize('delete', $match);
+
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
 
         $phase = $match->competitionPhase;
 

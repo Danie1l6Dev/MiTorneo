@@ -23,6 +23,10 @@ class MatchLineupController extends Controller
     {
         $this->authorize('create', [MatchLineup::class, $match]);
 
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
+
         $teamId = (int) $request->validated('team_id');
 
         foreach ($request->validated('player_ids') as $playerId) {
@@ -48,6 +52,10 @@ class MatchLineupController extends Controller
         $this->authorize('delete', $lineup);
 
         $match = $lineup->match;
+
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
 
         $hasEvents = MatchEvent::query()
             ->where('match_id', $lineup->match_id)

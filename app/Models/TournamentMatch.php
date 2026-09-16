@@ -165,6 +165,31 @@ class TournamentMatch extends Model
     }
 
     /**
+     * Whether this match's result/lineup/events can no longer be touched --
+     * true only while it's still a "Perdido por W" walkover from an
+     * expulsion that hasn't been reverted yet (is_walkover is cleared the
+     * moment TeamExpulsionService::revert() runs, which is the only way
+     * this ever goes back to false). Checked by every controller that
+     * mutates a match: TournamentMatchController, MatchResultController,
+     * MatchEventController, MatchLineupController.
+     */
+    public function isLockedByExpulsion(): bool
+    {
+        return $this->is_walkover;
+    }
+
+    /**
+     * The error shown wherever isLockedByExpulsion() blocks an action.
+     */
+    public function expulsionLockMessage(): string
+    {
+        return __(
+            'No se puede modificar este partido: :team fue expulsado y quedó "Perdido por W". Revertí la expulsión para poder editarlo.',
+            ['team' => $this->walkoverTeam?->name ?? __('El equipo')]
+        );
+    }
+
+    /**
      * All participant-source references recorded for this match (at most one per side).
      *
      * @return HasMany<MatchParticipant, $this>

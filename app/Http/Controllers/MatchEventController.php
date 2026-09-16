@@ -25,6 +25,10 @@ class MatchEventController extends Controller
             return $redirect;
         }
 
+        if ($redirect = $this->guardNotLocked($match)) {
+            return $redirect;
+        }
+
         return view('pages.matches.events.create', [
             'match' => $match,
             'players' => $this->eligiblePlayers($match),
@@ -37,6 +41,10 @@ class MatchEventController extends Controller
         $this->authorize('create', [MatchEvent::class, $match]);
 
         if ($redirect = $this->guardKnownTeams($match)) {
+            return $redirect;
+        }
+
+        if ($redirect = $this->guardNotLocked($match)) {
             return $redirect;
         }
 
@@ -72,6 +80,10 @@ class MatchEventController extends Controller
         $this->authorize('create', [MatchEvent::class, $match]);
 
         if ($redirect = $this->guardKnownTeams($match)) {
+            return $redirect;
+        }
+
+        if ($redirect = $this->guardNotLocked($match)) {
             return $redirect;
         }
 
@@ -122,6 +134,10 @@ class MatchEventController extends Controller
         $this->authorize('delete', $event);
 
         $match = $event->match;
+
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
 
         if ($event->type === MatchEventType::Goal && $this->deletingWouldLeaveTooManyAssists($event)) {
             return to_route('matches.edit', $match)->with('error', __(
@@ -225,6 +241,15 @@ class MatchEventController extends Controller
             return to_route('matches.edit', $match)->with('error', __(
                 'Todavía no se conocen los dos equipos de este partido.'
             ));
+        }
+
+        return null;
+    }
+
+    private function guardNotLocked(TournamentMatch $match): ?RedirectResponse
+    {
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
         }
 
         return null;

@@ -5,6 +5,7 @@ namespace Tests\Feature\Tournaments;
 use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
+use App\Models\Player;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
@@ -187,5 +188,128 @@ class TeamExpulsionTest extends TestCase
             ->assertForbidden();
 
         $this->assertFalse($teamA->fresh()->isExpelledFrom($tournament));
+    }
+
+    // ── Tabla de posiciones ──────────────────────────────────────────────
+
+    public function test_an_expelled_team_ranks_last_despite_having_more_points(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+        $teamC = Team::factory()->for($tournament)->for($category)->create();
+
+        // teamA racks up 6 points before being expelled -- well ahead of
+        // teamB/teamC, who have none.
+        TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamA->id,
+            'away_team_id' => $teamB->id,
+            'status' => MatchStatus::Finished,
+            'home_score' => 2,
+            'away_score' => 0,
+        ]);
+
+        TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamC->id,
+            'away_team_id' => $teamA->id,
+            'status' => MatchStatus::Finished,
+            'home_score' => 0,
+            'away_score' => 1,
+        ]);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, null);
+
+        $tables = app(StandingsService::class)->tablesForPhase($phase->fresh());
+        $rows = collect($tables[0]['rows']);
+        $teamARow = $rows->firstWhere('team.id', $teamA->id);
+
+        $this->assertSame(6, $teamARow['points']);
+        $this->assertTrue($teamARow['expelled']);
+        $this->assertSame($teamA->id, $rows->last()['team']->id);
+        $this->assertNotSame($teamA->id, $rows->first()['team']->id);
+        $this->assertFalse($rows->first()['expelled']);
+    }
+
+    // ── Bloqueo de partidos "Perdido por W" ──────────────────────────────
+
+    public function test_a_walkover_match_rejects_result_event_and_lineup_changes(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+
+        $match = TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamA->id,
+            'away_team_id' => $teamB->id,
+            'status' => MatchStatus::Scheduled,
+        ]);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, null);
+        $match->refresh();
+        $this->assertTrue($match->is_walkover);
+
+        $player = Player::factory()->for($teamB)->create();
+
+        // teamA is home here and is the one expelled, so the walkover left
+        // it 0-3 -- an attempted edit must leave that untouched.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 5, 'away_score' => 5,
+        ])->assertRedirect(route('matches.edit', $match));
+        $this->assertSame(0, $match->fresh()->home_score);
+        $this->assertSame(3, $match->fresh()->away_score);
+
+        $this->actingAs($user)->put(route('matches.update', $match), [
+            'status' => 'in_progress',
+        ])->assertRedirect(route('matches.edit', $match));
+        $this->assertSame(MatchStatus::Finished, $match->fresh()->status);
+
+        $this->actingAs($user)->patch(route('matches.reset', $match))
+            ->assertRedirect(route('matches.edit', $match));
+        $this->assertSame(0, $match->fresh()->home_score);
+
+        $this->actingAs($user)->delete(route('matches.destroy', $match))
+            ->assertRedirect(route('matches.edit', $match));
+        $this->assertNotNull($match->fresh());
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'goal', 'player_id' => $player->id,
+        ])->assertRedirect(route('matches.edit', $match));
+        $this->assertDatabaseMissing('match_events', ['match_id' => $match->id]);
+
+        $this->actingAs($user)->post(route('matches.lineups.store', $match), [
+            'team_id' => $teamB->id,
+            'player_ids' => [$player->id],
+        ])->assertRedirect(route('matches.edit', $match));
+        $this->assertDatabaseMissing('match_lineups', ['match_id' => $match->id, 'player_id' => $player->id]);
+    }
+
+    public function test_reverting_the_expulsion_unlocks_the_match_again(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+
+        $match = TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamA->id,
+            'away_team_id' => $teamB->id,
+            'status' => MatchStatus::Scheduled,
+        ]);
+
+        $service = app(TeamExpulsionService::class);
+        $service->expel($teamA, $tournament, null);
+        $service->revert($teamA, $tournament);
+
+        $this->assertFalse($match->fresh()->is_walkover);
+
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 4, 'away_score' => 1,
+        ])->assertRedirect(route('matches.edit', $match));
+
+        $this->assertSame(4, $match->fresh()->home_score);
     }
 }

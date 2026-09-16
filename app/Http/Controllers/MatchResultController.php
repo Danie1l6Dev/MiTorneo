@@ -14,6 +14,10 @@ class MatchResultController extends Controller
     {
         $this->authorize('update', $match);
 
+        if ($match->isLockedByExpulsion()) {
+            return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
+
         $match->home_score = $request->validated('home_score');
         $match->away_score = $request->validated('away_score');
 

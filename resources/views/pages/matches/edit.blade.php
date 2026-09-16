@@ -138,6 +138,7 @@
         @endif
 
         @php
+            $locked = $match->isLockedByExpulsion();
             $pending = $match->home_team_id === null || $match->away_team_id === null;
             $homeInitials = $match->homeTeam ? \Illuminate\Support\Str::substr($match->homeTeam->short_name ?: $match->homeTeam->name, 0, 2) : '?';
             $awayInitials = $match->awayTeam ? \Illuminate\Support\Str::substr($match->awayTeam->short_name ?: $match->awayTeam->name, 0, 2) : '?';
@@ -179,6 +180,12 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="$quickAddErrorMessage" />
         @endif
 
+        @if ($locked)
+            <flux:callout variant="danger" icon="no-symbol" :heading="__('Partido bloqueado: perdido por W')">
+                {{ __(':team fue expulsado de esta categoría, así que este partido quedó 0-3 automáticamente y ya no se puede modificar. Para volver a editarlo, primero revertí la expulsión.', ['team' => $match->walkoverTeam?->name ?? __('El equipo')]) }}
+            </flux:callout>
+        @endif
+
         {{-- The score card stays centered and alone while either team is
              unknown -- there's no roster to quick-add events for yet. Once
              both are set, the quick-add rosters flank it on desktop and
@@ -196,10 +203,15 @@
              red that goes with it, instead of needing a separate button. --}}
         <div class="space-y-6">
         <div @class([
-            'mx-auto grid max-w-2xl gap-4' => $pending,
-            'grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,480px)_minmax(0,380px)] lg:items-start lg:justify-center' => ! $pending,
+            // Same single centered column a walkover uses -- both hide the
+            // side roster panels, so the 3-column grid below would leave
+            // the score card stranded in its leftmost track (grid
+            // auto-placement doesn't skip empty explicit tracks just
+            // because the item's flanking columns have no content).
+            'mx-auto grid max-w-2xl gap-4' => $pending || $locked,
+            'grid gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,480px)_minmax(0,380px)] lg:items-start lg:justify-center' => ! $pending && ! $locked,
         ])>
-            @unless ($pending)
+            @unless ($pending || $locked)
                 <div class="space-y-4 lg:order-1">
                     <x-ui.match-ineligible-players :players="$homeIneligiblePlayers" :team="$match->homeTeam" />
                     <x-ui.match-lineup-search :match="$match" :team="$match->homeTeam" :candidates="$homeSearchCandidates" :club-has-eligible-players="$homeClubHasEligiblePlayers" />
@@ -255,7 +267,17 @@
                         </div>
                     </div>
 
-                    @if ($pending)
+                    @if ($locked)
+                        <div class="flex flex-col items-center gap-2 border-t border-zinc-200 px-4 py-6 text-center dark:border-white/10 sm:px-8">
+                            <div class="flex size-10 items-center justify-center rounded-full bg-red-500/15 text-red-500">
+                                <flux:icon.no-symbol variant="mini" class="size-5" />
+                            </div>
+                            <flux:heading size="sm">{{ __('Perdido por W') }}</flux:heading>
+                            <flux:text class="max-w-sm text-zinc-500 dark:text-white/60">
+                                {{ __('Este resultado quedó fijo por la expulsión de :team. Revertí la expulsión para poder editarlo.', ['team' => $match->walkoverTeam?->name ?? __('el equipo')]) }}
+                            </flux:text>
+                        </div>
+                    @elseif ($pending)
                         <div class="border-t border-zinc-200 px-4 py-6 dark:border-white/10 sm:px-8">
                             <flux:callout
                                 variant="secondary"
@@ -466,7 +488,7 @@
                 </div>
             </div>
 
-            @unless ($pending)
+            @unless ($pending || $locked)
                 <div class="space-y-4 lg:order-3">
                     <x-ui.match-ineligible-players :players="$awayIneligiblePlayers" :team="$match->awayTeam" />
                     <x-ui.match-lineup-search :match="$match" :team="$match->awayTeam" :candidates="$awaySearchCandidates" :club-has-eligible-players="$awayClubHasEligiblePlayers" />
@@ -477,7 +499,7 @@
             @endunless
         </div>
 
-        @unless ($pending)
+        @unless ($pending || $locked)
             <div class="mx-auto w-full max-w-2xl">
                 {{-- Each queued event itself shows in a small "Por guardar"
                      card right under its own team's roster panel above
@@ -515,20 +537,24 @@
         </div>
 
         <div class="space-y-8">
-            <div class="mx-auto w-full max-w-2xl">
-                <flux:separator variant="subtle" />
-            </div>
+            @unless ($locked)
+                <div class="mx-auto w-full max-w-2xl">
+                    <flux:separator variant="subtle" />
+                </div>
 
-            {{-- Wider than the rest of this column (max-w-4xl, not max-w-2xl)
-                 -- the two-column event summary grid below needs more room
-                 per card than a settings form does, so names and "Nx G"
-                 badges stop crowding each other. --}}
-            <div class="mx-auto w-full max-w-4xl space-y-4">
-                {{-- Registering events happens via the quick-add icons beside
-                     the scoreboard now (x-ui.match-roster-panel) -- this
-                     section is purely the read/edit/delete list of what's
-                     already been saved. --}}
-                <flux:heading size="lg">{{ __('Eventos del partido') }}</flux:heading>
+                {{-- Wider than the rest of this column (max-w-4xl, not max-w-2xl)
+                     -- the two-column event summary grid below needs more room
+                     per card than a settings form does, so names and "Nx G"
+                     badges stop crowding each other. --}}
+                <div class="mx-auto w-full max-w-4xl space-y-4">
+                    {{-- Registering events happens via the quick-add icons beside
+                         the scoreboard now (x-ui.match-roster-panel) -- this
+                         section is purely the read/edit/delete list of what's
+                         already been saved. A walkover match never has any (it
+                         was never actually played), so this whole section is
+                         skipped entirely while locked instead of showing an
+                         empty state that implies it could have events. --}}
+                    <flux:heading size="lg">{{ __('Eventos del partido') }}</flux:heading>
 
                 {{-- These react live to the Alpine `pending` queue (via
                      queuedGoalCount) so the mismatch appears/disappears as
@@ -605,7 +631,8 @@
                         </div>
                     </div>
                 @endif
-            </div>
+                </div>
+            @endunless
 
             <div class="mx-auto w-full max-w-2xl space-y-8">
                 <flux:separator variant="subtle" />
@@ -613,29 +640,41 @@
                 <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
                     <flux:heading size="sm" class="mb-4">{{ __('Detalles del partido') }}</flux:heading>
 
-                    <form method="POST" action="{{ route('matches.update', $match) }}" class="space-y-6">
-                        @csrf
-                        @method('PUT')
-
-                        @include('pages.matches._fields')
-
-                        <div class="flex items-center gap-3">
-                            <flux:button type="submit" variant="primary">{{ __('Guardar cambios') }}</flux:button>
-                            <flux:button :href="route('phases.show', $match->competitionPhase)" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
+                    @if ($locked)
+                        <div class="space-y-6">
+                            @include('pages.matches._fields', ['readonly' => true])
                         </div>
-                    </form>
+
+                        <flux:button :href="route('phases.show', $match->competitionPhase)" variant="ghost" wire:navigate class="mt-6">
+                            {{ __('Volver') }}
+                        </flux:button>
+                    @else
+                        <form method="POST" action="{{ route('matches.update', $match) }}" class="space-y-6">
+                            @csrf
+                            @method('PUT')
+
+                            @include('pages.matches._fields')
+
+                            <div class="flex items-center gap-3">
+                                <flux:button type="submit" variant="primary">{{ __('Guardar cambios') }}</flux:button>
+                                <flux:button :href="route('phases.show', $match->competitionPhase)" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
+                            </div>
+                        </form>
+                    @endif
                 </div>
 
-                <flux:separator variant="subtle" />
+                @unless ($locked)
+                    <flux:separator variant="subtle" />
 
-                <x-ui.confirm-delete-form
-                    :action="route('matches.destroy', $match)"
-                    :heading="__('¿Eliminar este partido?')"
-                    :description="__('Se eliminarán también sus eventos y sanciones asociadas. Esta acción no se puede deshacer.')"
-                    :confirm-label="__('Eliminar partido')"
-                >
-                    <flux:button variant="danger" icon="trash">{{ __('Eliminar partido') }}</flux:button>
-                </x-ui.confirm-delete-form>
+                    <x-ui.confirm-delete-form
+                        :action="route('matches.destroy', $match)"
+                        :heading="__('¿Eliminar este partido?')"
+                        :description="__('Se eliminarán también sus eventos y sanciones asociadas. Esta acción no se puede deshacer.')"
+                        :confirm-label="__('Eliminar partido')"
+                    >
+                        <flux:button variant="danger" icon="trash">{{ __('Eliminar partido') }}</flux:button>
+                    </x-ui.confirm-delete-form>
+                @endunless
             </div>
         </div>
     </div>

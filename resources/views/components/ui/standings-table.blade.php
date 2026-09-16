@@ -48,7 +48,15 @@
                                     {{ $index + 1 }}
                                 </span>
                             </td>
-                            <td class="px-2 py-2.5 font-medium text-zinc-800 dark:text-white">{{ $row['team']->name }}</td>
+                            <td class="px-2 py-2.5 font-medium text-zinc-800 dark:text-white">
+                                <div class="flex items-center gap-2">
+                                    {{ $row['team']->name }}
+
+                                    @if ($row['expelled'] ?? false)
+                                        <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
+                                    @endif
+                                </div>
+                            </td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['played'] }}</td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['won'] }}</td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['drawn'] }}</td>
@@ -80,7 +88,13 @@
                     </span>
 
                     <div class="min-w-0 flex-1">
-                        <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $row['team']->name }}</div>
+                        <div class="flex items-center gap-2">
+                            <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $row['team']->name }}</div>
+
+                            @if ($row['expelled'] ?? false)
+                                <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
+                            @endif
+                        </div>
                         <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
                             {{ __('PJ') }} {{ $row['played'] }} &middot; {{ __('DG') }} {{ $row['goal_difference'] }}
                         </div>

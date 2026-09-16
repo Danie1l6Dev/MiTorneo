@@ -7,6 +7,7 @@ use App\Enums\MatchStatus;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\Team;
+use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use Illuminate\Support\Collection;
 
@@ -19,31 +20,32 @@ class StandingsService
      * table for the whole category otherwise. The table is always derived
      * fresh from the phase's finished matches.
      *
-     * @return array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>
+     * @return array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>}>
      */
     public function tablesForPhase(CompetitionPhase $phase): array
     {
         $category = $phase->category;
         $matches = $phase->matches;
         $roster = $phase->teams;
+        $tournament = $phase->tournament;
 
         if ($roster->isNotEmpty()) {
             return [[
                 'label' => $phase->name,
-                'rows' => $this->calculate($roster, $matches),
+                'rows' => $this->calculate($roster, $matches, $tournament),
             ]];
         }
 
         if ($category->uses_groups) {
             return $category->groups->map(fn (Group $group): array => [
                 'label' => $group->name,
-                'rows' => $this->calculate($group->teams, $matches->where('group_id', $group->id)),
+                'rows' => $this->calculate($group->teams, $matches->where('group_id', $group->id), $tournament),
             ])->values()->all();
         }
 
         return [[
             'label' => $category->name,
-            'rows' => $this->calculate($category->teamsForTournament($phase->tournament), $matches),
+            'rows' => $this->calculate($category->teamsForTournament($tournament), $matches, $tournament),
         ]];
     }
 
@@ -53,7 +55,7 @@ class StandingsService
      * roster. Nothing is resolved beyond picking rows off the already-ordered
      * tables: sorting/tie-breaking is entirely calculate()'s responsibility.
      *
-     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>  $tables
+     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>}>  $tables
      * @return Collection<int, Team>
      */
     public function topQualifiers(array $tables, int $perTable): Collection
@@ -85,7 +87,7 @@ class StandingsService
      * never produce a qualifier total that's a power of two) falls back to
      * seeding within itself.
      *
-     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>}>  $tables
+     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>}>  $tables
      * @return Collection<int, Team>
      */
     public function seedQualifiers(array $tables, int $perTable, DrawMethod $method): Collection
@@ -130,11 +132,20 @@ class StandingsService
      * finished matches with a recorded score. Nothing is persisted: the table is
      * always derived fresh from the current state of the matches.
      *
+     * $tournament, when given, is what expelled teams (see
+     * TeamExpulsionService) are checked against -- an expelled team's
+     * points/goal difference/goals for are still tallied normally from
+     * whatever it played before the expulsion, but order() always sinks it
+     * to the bottom of its table regardless, and its row is flagged
+     * 'expelled' => true so the table can show the label. Left null (the
+     * only way StandingsServiceTest calls this directly) simply skips that
+     * check -- every row comes back 'expelled' => false.
+     *
      * @param  Collection<int, Team>  $teams
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>
      */
-    public function calculate(Collection $teams, Collection $matches): array
+    public function calculate(Collection $teams, Collection $matches, ?Tournament $tournament = null): array
     {
         /** @var array<int, Team> $teamsById */
         $teamsById = $teams->keyBy(fn (Team $team): int => $team->id)->all();
@@ -206,6 +217,7 @@ class StandingsService
                 'goals_against' => $row['goals_against'],
                 'goal_difference' => $row['goals_for'] - $row['goals_against'],
                 'points' => $row['points'],
+                'expelled' => $tournament !== null && $team->isExpelledFrom($tournament),
             ];
         }
 
@@ -222,11 +234,31 @@ class StandingsService
      * order). This is what lets it resolve correctly whether exactly 2 teams
      * are tied or a larger cluster is.
      *
-     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>  $rows
+     * An expelled team (row['expelled'] === true, see calculate()) is
+     * always sunk to the bottom of the table first, regardless of points --
+     * "expulsado" overrides every other criterion, even against a team with
+     * fewer points. It's still ranked among any OTHER expelled teams (and
+     * they, in turn, tie-broken via head-to-head the same as any other
+     * cluster) rather than left in an arbitrary order.
+     *
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>  $rows
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>
      */
     private function order(array $rows, Collection $matches): array
+    {
+        $active = array_values(array_filter($rows, fn (array $row): bool => ! $row['expelled']));
+        $expelled = array_values(array_filter($rows, fn (array $row): bool => $row['expelled']));
+
+        return [...$this->rank($active, $matches), ...$this->rank($expelled, $matches)];
+    }
+
+    /**
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>  $rows
+     * @param  Collection<int, TournamentMatch>  $matches
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>
+     */
+    private function rank(array $rows, Collection $matches): array
     {
         usort($rows, fn (array $a, array $b): int => [$b['points'], $b['goal_difference'], $b['goals_for']]
             <=> [$a['points'], $a['goal_difference'], $a['goals_for']]);
@@ -274,9 +306,9 @@ class StandingsService
      * sequence. Teams that remain tied even after this keep their relative
      * order from the input (stable) -- no further criteria are applied.
      *
-     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>  $cluster
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>  $cluster
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int}>
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, expelled: bool}>
      */
     private function breakTieByHeadToHead(array $cluster, Collection $matches): array
     {
