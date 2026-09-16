@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +30,10 @@ use Illuminate\Support\Facades\DB;
  * @property string|null $short_name
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read Pivot|null $pivot Only
+ *                present when this Team came off a BelongsToMany relation
+ *                (Tournament::globalTeams(), Player::teams(), ...) -- null
+ *                otherwise, e.g. a plain Team::find().
  */
 #[Fillable(['name', 'short_name'])]
 class Team extends Model

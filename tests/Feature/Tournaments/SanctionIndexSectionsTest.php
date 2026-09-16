@@ -15,6 +15,7 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
+use App\Services\TeamExpulsionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -330,5 +331,76 @@ class SanctionIndexSectionsTest extends TestCase
         $response = $this->actingAs($owner)->get(route('dashboard'));
 
         $response->assertOk()->assertSeeInOrder(['Sanciones', '1']);
+    }
+
+    // ── Planteles expulsados: sección separada ────────────────────────────
+
+    public function test_an_expelled_team_appears_in_its_own_section_separate_from_player_sanctions(): void
+    {
+        $user = User::factory()->create();
+        [$team, $match] = $this->makeTeamWithOriginMatch($user);
+        $this->makeSanction($team, $match, SanctionStatus::Pending, fullName: 'Pendiente Pérez');
+
+        $tournament = $match->tournament;
+        $expelledTeam = Team::factory()->for($tournament)->for($match->category)->create(['name' => 'Plantel Expulsado FC']);
+        app(TeamExpulsionService::class)->expel($expelledTeam, $tournament, 'Agresión al árbitro.');
+
+        $response = $this->actingAs($user)->get(route('sanctions.index'));
+
+        $response->assertOk()
+            ->assertSeeTextInOrder([
+                __('Sanciones a jugadores y DTs'), 'PENDIENTE PÉREZ',
+                __('Planteles expulsados'), 'PLANTEL EXPULSADO FC', 'Agresión al árbitro.',
+            ]);
+    }
+
+    public function test_the_expelled_teams_section_only_shows_the_authenticated_users_own_tournaments(): void
+    {
+        $owner = User::factory()->create();
+        $ownTournament = Tournament::factory()->for($owner)->create();
+        $ownCategory = Category::factory()->for($ownTournament)->create(['uses_groups' => false]);
+        $ownTeam = Team::factory()->for($ownTournament)->for($ownCategory)->create(['name' => 'Propio Expulsado']);
+        app(TeamExpulsionService::class)->expel($ownTeam, $ownTournament, null);
+
+        $otherUser = User::factory()->create();
+        $otherTournament = Tournament::factory()->for($otherUser)->create();
+        $otherCategory = Category::factory()->for($otherTournament)->create(['uses_groups' => false]);
+        $otherTeam = Team::factory()->for($otherTournament)->for($otherCategory)->create(['name' => 'Ajeno Expulsado']);
+        app(TeamExpulsionService::class)->expel($otherTeam, $otherTournament, null);
+
+        $response = $this->actingAs($owner)->get(route('sanctions.index'));
+
+        $response->assertOk()
+            ->assertSeeText('PROPIO EXPULSADO')
+            ->assertDontSeeText('AJENO EXPULSADO');
+    }
+
+    public function test_reverting_an_expulsion_from_the_sanctions_index_removes_it_from_the_section(): void
+    {
+        $user = User::factory()->create();
+        $tournament = Tournament::factory()->for($user)->create();
+        $category = Category::factory()->for($tournament)->create(['uses_groups' => false]);
+        $team = Team::factory()->for($tournament)->for($category)->create(['name' => 'Revertible FC']);
+        app(TeamExpulsionService::class)->expel($team, $tournament, null);
+
+        $this->actingAs($user)
+            ->delete(route('tournaments.categories.teams.expel.destroy', [$tournament, $category, $team]))
+            ->assertRedirect();
+
+        // A fresh request, with no leftover flash session data from the
+        // revert redirect above -- that flash message names the team too,
+        // which would otherwise make assertDontSeeText('REVERTIBLE FC')
+        // fail for a reason unrelated to what's actually being tested here
+        // (whether the "Planteles expulsados" section itself still lists
+        // it).
+        $this->flushSession();
+
+        $response = $this->actingAs($user)->get(route('sanctions.index'));
+
+        // Nothing else on the page (no player/coach sanctions either), so
+        // it falls back to the page's single top-level empty state rather
+        // than reaching the "Planteles expulsados" section's own -- either
+        // way, the reverted team's name is gone.
+        $response->assertOk()->assertDontSeeText('REVERTIBLE FC');
     }
 }

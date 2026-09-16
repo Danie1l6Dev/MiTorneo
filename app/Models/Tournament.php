@@ -128,13 +128,16 @@ class Tournament extends Model
      * Which teams (club rosters) are entered into this tournament -- via
      * the tournament_team pivot. This is the full roster per
      * category/group; competition_phase_team narrows that further to a
-     * single phase (e.g. "top 2 of each group").
+     * single phase (e.g. "top 2 of each group"). withPivot exposes
+     * expelled_at/expulsion_reason (see TeamExpulsionService) on ->pivot
+     * for whoever needs to list expulsions across the roster, without
+     * every OTHER caller of this relation having to redeclare it.
      *
      * @return BelongsToMany<Team, $this>
      */
     public function globalTeams(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class, 'tournament_team');
+        return $this->belongsToMany(Team::class, 'tournament_team')->withPivot(['expelled_at', 'expulsion_reason']);
     }
 
     /**

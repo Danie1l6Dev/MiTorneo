@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\SanctionStatus;
 use App\Http\Requests\SanctionResolveRequest;
 use App\Models\Sanction;
+use App\Models\Team;
+use App\Models\Tournament;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -30,9 +32,48 @@ class SanctionController extends Controller
         $activeSanctions = $sanctions->filter->isActive()->values();
         $fulfilledSanctions = $sanctions->filter->isFulfilled()->values();
 
+        $expelledTeams = $this->expelledTeams();
+
         return view('pages.sanctions.index', compact(
-            'sanctions', 'pendingSanctions', 'activeSanctions', 'fulfilledSanctions'
+            'sanctions', 'pendingSanctions', 'activeSanctions', 'fulfilledSanctions', 'expelledTeams'
         ));
+    }
+
+    /**
+     * Every plantel currently expelled from one of this organizer's
+     * tournaments (see TeamExpulsionService) -- a fundamentally different
+     * kind of sanction from a player/coach's (no pending/served-fechas
+     * lifecycle, see Sanction's own docblock), so it's kept out of the
+     * Sanction model entirely and shown as its own section on this same
+     * page instead. One row per (team, tournament): a global team expelled
+     * from one tournament and later re-entered into another shows up only
+     * for the tournament it's actually still expelled from.
+     *
+     * @return array<int, array{team: Team, tournament: Tournament, expelled_at: string, reason: string|null}>
+     */
+    private function expelledTeams(): array
+    {
+        $expulsions = [];
+
+        foreach (Auth::user()->tournaments()->get() as $tournament) {
+            $expelled = $tournament->globalTeams()
+                ->wherePivotNotNull('expelled_at')
+                ->with(['category', 'club'])
+                ->get();
+
+            foreach ($expelled as $team) {
+                $expulsions[] = [
+                    'team' => $team,
+                    'tournament' => $tournament,
+                    'expelled_at' => (string) $team->pivot->getAttribute('expelled_at'),
+                    'reason' => $team->pivot->getAttribute('expulsion_reason'),
+                ];
+            }
+        }
+
+        usort($expulsions, fn (array $a, array $b): int => $b['expelled_at'] <=> $a['expelled_at']);
+
+        return $expulsions;
     }
 
     public function show(Sanction $sanction): View
