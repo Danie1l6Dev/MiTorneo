@@ -394,7 +394,7 @@
                     {{-- One-off export for Faudis' municipal league letterhead --
                          see MunicipalStandingsPdfController's docblock. Not a
                          general feature, so it's only ever shown to his account. --}}
-                    @if (auth()->user()?->email === 'faudisp@uniguajira.edu.co' && count($standings) > 0)
+                    @if (auth()->user()?->canExportMunicipalStandingsPdf() && count($standings) > 0)
                         <flux:button href="{{ route('phases.standings.pdf', $phase) }}" variant="ghost" size="sm" icon="arrow-down-tray">
                             {{ __('Exportar PDF') }}
                         </flux:button>

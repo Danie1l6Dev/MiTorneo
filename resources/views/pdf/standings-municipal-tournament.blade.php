@@ -14,11 +14,19 @@
     <h1>Tabla de posiciones oficial</h1>
     <h2>{{ $tournament->name }}</h2>
 
-    <div class="meta"><strong>Categoría:</strong> {{ $category->name }}</div>
-    <div class="meta"><strong>Fase:</strong> {{ $phase->name }}</div>
     <div class="meta"><strong>Fecha de corte:</strong> {{ now()->locale('es')->translatedFormat('d \d\e F \d\e Y') }}</div>
 
-    @include('pdf.partials.municipal-standings-tables')
+    @foreach ($sections as $section)
+        <div class="category-section">
+            <h3>{{ $section['category']->name }}</h3>
+
+            @foreach ($section['phases'] as $phaseEntry)
+                <div class="meta"><strong>Fase:</strong> {{ $phaseEntry['phase']->name }}</div>
+
+                @include('pdf.partials.municipal-standings-tables', ['tables' => $phaseEntry['tables']])
+            @endforeach
+        </div>
+    @endforeach
 
     @include('pdf.partials.municipal-signature')
 </body>

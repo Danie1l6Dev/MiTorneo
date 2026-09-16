@@ -106,4 +106,14 @@ class User extends Authenticatable implements PasskeyUser
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
             : $initials;
     }
+
+    /**
+     * Whether this user gets MunicipalStandingsPdfController's export button
+     * -- a one-off for Faudis' municipal league letterhead, not a general
+     * feature. See that controller's docblock for why.
+     */
+    public function canExportMunicipalStandingsPdf(): bool
+    {
+        return $this->email === 'faudisp@uniguajira.edu.co';
+    }
 }

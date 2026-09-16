@@ -230,6 +230,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('phases/{phase}/standings/pdf', [MunicipalStandingsPdfController::class, 'export'])
         ->name('phases.standings.pdf');
 
+    Route::get('tournaments/{tournament}/standings/pdf', [MunicipalStandingsPdfController::class, 'exportTournament'])
+        ->name('tournaments.standings.pdf');
+
     Route::patch('matches/{match}/result', [MatchResultController::class, 'update'])
         ->name('matches.result.update');
 
