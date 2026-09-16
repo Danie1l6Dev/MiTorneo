@@ -5,16 +5,19 @@ namespace Tests\Feature\Public;
 use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
+use App\Enums\SanctionType;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\LeagueSchedule;
 use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
+use App\Services\TeamExpulsionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -325,5 +328,139 @@ class PublicTournamentPortalTest extends TestCase
         $this->delete(route('phases.destroy', $data['phase']))->assertRedirect(route('login'));
 
         $this->assertNotNull($data['phase']->fresh());
+    }
+
+    // ── Detalle de partido ────────────────────────────────────────────────
+
+    public function test_a_guest_can_view_a_matchs_public_detail_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $this->get(route('public.tournaments.matches.show', [$data['tournament'], $data['match']]))
+            ->assertOk()
+            ->assertSee('TIGRES FC')
+            ->assertSee('LEONES FC')
+            ->assertSee('CARLOS GÓMEZ')
+            ->assertDontSee('1234567890');
+    }
+
+    public function test_a_guest_can_navigate_from_the_calendar_into_a_matchs_detail_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $this->get(route('public.tournaments.phases.show', [$data['tournament'], $data['phase']]))
+            ->assertOk()
+            ->assertSee(route('public.tournaments.matches.show', [$data['tournament'], $data['match']]), false);
+    }
+
+    public function test_a_match_from_a_different_tournament_is_a_404(): void
+    {
+        $data = $this->makeFullTournament();
+        $otherTournament = Tournament::factory()->create();
+
+        $this->get(route('public.tournaments.matches.show', [$otherTournament, $data['match']]))
+            ->assertNotFound();
+    }
+
+    // ── Ficha pública de equipo ────────────────────────────────────────────
+
+    public function test_a_guest_can_view_a_teams_public_roster_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $this->get(route('public.tournaments.teams.show', [$data['tournament'], $data['home']]))
+            ->assertOk()
+            ->assertSee('TIGRES FC')
+            ->assertSee('CARLOS GÓMEZ')
+            ->assertDontSee('1234567890');
+    }
+
+    public function test_a_guest_can_navigate_from_the_category_page_into_a_teams_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $this->get(route('public.tournaments.categories.show', [$data['tournament'], $data['category']]))
+            ->assertOk()
+            ->assertSee(route('public.tournaments.teams.show', [$data['tournament'], $data['home']]), false);
+    }
+
+    // ── Sanciones y expulsiones ─────────────────────────────────────────────
+
+    public function test_a_guest_can_view_the_tournaments_public_sanctions_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $sanction = Sanction::factory()->resolved(1)->create([
+            'match_id' => $data['match']->id,
+            'match_event_id' => MatchEvent::factory()->create([
+                'match_id' => $data['match']->id,
+                'team_id' => $data['home']->id,
+                'player_id' => $data['player']->id,
+                'type' => MatchEventType::RedCard,
+            ])->id,
+            'team_id' => $data['home']->id,
+            'player_id' => $data['player']->id,
+            'type' => SanctionType::DoubleYellow,
+        ]);
+
+        $this->get(route('public.tournaments.sanctions.index', $data['tournament']))
+            ->assertOk()
+            ->assertSee('CARLOS GÓMEZ')
+            ->assertSee($sanction->type->label());
+    }
+
+    public function test_the_sanctions_page_only_shows_this_tournaments_own_sanctions(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $otherMatch = TournamentMatch::factory()->create();
+        $otherPlayer = Player::factory()->for($otherMatch->homeTeam)->create(['full_name' => 'Jugador de Otro Torneo']);
+
+        Sanction::factory()->create([
+            'match_id' => $otherMatch->id,
+            'team_id' => $otherMatch->home_team_id,
+            'player_id' => $otherPlayer->id,
+        ]);
+
+        $this->get(route('public.tournaments.sanctions.index', $data['tournament']))
+            ->assertOk()
+            ->assertDontSee('Jugador de Otro Torneo');
+    }
+
+    public function test_an_expelled_team_is_marked_on_its_public_category_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        app(TeamExpulsionService::class)->expel($data['home'], $data['tournament'], 'Incidente de público');
+
+        $this->get(route('public.tournaments.categories.show', [$data['tournament'], $data['category']]))
+            ->assertOk()
+            ->assertSee(__('Expulsado'));
+    }
+
+    public function test_an_expelled_teams_reason_shows_on_its_public_team_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        app(TeamExpulsionService::class)->expel($data['home'], $data['tournament'], 'Incidente de público');
+
+        $this->get(route('public.tournaments.teams.show', [$data['tournament'], $data['home']]))
+            ->assertOk()
+            ->assertSee(__('Expulsado de :tournament', ['tournament' => $data['tournament']->name]))
+            ->assertSee('Incidente de público');
+    }
+
+    public function test_a_guest_cannot_resolve_a_sanction_seen_publicly(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $sanction = Sanction::factory()->create([
+            'match_id' => $data['match']->id,
+            'team_id' => $data['home']->id,
+            'player_id' => $data['player']->id,
+        ]);
+
+        $this->patch(route('sanctions.resolve', $sanction), ['matches_banned' => 1])
+            ->assertRedirect(route('login'));
     }
 }

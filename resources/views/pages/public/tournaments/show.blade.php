@@ -1,6 +1,12 @@
 <x-layouts::public :title="$tournament->name">
     <div class="w-full space-y-8 animate-fade-in-up">
         <x-ui.page-header :title="$tournament->name" :subtitle="$tournament->description">
+            <x-slot:actions>
+                <flux:button :href="route('public.tournaments.sanctions.index', $tournament)" variant="ghost" icon="shield-exclamation" wire:navigate>
+                    {{ __('Sanciones') }}
+                </flux:button>
+            </x-slot:actions>
+
             <div class="mt-1 flex items-center gap-2">
                 <flux:badge size="sm" :color="$tournament->status->color()">{{ $tournament->status->label() }}</flux:badge>
 

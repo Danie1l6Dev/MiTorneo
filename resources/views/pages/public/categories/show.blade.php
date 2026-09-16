@@ -43,7 +43,7 @@
                                 @else
                                     <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                                         @foreach ($groupTeams->sortBy('name') as $team)
-                                            <x-ui.team-chip :team="$team" />
+                                            <x-ui.team-chip :team="$team" :tournament="$tournament" :expelled="$team->isExpelledFrom($tournament)" />
                                         @endforeach
                                     </div>
                                 @endif
@@ -63,7 +63,7 @@
                 @else
                     <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                         @foreach ($category->teams->sortBy('name') as $team)
-                            <x-ui.team-chip :team="$team" />
+                            <x-ui.team-chip :team="$team" :tournament="$tournament" :expelled="$team->isExpelledFrom($tournament)" />
                         @endforeach
                     </div>
                 @endif

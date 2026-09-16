@@ -165,7 +165,7 @@
 
                                             <div class="flex flex-wrap justify-center gap-4">
                                                 @foreach ($round['matches'] as $match)
-                                                    <x-ui.match-card :match="$match" />
+                                                    <x-ui.match-card :match="$match" :href="route('public.tournaments.matches.show', [$tournament, $match])" />
                                                 @endforeach
 
                                                 @if ($round['resting_team'])
@@ -261,7 +261,7 @@
                                 <div class="flex flex-wrap justify-center gap-4">
                                     @foreach ($round['matches'] as $cross)
                                         @foreach ($cross as $legMatch)
-                                            <x-ui.match-card :match="$legMatch" />
+                                            <x-ui.match-card :match="$legMatch" :href="route('public.tournaments.matches.show', [$tournament, $legMatch])" />
                                         @endforeach
                                     @endforeach
                                 </div>
@@ -286,6 +286,7 @@
                                             @php $decisive = $column['matches']->first()->last(); @endphp
                                             <x-ui.bracket-match-card
                                                 :match="$decisive"
+                                                :href="route('public.tournaments.matches.show', [$tournament, $decisive])"
                                                 :allow-picker="false"
                                                 :card-class="$bracketSize['card']"
                                                 :row-class="$bracketSize['row']"
@@ -300,6 +301,7 @@
                                                             <div class="{{ $column['side'] === 'left' ? $bracketSize['cardStubLeft'] : $bracketSize['cardStubRight'] }}">
                                                                 <x-ui.bracket-match-card
                                                                     :match="$decisive"
+                                                                    :href="route('public.tournaments.matches.show', [$tournament, $decisive])"
                                                                     :allow-picker="false"
                                                                     :card-class="$bracketSize['card']"
                                                                     :row-class="$bracketSize['row']"
@@ -313,6 +315,7 @@
                                                     <div class="{{ $column['side'] === 'left' ? $bracketSize['singleStubLeft'] : $bracketSize['singleStubRight'] }}">
                                                         <x-ui.bracket-match-card
                                                             :match="$decisive"
+                                                            :href="route('public.tournaments.matches.show', [$tournament, $decisive])"
                                                             :allow-picker="false"
                                                             :card-class="$bracketSize['card']"
                                                             :row-class="$bracketSize['row']"
