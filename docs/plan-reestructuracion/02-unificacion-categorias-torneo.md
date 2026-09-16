@@ -320,11 +320,10 @@ auditoría deliberada (nunca visibles con datos de prueba sintéticos
 sueltos) ya están corregidos y cubiertos por tests. No queda ningún trabajo
 de código pendiente para lo que está en alcance de este tema.
 
-**Lo único que falta es decidir cuándo correr esto contra producción
-real** — la promoción (T02-01) todavía no se ejecutó ahí, solo en la copia
-local. Cuando se apruebe explícitamente, el paso es: backup de producción →
-`tournaments:verify-category-promotion --snapshot` → `tournaments:promote-categories-to-catalog`
-(revisando el `--dry-run` primero) → `--compare` contra el snapshot.
+**✅ Ya se corrió contra producción real** (Clever Cloud) — confirmado por
+Daniel, siguiendo el mismo paso a paso documentado abajo (backup →
+`--snapshot` → `--dry-run` revisado → ejecución → `--compare`). No queda
+ninguna acción pendiente de este tema.
 
 ## Preguntas abiertas
 

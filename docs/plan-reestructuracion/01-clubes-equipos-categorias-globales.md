@@ -342,9 +342,9 @@ se ejecuten.
   dio ✅ sin diferencias. Repetido una segunda vez para confirmar
   idempotencia: cero filas nuevas. Nilmar/Pantera Negras/Maicao F.C en
   Baby quedaron con sus 2 plantillas separadas, como debía ser.
-  **Todavía no se corrió contra la base de producción real** (Clever
-  Cloud) — sigue pendiente un backup fresco al momento de ejecutar ahí, y
-  tu confirmación explícita aparte para ese paso puntual.
+  **✅ Corrido contra producción real** (Clever Cloud) — confirmado por
+  Daniel. Ver también T02-01/T02-02, que corrieron después contra los
+  mismos datos ya backfilleados.
 
 - [x] **T01-17** — *(Backfillear)* Ya cubierto por T01-16: cada jugador
   existente ya tiene hoy un `team_id` → se traduce directo a su fila
@@ -382,22 +382,38 @@ se ejecuten.
   propósito -- no se tocó en este tema (el pedido original era solo sobre
   jugadores), sigue funcionando 100% legacy sin cambios.
 
-- [~] **T01-20** — *(Cortar)* Cambiar el código de la app para leer y
+- [x] **T01-20** — *(Cortar)* Cambiar el código de la app para leer y
   escribir contra el esquema nuevo. **Hecho para Clubes, Categorías,
   Jugadores e Inscripción de torneo (T01-22 a T01-27)** — todo ese código
-  ya vive exclusivamente contra el catálogo global. **Deliberadamente sin
-  hacer todavía** para fases/calendario/standings:
-  `PhaseEligibilityService`, `GenerateLeagueScheduleRequest` y el resto de
-  la generación de partidos siguen resolviendo el roster elegible a partir
-  del `category_id` legacy (torneo implícito), no de `tournament_team`.
-  **Decisión confirmada explícitamente (2026-09-12):** el cliente,
-  consultado de nuevo antes de pasar a producción, eligió mantener este
-  recorte — la app sigue funcionando en paralelo (categorías legacy con
-  fases de siempre + categorías del catálogo que hoy solo sirven para
-  inscripción) hasta que se pida explícitamente ampliar esto. Las
-  columnas `tournament_id` de `categories`/`groups`/`teams` siguen
-  existiendo y en uso por el lado legacy — no son solo una red de
-  seguridad residual.
+  ya vive exclusivamente contra el catálogo global.
+
+  **Aclaración importante, para que no se lea como que las fases alguna
+  vez "no pertenecieron" a un torneo — nunca estuvo en duda:**
+  `CompetitionPhase` (igual que `Group` y `Team`) siempre tuvo su propia
+  columna `tournament_id`, independiente de la categoría — una fase es, y
+  siempre fue, de un torneo puntual. Lo único que en este punto del plan
+  (2026-09-12) seguía sin actualizarse era más angosto: la lógica que
+  calcula **qué planteles son elegibles** para crear/avanzar una fase
+  (`PhaseEligibilityService`, `GenerateLeagueScheduleRequest` y el resto de
+  la generación de partidos) todavía resolvía ese roster a partir del
+  `category_id` legacy (asumiendo un solo torneo implícito por categoría),
+  no a través del pivote `tournament_team`. Por eso, en ese momento, el
+  cliente eligió mantener el recorte (categorías legacy con fases de
+  siempre + categorías del catálogo que por entonces solo servían para
+  inscripción) hasta pedir explícitamente ampliarlo.
+
+  **✅ Ese recorte quedó cerrado por el Tema 02** (no es que se haya vuelto
+  a abrir esta acción, sino que el trabajo pendiente que describía se hizo
+  ahí, como parte de "un solo camino: categorías siempre del catálogo"):
+  `PhaseEligibilityService::eligibleTeams()`/`canCreateFirstPhase()`/
+  `nextPhase()`/`previousPhase()` (T02-03) y `StandingsService`/
+  `PhaseBoardService`/`LeagueScheduleController`/`GenerateLeagueScheduleRequest`
+  vía `Category::teamsForTournament()` (T02-11) ya resuelven el roster
+  correcto en ambos casos (categoría legacy o del catálogo) — verificado
+  contra el código actual (2026-09-16). Ya no queda ninguna categoría que
+  pueda crear su propia fase "por fuera" del catálogo, porque T02-04
+  eliminó por completo el camino de crear una categoría propia de un
+  torneo.
 
 - [ ] **T01-21** — *(Contraer — no se ejecuta todavía)* Migración aparte
   que elimina `tournament_id` de `categories`/`groups`/`teams`. **No
@@ -726,3 +742,36 @@ esquema):
    [`club-aliases-faudis.json`](club-aliases-faudis.json) — es un mapeo
    explícito confirmado a mano, el backfill nunca adivina esto solo (ver
    T01-15/16).
+
+## Estado general
+
+Todo lo de Esquema, Backend y Frontend de este tema está implementado y
+probado. Las dos piezas de datos (Expandir → Backfillear → Verificar →
+Cortar del patrón de [00 — Estrategia general de migración de
+datos](00-estrategia-migracion-datos.md)) ya corrieron **contra producción
+real**: el backfill de este tema (T01-16, `tournaments:backfill-global-catalog`)
+y, después, la promoción del Tema 02 (T02-01,
+`tournaments:promote-categories-to-catalog`) sobre esos mismos datos.
+
+El único recorte de alcance que este tema había dejado abierto (la
+resolución del roster elegible de una fase vía `category_id` legacy en vez
+de `tournament_team`, ver T01-20) quedó cerrado por el Tema 02, no por una
+acción nueva de este documento.
+
+**Lo único que sigue realmente pendiente, sin fecha, es T01-21 (Contraer):**
+eliminar del esquema las columnas legacy que ya no se usan para escribir
+(`categories.tournament_id`, `groups.tournament_id`, `teams.tournament_id`,
+y las equivalentes de Tema 02/03 como `players.team_id`/
+`players.jersey_number` legacy una vez que todo lo demás las dejó de
+necesitar). No es una migración de riesgo alto, pero sigue siendo la única
+que hace `DROP` — se propone solo cuando se pida explícitamente, como
+marca la estrategia general.
+
+## Preguntas abiertas
+
+Ninguna sobre el diseño — las 9 decisiones confirmadas arriba cubren todos
+los casos reales encontrados en los datos de Faudis. Si aparece un caso
+nuevo de nombres de club/categoría ambiguos al dar de alta datos futuros,
+se resuelve igual que las decisiones #2/#3/#9: por nombre exacto dentro del
+mismo organizador, con alias explícitos confirmados a mano cuando no
+alcance con eso.

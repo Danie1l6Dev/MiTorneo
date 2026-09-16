@@ -21,8 +21,8 @@ define su propio método de migración distinto sin que lo pidas vos.
 | # | Tema | Estado general |
 |---|------|-----------------|
 | 00 | [Estrategia general de migración de datos (aplica a todos los temas)](00-estrategia-migracion-datos.md) | ❓ Pendiente de revisión |
-| 01 | [Categorías, clubes/equipos y jugadores como sistemas globales](01-clubes-equipos-categorias-globales.md) | ❓ Pendiente de revisión |
-| 02 | [Un solo camino: categorías de torneo siempre del catálogo](02-unificacion-categorias-torneo.md) | ✅ Implementado y verificado contra datos reales, pendiente de correr en producción |
+| 01 | [Categorías, clubes/equipos y jugadores como sistemas globales](01-clubes-equipos-categorias-globales.md) | ✅ Implementado y corrido en producción — solo queda pendiente, sin fecha, el paso final de Contraer (T01-21, borrar columnas legacy) |
+| 02 | [Un solo camino: categorías de torneo siempre del catálogo](02-unificacion-categorias-torneo.md) | ✅ Implementado y corrido en producción |
 
 ## Convenciones de este documento
 
