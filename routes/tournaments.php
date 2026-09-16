@@ -9,6 +9,7 @@ use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchEventController;
 use App\Http\Controllers\MatchLineupController;
 use App\Http\Controllers\MatchResultController;
+use App\Http\Controllers\MunicipalStandingsPdfController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\PlayerController;
@@ -223,6 +224,11 @@ Route::middleware(['auth'])->group(function () {
 
     Route::delete('phases/{phase}/champion', [PhaseChampionController::class, 'destroy'])
         ->name('phases.champion.destroy');
+
+    // One-off export for Faudis' municipal league -- see
+    // MunicipalStandingsPdfController's docblock.
+    Route::get('phases/{phase}/standings/pdf', [MunicipalStandingsPdfController::class, 'export'])
+        ->name('phases.standings.pdf');
 
     Route::patch('matches/{match}/result', [MatchResultController::class, 'update'])
         ->name('matches.result.update');

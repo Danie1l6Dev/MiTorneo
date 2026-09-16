@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.4",
         "anodyne/blade-tabler-icons": "^3.46",
+        "barryvdh/laravel-dompdf": "*",
         "laravel/chisel": "^0.1.0",
         "laravel/fortify": "^1.37.2",
         "laravel/framework": "^13.17",

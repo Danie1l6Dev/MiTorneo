@@ -388,7 +388,18 @@
             </div>
 
             <div x-show="section === 'tabla'" x-cloak class="mt-4 space-y-4">
-                <flux:heading size="lg">{{ __('Tabla de posiciones') }}</flux:heading>
+                <div class="flex items-center justify-between">
+                    <flux:heading size="lg">{{ __('Tabla de posiciones') }}</flux:heading>
+
+                    {{-- One-off export for Faudis' municipal league letterhead --
+                         see MunicipalStandingsPdfController's docblock. Not a
+                         general feature, so it's only ever shown to his account. --}}
+                    @if (auth()->user()?->email === 'faudisp@uniguajira.edu.co' && count($standings) > 0)
+                        <flux:button href="{{ route('phases.standings.pdf', $phase) }}" variant="ghost" size="sm" icon="arrow-down-tray">
+                            {{ __('Exportar PDF') }}
+                        </flux:button>
+                    @endif
+                </div>
 
                 <div class="grid gap-4 {{ count($standings) > 1 ? 'lg:grid-cols-2' : '' }}">
                     @foreach ($standings as $item)
