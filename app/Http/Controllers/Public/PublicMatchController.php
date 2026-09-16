@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Public;
 
 use App\Http\Controllers\Controller;
+use App\Models\MatchEvent;
 use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -72,7 +73,7 @@ class PublicMatchController extends Controller
      * person, same accumulation x-ui.match-event-row already renders on the
      * admin edit page ("2x Gol, 1x Amarilla" instead of one row per record).
      *
-     * @return Collection<int, Collection<int, \App\Models\MatchEvent>>
+     * @return Collection<int, Collection<int, MatchEvent>>
      */
     private function eventsBySubject(Collection $events, ?int $teamId): Collection
     {

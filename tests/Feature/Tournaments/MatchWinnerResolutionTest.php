@@ -83,7 +83,7 @@ class MatchWinnerResolutionTest extends TestCase
 
     public function test_an_unfinished_match_has_no_winner(): void
     {
-        $match = $this->makeMatch(['home_score' => 2, 'away_score' => 0, 'status' => MatchStatus::InProgress]);
+        $match = $this->makeMatch(['home_score' => 2, 'away_score' => 0, 'status' => MatchStatus::Scheduled]);
 
         $this->assertNull($match->winnerTeamId());
     }

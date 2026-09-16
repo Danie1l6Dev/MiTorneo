@@ -263,7 +263,7 @@ class TeamExpulsionTest extends TestCase
         $this->assertSame(3, $match->fresh()->away_score);
 
         $this->actingAs($user)->put(route('matches.update', $match), [
-            'status' => 'in_progress',
+            'status' => 'scheduled',
         ])->assertRedirect(route('matches.edit', $match));
         $this->assertSame(MatchStatus::Finished, $match->fresh()->status);
 
