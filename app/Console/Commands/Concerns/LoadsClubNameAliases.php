@@ -36,7 +36,7 @@ trait LoadsClubNameAliases
     private function loadPerOrganizerJsonOption(string $option, string $label): ?array
     {
         $path = $this->option($option);
-        if (! $path) {
+        if (! is_string($path) || $path === '') {
             return [];
         }
 
