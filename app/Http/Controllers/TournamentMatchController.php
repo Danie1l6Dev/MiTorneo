@@ -275,12 +275,25 @@ class TournamentMatchController extends Controller
         return to_route('matches.edit', $match)->with('status', __('Partido reseteado: resultado y eventos eliminados.'));
     }
 
-    public function destroy(TournamentMatch $match): RedirectResponse
+    public function destroy(TournamentMatch $match, SanctionService $sanctions): RedirectResponse
     {
         $this->authorize('delete', $match);
 
         if ($match->isLockedByExpulsion()) {
             return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
+        }
+
+        // sanctions.match_id cascades on delete, so without this check a
+        // resolved sanction (fechas, maybe a fine, maybe a resolution PDF)
+        // would be silently destroyed along with the match -- same
+        // protection reset() above already applies, just missing here.
+        $protectedEvent = $match->events->first(fn (MatchEvent $event): bool => $sanctions->protectedSanctionFor($event) !== null);
+
+        if ($protectedEvent !== null) {
+            return to_route('matches.edit', $match)->with('error', __(
+                'No se puede eliminar este partido: :subject tiene una sanción ya resuelta por el Comité Directivo originada aquí. Resuélvela o elimínala primero.',
+                ['subject' => $protectedEvent->subjectLabel()]
+            ));
         }
 
         $phase = $match->competitionPhase;

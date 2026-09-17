@@ -22,7 +22,9 @@ use Tests\TestCase;
  * "Resetear partido" (TournamentMatchController::reset): undoes a
  * registered result and every match_event it has, so an organizer who
  * fat-fingered a whole match can redo it from scratch instead of deleting
- * events one at a time and editing scores back to empty by hand.
+ * events one at a time and editing scores back to empty by hand. Also
+ * covers destroy()'s matching protection against orphaning a
+ * committee-resolved sanction, since sanctions.match_id cascades on delete.
  */
 class MatchResetTest extends TestCase
 {
@@ -146,6 +148,60 @@ class MatchResetTest extends TestCase
         $this->assertNotNull($match->home_score);
         $this->assertDatabaseHas('match_events', ['id' => $redCardEvent->id]);
         $this->assertDatabaseHas('sanctions', ['id' => $sanction->id]);
+    }
+
+    public function test_deleting_a_match_is_blocked_when_it_would_cascade_delete_a_committee_resolved_sanction(): void
+    {
+        $user = User::factory()->create();
+        [$match, $home] = $this->makeFinishedMatch($user);
+        $player = Player::factory()->for($home)->create();
+
+        $redCardEvent = MatchEvent::factory()->create([
+            'match_id' => $match->id,
+            'team_id' => $home->id,
+            'player_id' => $player->id,
+            'type' => MatchEventType::RedCard,
+        ]);
+
+        $sanction = Sanction::factory()->resolved(3)->create([
+            'match_id' => $match->id,
+            'match_event_id' => $redCardEvent->id,
+            'team_id' => $home->id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $this->actingAs($user)->delete(route('matches.destroy', $match))
+            ->assertRedirect(route('matches.edit', $match))
+            ->assertSessionHas('error');
+
+        $this->assertDatabaseHas('matches', ['id' => $match->id]);
+        $this->assertDatabaseHas('sanctions', ['id' => $sanction->id]);
+    }
+
+    public function test_deleting_a_match_with_only_an_auto_manageable_sanction_still_works(): void
+    {
+        $user = User::factory()->create();
+        [$match, $home] = $this->makeFinishedMatch($user);
+        $player = Player::factory()->for($home)->create();
+
+        $yellowOne = MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $home->id, 'player_id' => $player->id, 'type' => MatchEventType::YellowCard]);
+        MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $home->id, 'player_id' => $player->id, 'type' => MatchEventType::YellowCard]);
+
+        Sanction::factory()->create([
+            'match_id' => $match->id,
+            'match_event_id' => $yellowOne->id,
+            'team_id' => $home->id,
+            'player_id' => $player->id,
+            'type' => SanctionType::DoubleYellow,
+        ]);
+
+        $phase = $match->competitionPhase;
+
+        $this->actingAs($user)->delete(route('matches.destroy', $match))
+            ->assertRedirect(route('phases.show', $phase));
+
+        $this->assertDatabaseMissing('matches', ['id' => $match->id]);
     }
 
     public function test_resetting_leaves_the_matchs_lineup_untouched(): void
