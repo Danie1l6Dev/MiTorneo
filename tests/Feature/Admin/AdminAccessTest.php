@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admin;
 
 use App\Enums\UserRole;
+use App\Models\Setting;
 use App\Models\Tournament;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -90,5 +91,38 @@ class AdminAccessTest extends TestCase
 
         $response->assertOk();
         $response->assertViewHas('tournaments', fn ($tournaments) => $tournaments->count() === 2);
+    }
+
+    public function test_the_sanction_pdf_uploads_flag_is_off_by_default(): void
+    {
+        $this->assertFalse(Setting::sanctionPdfUploadsEnabled());
+    }
+
+    public function test_admins_can_toggle_the_sanction_pdf_uploads_flag(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $this->actingAs($admin)
+            ->patch(route('admin.settings.toggle-sanction-pdf-uploads'))
+            ->assertRedirect();
+
+        $this->assertTrue(Setting::sanctionPdfUploadsEnabled());
+
+        $this->actingAs($admin)
+            ->patch(route('admin.settings.toggle-sanction-pdf-uploads'))
+            ->assertRedirect();
+
+        $this->assertFalse(Setting::sanctionPdfUploadsEnabled());
+    }
+
+    public function test_normal_users_cannot_toggle_the_sanction_pdf_uploads_flag(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::User]);
+
+        $this->actingAs($user)
+            ->patch(route('admin.settings.toggle-sanction-pdf-uploads'))
+            ->assertForbidden();
+
+        $this->assertFalse(Setting::sanctionPdfUploadsEnabled());
     }
 }

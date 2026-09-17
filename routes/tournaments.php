@@ -77,6 +77,21 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('tournaments/{tournament}/categories/{category}/teams/{team}/expel', [TeamExpulsionController::class, 'destroy'])
         ->name('tournaments.categories.teams.expel.destroy');
 
+    // Read-only detail page for one team's own expulsion -- the
+    // organizer-facing counterpart to sanctions.show for a player/DT
+    // sanction, linked from the same sanctions index.
+    Route::get('tournaments/{tournament}/categories/{category}/teams/{team}/expulsion', [TeamExpulsionController::class, 'show'])
+        ->name('tournaments.categories.teams.expulsion.show');
+
+    // Fixing a resolution PDF attached at expulsion time (wrong file
+    // uploaded, or attaching one after the fact) without having to revert
+    // the whole expulsion -- see TeamExpulsionController.
+    Route::patch('tournaments/{tournament}/categories/{category}/teams/{team}/expel/resolution-pdf', [TeamExpulsionController::class, 'updateResolutionPdf'])
+        ->name('tournaments.categories.teams.expel.resolution-pdf.update');
+
+    Route::delete('tournaments/{tournament}/categories/{category}/teams/{team}/expel/resolution-pdf', [TeamExpulsionController::class, 'destroyResolutionPdf'])
+        ->name('tournaments.categories.teams.expel.resolution-pdf.destroy');
+
     // Referees are global to the organizer, not nested under a tournament --
     // this is a standalone top-level resource, same as tournaments.
     Route::resource('referees', RefereeController::class)->except('destroy');
@@ -206,6 +221,15 @@ Route::middleware(['auth'])->group(function () {
 
     Route::patch('sanctions/{sanction}/resolve', [SanctionController::class, 'resolve'])
         ->name('sanctions.resolve');
+
+    // Fixing a resolution PDF attached when resolving (wrong file uploaded,
+    // or attaching one after the fact) without redoing the whole
+    // resolution -- see SanctionController.
+    Route::patch('sanctions/{sanction}/resolution-pdf', [SanctionController::class, 'updateResolutionPdf'])
+        ->name('sanctions.resolution-pdf.update');
+
+    Route::delete('sanctions/{sanction}/resolution-pdf', [SanctionController::class, 'destroyResolutionPdf'])
+        ->name('sanctions.resolution-pdf.destroy');
 
     Route::post('phases/{phase}/schedule', [LeagueScheduleController::class, 'store'])
         ->name('phases.schedule.store');

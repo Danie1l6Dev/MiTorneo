@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * A disciplinary consequence for a player or a coach, kept deliberately
@@ -50,11 +52,12 @@ use Illuminate\Support\Collection;
  * @property int|null $matches_banned
  * @property float|null $fine_amount
  * @property string|null $resolution_notes
+ * @property string|null $resolution_pdf_path
  * @property Carbon|null $resolved_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['match_id', 'match_event_id', 'team_id', 'player_id', 'coach_id', 'type', 'status', 'matches_banned', 'fine_amount', 'resolution_notes', 'resolved_at'])]
+#[Fillable(['match_id', 'match_event_id', 'team_id', 'player_id', 'coach_id', 'type', 'status', 'matches_banned', 'fine_amount', 'resolution_notes', 'resolution_pdf_path', 'resolved_at'])]
 class Sanction extends Model
 {
     /** @use HasFactory<SanctionFactory> */
@@ -168,6 +171,34 @@ class Sanction extends Model
         }
 
         return $this->player->full_name;
+    }
+
+    /**
+     * Public URL for the committee's resolution PDF, if one was attached
+     * when this sanction was resolved (see Setting::sanctionPdfUploadsEnabled()
+     * -- only possible while that flag was on). Null otherwise, including
+     * for a sanction resolved with just resolution_notes.
+     */
+    public function resolutionPdfUrl(): ?string
+    {
+        return $this->resolution_pdf_path !== null
+            ? Storage::disk('public')->url($this->resolution_pdf_path)
+            : null;
+    }
+
+    /**
+     * Filename offered to the browser when downloading resolutionPdfUrl(),
+     * instead of the opaque storage path -- e.g.
+     * "resolucion-sancion-jugador-juan-perez.pdf", or "...-dt-..." for a
+     * coach. Always safe to call even if there's no PDF, but only ever used
+     * from a view guarded by resolution_pdf_path being set.
+     */
+    public function resolutionPdfDownloadName(): string
+    {
+        $prefix = $this->coach_id !== null ? 'resolucion-sancion-dt' : 'resolucion-sancion-jugador';
+        $subject = $this->coach_id !== null ? $this->coach->full_name : $this->player->full_name;
+
+        return $prefix.'-'.Str::slug($subject).'.pdf';
     }
 
     public function isPending(): bool

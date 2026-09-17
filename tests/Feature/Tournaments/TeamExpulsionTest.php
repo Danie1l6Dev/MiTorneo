@@ -6,6 +6,7 @@ use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\Player;
+use App\Models\Setting;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
@@ -13,6 +14,8 @@ use App\Models\User;
 use App\Services\StandingsService;
 use App\Services\TeamExpulsionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TeamExpulsionTest extends TestCase
@@ -84,6 +87,145 @@ class TeamExpulsionTest extends TestCase
         $this->assertSame(3, $rows[$teamC->id]['points']);
         $this->assertSame(3, $rows[$teamC->id]['goals_for']);
         $this->assertSame(0, $rows[$teamC->id]['goals_against']);
+    }
+
+    public function test_expelling_a_team_can_attach_a_resolution_pdf_when_the_feature_is_enabled(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+
+        $pdf = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf');
+
+        $this->actingAs($user)->post(route('tournaments.categories.teams.expel.store', [$tournament, $category, $teamA]), [
+            'resolution_pdf' => $pdf,
+        ])->assertRedirect(route('tournaments.categories.show', [$tournament, $category]));
+
+        $pdfPath = $teamA->fresh()->expulsionResolutionPdfPathFor($tournament->fresh());
+        $this->assertNotNull($pdfPath);
+        $this->assertNull($teamA->expulsionReasonFor($tournament));
+        Storage::disk('public')->assertExists($pdfPath);
+    }
+
+    public function test_a_resolution_pdf_sent_while_expelling_with_the_feature_disabled_is_ignored(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+
+        $pdf = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf');
+
+        $this->actingAs($user)->post(route('tournaments.categories.teams.expel.store', [$tournament, $category, $teamA]), [
+            'reason' => 'Motivo en texto.',
+            'resolution_pdf' => $pdf,
+        ])->assertRedirect(route('tournaments.categories.show', [$tournament, $category]));
+
+        $this->assertNull($teamA->fresh()->expulsionResolutionPdfPathFor($tournament->fresh()));
+        $this->assertSame('Motivo en texto.', $teamA->expulsionReasonFor($tournament));
+        Storage::disk('public')->assertDirectoryEmpty('resoluciones');
+    }
+
+    public function test_reverting_an_expulsion_deletes_its_resolution_pdf_from_disk(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, null, $pdfPath);
+
+        Storage::disk('public')->assertExists($pdfPath);
+
+        app(TeamExpulsionService::class)->revert($teamA, $tournament);
+
+        Storage::disk('public')->assertMissing($pdfPath);
+        $this->assertNull($teamA->fresh()->expulsionResolutionPdfPathFor($tournament->fresh()));
+    }
+
+    // ── Página de detalle de la expulsión ───────────────────────────────
+
+    public function test_organizer_can_view_the_expulsion_detail_page(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, 'Agresión al árbitro.');
+
+        $this->actingAs($user)->get(route('tournaments.categories.teams.expulsion.show', [$tournament, $category, $teamA]))
+            ->assertOk()
+            ->assertSee($teamA->name)
+            ->assertSee('Agresión al árbitro.');
+    }
+
+    public function test_the_expulsion_detail_page_is_a_404_for_a_team_that_was_never_expelled(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+
+        $this->actingAs($user)->get(route('tournaments.categories.teams.expulsion.show', [$tournament, $category, $teamA]))
+            ->assertNotFound();
+    }
+
+    public function test_organizer_can_replace_an_expulsions_resolution_pdf(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, 'Motivo original.');
+
+        $pdf = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf');
+
+        $this->actingAs($user)->patch(route('tournaments.categories.teams.expel.resolution-pdf.update', [$tournament, $category, $teamA]), [
+            'resolution_pdf' => $pdf,
+        ])->assertRedirect();
+
+        $pdfPath = $teamA->fresh()->expulsionResolutionPdfPathFor($tournament->fresh());
+        $this->assertNotNull($pdfPath);
+        $this->assertNull($teamA->expulsionReasonFor($tournament));
+        Storage::disk('public')->assertExists($pdfPath);
+    }
+
+    public function test_organizer_can_remove_an_expulsions_resolution_pdf(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($user);
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, null, $pdfPath);
+
+        $this->actingAs($user)->delete(route('tournaments.categories.teams.expel.resolution-pdf.destroy', [$tournament, $category, $teamA]))
+            ->assertRedirect();
+
+        $this->assertNull($teamA->fresh()->expulsionResolutionPdfPathFor($tournament->fresh()));
+        Storage::disk('public')->assertMissing($pdfPath);
+    }
+
+    public function test_a_user_cannot_manage_another_users_expulsion_resolution_pdf(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        [$tournament, $category, , $teamA] = $this->makeLeague($owner);
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, null, $pdfPath);
+
+        $this->actingAs($intruder)->get(route('tournaments.categories.teams.expulsion.show', [$tournament, $category, $teamA]))
+            ->assertForbidden();
+
+        $this->actingAs($intruder)->delete(route('tournaments.categories.teams.expel.resolution-pdf.destroy', [$tournament, $category, $teamA]))
+            ->assertForbidden();
+
+        Storage::disk('public')->assertExists($pdfPath);
     }
 
     public function test_expulsion_does_not_affect_the_same_clubs_team_in_another_category(): void

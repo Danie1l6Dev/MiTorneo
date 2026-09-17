@@ -45,6 +45,10 @@
                         <flux:sidebar.item icon="trophy" :href="route('admin.tournaments.index')" :current="request()->routeIs('admin.tournaments.*')" wire:navigate>
                             {{ __('Torneos') }}
                         </flux:sidebar.item>
+
+                        <flux:sidebar.item icon="cog-6-tooth" :href="route('admin.settings.edit')" :current="request()->routeIs('admin.settings.*')" wire:navigate>
+                            {{ __('Configuración') }}
+                        </flux:sidebar.item>
                     @else
                         <flux:sidebar.item icon="trophy" :href="route('dashboard')" :current="request()->routeIs('dashboard', 'tournaments.*', 'phases.*', 'groups.*', 'matches.*')" wire:navigate>
                             {{ __('Mis torneos') }}

@@ -204,6 +204,31 @@ class SanctionIndexSectionsTest extends TestCase
         $response->assertOk()->assertSeeText('2');
     }
 
+    public function test_the_stat_cards_also_count_team_expulsions(): void
+    {
+        $user = User::factory()->create();
+
+        [$teamOne, $matchOne] = $this->makeTeamWithOriginMatch($user);
+        $this->makeSanction($teamOne, $matchOne, SanctionStatus::Pending);
+
+        // An expulsion with no resolution attached yet reads as pending,
+        // same as the "por resolución" badge shown on its own card.
+        [$teamTwo, $matchTwo] = $this->makeTeamWithOriginMatch($user);
+        app(TeamExpulsionService::class)->expel($teamTwo, $matchTwo->tournament, null);
+
+        // One with a resolution reads as active -- an expulsion never
+        // "finishes serving" the way a fechas-based sanction does.
+        [$teamThree, $matchThree] = $this->makeTeamWithOriginMatch($user);
+        app(TeamExpulsionService::class)->expel($teamThree, $matchThree->tournament, 'Motivo dado.');
+
+        $response = $this->actingAs($user)->get(route('sanctions.index'));
+
+        $response->assertOk()
+            ->assertViewHas('totalPendingCount', 2)
+            ->assertViewHas('totalActiveCount', 1)
+            ->assertViewHas('totalFulfilledCount', 0);
+    }
+
     // ── Seguridad/ownership ──────────────────────────────────────────────
 
     public function test_the_index_only_shows_the_authenticated_users_own_sanctions(): void

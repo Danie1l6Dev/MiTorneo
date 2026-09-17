@@ -20,13 +20,27 @@
 
         @if ($isExpelled)
             <flux:callout variant="danger" icon="no-symbol" :heading="__('Expulsado de :tournament', ['tournament' => $tournament->name])">
-                @if ($expulsionReason)
+                @if (! $expulsionResolutionPdfUrl && $expulsionReason)
                     {{ $expulsionReason }}
                 @endif
                 @if ($expelledAt)
                     <div class="mt-1 text-xs opacity-70">{{ $expelledAt->format('d/m/Y') }}</div>
                 @endif
             </flux:callout>
+
+            @if ($expulsionResolutionPdfUrl)
+                <div class="space-y-2 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                    <flux:heading size="lg">{{ __('Resolución del comité') }}</flux:heading>
+
+                    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10">
+                        <embed src="{{ $expulsionResolutionPdfUrl }}" type="application/pdf" class="h-[80vh] w-full" />
+                    </div>
+
+                    <flux:button href="{{ $expulsionResolutionPdfUrl }}" download="{{ $team->expulsionResolutionPdfDownloadName() }}" icon="arrow-down-tray" size="sm">
+                        {{ __('Descargar PDF') }}
+                    </flux:button>
+                </div>
+            @endif
         @endif
 
         <flux:separator variant="subtle" />

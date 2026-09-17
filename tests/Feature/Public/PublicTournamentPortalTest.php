@@ -13,12 +13,15 @@ use App\Models\LeagueSchedule;
 use App\Models\MatchEvent;
 use App\Models\Player;
 use App\Models\Sanction;
+use App\Models\Setting;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
 use App\Services\TeamExpulsionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -425,6 +428,33 @@ class PublicTournamentPortalTest extends TestCase
             ->assertSee($sanction->type->label());
     }
 
+    public function test_the_public_stat_cards_also_count_team_expulsions(): void
+    {
+        $data = $this->makeFullTournament();
+
+        Sanction::factory()->resolved(1)->create([
+            'match_id' => $data['match']->id,
+            'match_event_id' => MatchEvent::factory()->create([
+                'match_id' => $data['match']->id,
+                'team_id' => $data['home']->id,
+                'player_id' => $data['player']->id,
+                'type' => MatchEventType::RedCard,
+            ])->id,
+            'team_id' => $data['home']->id,
+            'player_id' => $data['player']->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        // No resolution attached -- reads as pending, same as the "por
+        // resolución" badge shown on its own card.
+        app(TeamExpulsionService::class)->expel($data['away'], $data['tournament'], null);
+
+        $this->get(route('public.tournaments.sanctions.index', $data['tournament']))
+            ->assertOk()
+            ->assertViewHas('totalActiveCount', 1)
+            ->assertViewHas('totalPendingCount', 1);
+    }
+
     public function test_the_sanctions_page_only_shows_this_tournaments_own_sanctions(): void
     {
         $data = $this->makeFullTournament();
@@ -478,5 +508,81 @@ class PublicTournamentPortalTest extends TestCase
 
         $this->patch(route('sanctions.resolve', $sanction), ['matches_banned' => 1])
             ->assertRedirect(route('login'));
+    }
+
+    public function test_a_guest_can_view_a_sanctions_public_detail_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $data['match']->id,
+            'match_event_id' => MatchEvent::factory()->create([
+                'match_id' => $data['match']->id,
+                'team_id' => $data['home']->id,
+                'player_id' => $data['player']->id,
+                'type' => MatchEventType::RedCard,
+            ])->id,
+            'team_id' => $data['home']->id,
+            'player_id' => $data['player']->id,
+            'type' => SanctionType::RedCard,
+            'resolution_notes' => 'Agresión a un rival.',
+        ]);
+
+        $this->get(route('public.tournaments.sanctions.show', [$data['tournament'], $sanction]))
+            ->assertOk()
+            ->assertSee('CARLOS GÓMEZ')
+            ->assertSee('Agresión a un rival.');
+    }
+
+    public function test_the_public_sanctions_row_links_into_its_own_detail_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $sanction = Sanction::factory()->resolved(1)->create([
+            'match_id' => $data['match']->id,
+            'match_event_id' => MatchEvent::factory()->create([
+                'match_id' => $data['match']->id,
+                'team_id' => $data['home']->id,
+                'player_id' => $data['player']->id,
+                'type' => MatchEventType::RedCard,
+            ])->id,
+            'team_id' => $data['home']->id,
+            'player_id' => $data['player']->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $this->get(route('public.tournaments.sanctions.index', $data['tournament']))
+            ->assertOk()
+            ->assertSee(route('public.tournaments.sanctions.show', [$data['tournament'], $sanction]), false);
+    }
+
+    public function test_a_sanction_from_a_different_tournament_is_a_404_on_the_public_detail_page(): void
+    {
+        $data = $this->makeFullTournament();
+
+        $otherMatch = TournamentMatch::factory()->create();
+        $otherSanction = Sanction::factory()->create([
+            'match_id' => $otherMatch->id,
+            'team_id' => $otherMatch->home_team_id,
+            'player_id' => Player::factory()->for($otherMatch->homeTeam)->create()->id,
+        ]);
+
+        $this->get(route('public.tournaments.sanctions.show', [$data['tournament'], $otherSanction]))
+            ->assertNotFound();
+    }
+
+    public function test_an_expelled_teams_resolution_pdf_is_embedded_on_its_public_team_page(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $data = $this->makeFullTournament();
+
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        app(TeamExpulsionService::class)->expel($data['home'], $data['tournament'], null, $pdfPath);
+
+        $this->get(route('public.tournaments.teams.show', [$data['tournament'], $data['home']]))
+            ->assertOk()
+            ->assertSee(Storage::disk('public')->url($pdfPath), false);
     }
 }

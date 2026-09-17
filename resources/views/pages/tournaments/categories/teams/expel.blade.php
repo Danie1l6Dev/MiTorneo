@@ -37,10 +37,14 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('tournaments.categories.teams.expel.store', [$tournament, $category, $team]) }}" class="space-y-4">
+        <form method="POST" action="{{ route('tournaments.categories.teams.expel.store', [$tournament, $category, $team]) }}" enctype="multipart/form-data" class="space-y-4">
             @csrf
 
-            <flux:textarea name="reason" label="{{ __('Motivo (opcional)') }}" rows="3">{{ old('reason') }}</flux:textarea>
+            @if ($pdfUploadsEnabled)
+                <flux:input type="file" name="resolution_pdf" label="{{ __('PDF de la resolución del comité (opcional)') }}" accept="application/pdf" />
+            @else
+                <flux:textarea name="reason" label="{{ __('Motivo (opcional)') }}" rows="3">{{ old('reason') }}</flux:textarea>
+            @endif
 
             <div class="flex justify-end gap-2">
                 <flux:button :href="route('tournaments.categories.show', [$tournament, $category])" variant="ghost" wire:navigate>

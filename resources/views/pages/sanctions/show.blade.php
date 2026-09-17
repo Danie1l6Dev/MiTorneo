@@ -65,10 +65,41 @@
                         </div>
                     @endif
 
-                    @if ($sanction->resolution_notes)
-                        <div class="col-span-2">
-                            <dt class="text-zinc-500 dark:text-white/50">{{ __('Motivo / observación') }}</dt>
-                            <dd class="font-medium text-zinc-800 dark:text-white">{{ $sanction->resolution_notes }}</dd>
+                    @if ($sanction->resolution_pdf_path || $sanction->resolution_notes || $pdfUploadsEnabled)
+                        <div class="col-span-2 space-y-3">
+                            <dt class="text-zinc-500 dark:text-white/50">{{ __('Resolución del comité') }}</dt>
+                            <dd class="space-y-3">
+                                @if ($sanction->resolution_pdf_path)
+                                    <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10">
+                                        <embed src="{{ $sanction->resolutionPdfUrl() }}" type="application/pdf" class="h-[80vh] w-full" />
+                                    </div>
+
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <flux:button href="{{ $sanction->resolutionPdfUrl() }}" download="{{ $sanction->resolutionPdfDownloadName() }}" icon="arrow-down-tray" size="sm">
+                                            {{ __('Descargar PDF') }}
+                                        </flux:button>
+
+                                        <x-ui.confirm-delete-form :action="route('sanctions.resolution-pdf.destroy', $sanction)" :heading="__('¿Quitar el PDF de la resolución?')" :description="__('Podés subir uno nuevo después si hace falta.')" :confirm-label="__('Quitar PDF')">
+                                            <flux:button variant="danger" icon="trash" size="sm">
+                                                {{ __('Quitar PDF') }}
+                                            </flux:button>
+                                        </x-ui.confirm-delete-form>
+                                    </div>
+                                @elseif ($sanction->resolution_notes)
+                                    <p class="text-sm font-medium text-zinc-800 dark:text-white">{{ $sanction->resolution_notes }}</p>
+                                @endif
+
+                                @if ($pdfUploadsEnabled)
+                                    <form method="POST" action="{{ route('sanctions.resolution-pdf.update', $sanction) }}" enctype="multipart/form-data" @class(['space-y-3', 'border-t border-zinc-200 pt-3 dark:border-white/10' => $sanction->resolution_pdf_path || $sanction->resolution_notes])>
+                                        @csrf
+                                        @method('PATCH')
+                                        <flux:input type="file" name="resolution_pdf" :label="$sanction->resolution_pdf_path ? __('Reemplazar PDF') : __('Adjuntar PDF')" accept="application/pdf" />
+                                        <div class="flex justify-end">
+                                            <flux:button type="submit" size="sm">{{ $sanction->resolution_pdf_path ? __('Reemplazar') : __('Adjuntar') }}</flux:button>
+                                        </div>
+                                    </form>
+                                @endif
+                            </dd>
                         </div>
                     @endif
                 @endif
@@ -81,7 +112,7 @@
 
                 <flux:text class="text-sm">{{ __('Una roja directa no tiene una duración asumida: indica cuántas fechas de sanción corresponden según lo resuelto.') }}</flux:text>
 
-                <form method="POST" action="{{ route('sanctions.resolve', $sanction) }}" class="space-y-4">
+                <form method="POST" action="{{ route('sanctions.resolve', $sanction) }}" enctype="multipart/form-data" class="space-y-4">
                     @csrf
                     @method('PATCH')
 
@@ -91,7 +122,11 @@
                         <flux:input type="number" step="0.01" name="fine_amount" label="{{ __('Multa económica (opcional)') }}" value="{{ old('fine_amount') }}" min="0" />
                     @endif
 
-                    <flux:textarea name="resolution_notes" label="{{ __('Motivo / observación (opcional)') }}" rows="3">{{ old('resolution_notes') }}</flux:textarea>
+                    @if ($pdfUploadsEnabled)
+                        <flux:input type="file" name="resolution_pdf" label="{{ __('PDF de la resolución del comité (opcional)') }}" accept="application/pdf" />
+                    @else
+                        <flux:textarea name="resolution_notes" label="{{ __('Motivo / observación (opcional)') }}" rows="3">{{ old('resolution_notes') }}</flux:textarea>
+                    @endif
 
                     <flux:button type="submit" variant="primary">{{ __('Resolver sanción') }}</flux:button>
                 </form>

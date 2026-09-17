@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Sanction;
+use App\Models\Setting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -18,11 +19,21 @@ class SanctionResolveRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
+        $rules = [
             'matches_banned' => ['required', 'integer', 'min:1', 'max:50'],
             'resolution_notes' => ['nullable', 'string', 'max:2000'],
             'fine_amount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
         ];
+
+        // The upload field only exists in the form (and is only ever
+        // accepted) while an admin has the feature switched on -- see
+        // Setting::sanctionPdfUploadsEnabled(). While it's off,
+        // resolution_notes stays the only way to record why.
+        if (Setting::sanctionPdfUploadsEnabled()) {
+            $rules['resolution_pdf'] = ['nullable', 'file', 'mimes:pdf', 'max:5120'];
+        }
+
+        return $rules;
     }
 
     public function withValidator(Validator $validator): void

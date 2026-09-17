@@ -11,12 +11,15 @@ use App\Models\CompetitionPhase;
 use App\Models\MatchEvent;
 use App\Models\Player;
 use App\Models\Sanction;
+use App\Models\Setting;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
 use App\Services\SanctionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class SanctionManagementTest extends TestCase
@@ -195,6 +198,161 @@ class SanctionManagementTest extends TestCase
         $this->assertSame(3, $sanction->matches_banned);
         $this->assertSame('Agresión a un rival tras la expulsión.', $sanction->resolution_notes);
         $this->assertNotNull($sanction->resolved_at);
+    }
+
+    public function test_the_committee_can_attach_a_resolution_pdf_when_the_feature_is_enabled(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $sanction = Sanction::factory()->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $pdf = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf');
+
+        $this->actingAs($user)->patch(route('sanctions.resolve', $sanction), [
+            'matches_banned' => 3,
+            'resolution_pdf' => $pdf,
+        ])->assertRedirect(route('sanctions.show', $sanction));
+
+        $sanction->refresh();
+        $this->assertNotNull($sanction->resolution_pdf_path);
+        $this->assertNull($sanction->resolution_notes);
+        Storage::disk('public')->assertExists($sanction->resolution_pdf_path);
+    }
+
+    public function test_a_resolution_pdf_sent_while_the_feature_is_disabled_is_ignored(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $sanction = Sanction::factory()->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $pdf = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf');
+
+        $this->actingAs($user)->patch(route('sanctions.resolve', $sanction), [
+            'matches_banned' => 3,
+            'resolution_notes' => 'Motivo en texto.',
+            'resolution_pdf' => $pdf,
+        ])->assertRedirect(route('sanctions.show', $sanction));
+
+        $sanction->refresh();
+        $this->assertNull($sanction->resolution_pdf_path);
+        $this->assertSame('Motivo en texto.', $sanction->resolution_notes);
+        Storage::disk('public')->assertDirectoryEmpty('resoluciones');
+    }
+
+    public function test_the_committee_can_replace_a_resolution_pdf_after_resolving(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+            'resolution_notes' => 'Motivo original.',
+        ]);
+
+        $pdf = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf');
+
+        $this->actingAs($user)->patch(route('sanctions.resolution-pdf.update', $sanction), [
+            'resolution_pdf' => $pdf,
+        ])->assertRedirect();
+
+        $sanction->refresh();
+        $this->assertNotNull($sanction->resolution_pdf_path);
+        $this->assertNull($sanction->resolution_notes);
+        Storage::disk('public')->assertExists($sanction->resolution_pdf_path);
+    }
+
+    public function test_the_committee_can_remove_a_resolution_pdf(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+            'resolution_pdf_path' => $pdfPath,
+        ]);
+
+        $this->actingAs($user)->delete(route('sanctions.resolution-pdf.destroy', $sanction))
+            ->assertRedirect();
+
+        $this->assertNull($sanction->fresh()->resolution_pdf_path);
+        Storage::disk('public')->assertMissing($pdfPath);
+    }
+
+    public function test_removing_a_resolution_pdf_works_even_while_the_feature_is_disabled(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+            'resolution_pdf_path' => $pdfPath,
+        ]);
+
+        $this->actingAs($user)->delete(route('sanctions.resolution-pdf.destroy', $sanction))
+            ->assertRedirect();
+
+        $this->assertNull($sanction->fresh()->resolution_pdf_path);
+        Storage::disk('public')->assertMissing($pdfPath);
+    }
+
+    public function test_a_user_cannot_manage_another_users_resolution_pdf(): void
+    {
+        Setting::current()->update(['sanction_pdf_uploads_enabled' => true]);
+        Storage::fake('public');
+
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($owner);
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+            'resolution_pdf_path' => $pdfPath,
+        ]);
+
+        $this->actingAs($intruder)->delete(route('sanctions.resolution-pdf.destroy', $sanction))
+            ->assertForbidden();
+
+        Storage::disk('public')->assertExists($pdfPath);
     }
 
     public function test_a_resolved_sanction_cannot_be_resolved_again(): void

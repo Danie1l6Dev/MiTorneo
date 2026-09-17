@@ -57,10 +57,11 @@ class PublicTeamController extends Controller
 
         $isExpelled = $team->isExpelledFrom($tournament);
         $expulsionReason = $team->expulsionReasonFor($tournament);
+        $expulsionResolutionPdfUrl = $team->expulsionResolutionPdfUrlFor($tournament);
         $expelledAt = $team->expelledAtFor($tournament);
 
         return view('pages.public.teams.show', compact(
-            'tournament', 'team', 'roster', 'activeSanctionsBySubject', 'isExpelled', 'expulsionReason', 'expelledAt'
+            'tournament', 'team', 'roster', 'activeSanctionsBySubject', 'isExpelled', 'expulsionReason', 'expulsionResolutionPdfUrl', 'expelledAt'
         ));
     }
 }

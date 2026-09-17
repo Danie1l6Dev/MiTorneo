@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Enums\MatchStatus;
+use App\Http\Requests\ResolutionPdfRequest;
 use App\Http\Requests\TeamExpulsionRequest;
 use App\Models\Category;
+use App\Models\Setting;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
@@ -56,7 +58,9 @@ class TeamExpulsionController extends Controller
             ->orderBy('scheduled_at')
             ->get();
 
-        return view('pages.tournaments.categories.teams.expel', compact('tournament', 'category', 'team', 'pendingMatches'));
+        $pdfUploadsEnabled = Setting::sanctionPdfUploadsEnabled();
+
+        return view('pages.tournaments.categories.teams.expel', compact('tournament', 'category', 'team', 'pendingMatches', 'pdfUploadsEnabled'));
     }
 
     public function store(TeamExpulsionRequest $request, Tournament $tournament, Category $category, Team $team, TeamExpulsionService $service): RedirectResponse
@@ -70,7 +74,14 @@ class TeamExpulsionController extends Controller
                 ->with('error', __('Este plantel ya fue expulsado de este torneo.'));
         }
 
-        $service->expel($team, $tournament, $request->validated('reason'));
+        // See SanctionController::resolve() -- gate on the flag here too,
+        // not just in TeamExpulsionRequest::rules(), so a stray upload
+        // can't be stored while the feature is supposed to be off.
+        $resolutionPdfPath = Setting::sanctionPdfUploadsEnabled() && $request->hasFile('resolution_pdf')
+            ? $request->file('resolution_pdf')->store('resoluciones', 'public')
+            : null;
+
+        $service->expel($team, $tournament, $resolutionPdfPath === null ? $request->validated('reason') : null, $resolutionPdfPath);
 
         return to_route('tournaments.categories.show', [$tournament, $category])
             ->with('status', __(':team fue expulsado de :category. Sus partidos pendientes quedaron como 0-3 (perdido por W).', [
@@ -93,5 +104,77 @@ class TeamExpulsionController extends Controller
 
         return to_route('tournaments.categories.show', [$tournament, $category])
             ->with('status', __('Se revirtió la expulsión de :team.', ['team' => $team->name]));
+    }
+
+    /**
+     * Read-only detail page for one team's expulsion -- the organizer-facing
+     * counterpart to SanctionController::show() for a player/DT sanction,
+     * reached from the same sanctions index. Includes every match this
+     * expulsion itself forced to a 0-3 walkover, for the same transparency
+     * reason the sanction page lists its own serving-window matches.
+     */
+    public function show(Tournament $tournament, Category $category, Team $team): View
+    {
+        $this->authorize('update', $tournament);
+
+        $this->assertTeamBelongs($tournament, $category, $team);
+
+        abort_unless($team->isExpelledFrom($tournament), 404);
+
+        $affectedMatches = TournamentMatch::query()
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $category->id)
+            ->where('walkover_team_id', $team->id)
+            ->with(['homeTeam', 'awayTeam'])
+            ->orderBy('scheduled_at')
+            ->get();
+
+        $pdfUploadsEnabled = Setting::sanctionPdfUploadsEnabled();
+
+        return view('pages.tournaments.categories.teams.expulsion', compact(
+            'tournament', 'category', 'team', 'affectedMatches', 'pdfUploadsEnabled'
+        ));
+    }
+
+    /**
+     * See SanctionController::updateResolutionPdf() -- same idea, for an
+     * expulsion's resolution PDF instead of a sanction's.
+     */
+    public function updateResolutionPdf(ResolutionPdfRequest $request, Tournament $tournament, Category $category, Team $team, TeamExpulsionService $service): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        $this->assertTeamBelongs($tournament, $category, $team);
+
+        if (! $team->isExpelledFrom($tournament)) {
+            return back()->with('error', __('Este plantel no está expulsado de este torneo.'));
+        }
+
+        if (! Setting::sanctionPdfUploadsEnabled()) {
+            return back()->with('error', __('La carga de PDF está deshabilitada.'));
+        }
+
+        $service->replaceResolutionPdf($team, $tournament, $request->file('resolution_pdf')->store('resoluciones', 'public'));
+
+        return back()->with('status', __('PDF de la resolución actualizado.'));
+    }
+
+    /**
+     * See SanctionController::destroyResolutionPdf() -- same idea, for an
+     * expulsion's resolution PDF instead of a sanction's.
+     */
+    public function destroyResolutionPdf(Tournament $tournament, Category $category, Team $team, TeamExpulsionService $service): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        $this->assertTeamBelongs($tournament, $category, $team);
+
+        if ($team->expulsionResolutionPdfPathFor($tournament) === null) {
+            return back()->with('error', __('Este plantel no tiene un PDF de resolución para quitar.'));
+        }
+
+        $service->removeResolutionPdf($team, $tournament);
+
+        return back()->with('status', __('PDF de la resolución eliminado.'));
     }
 }

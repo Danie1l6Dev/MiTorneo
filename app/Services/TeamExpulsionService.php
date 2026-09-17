@@ -7,6 +7,7 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Expels a plantel (Team) from one specific tournament -- e.g. the
@@ -26,12 +27,13 @@ use Illuminate\Support\Collection;
  */
 class TeamExpulsionService
 {
-    public function expel(Team $team, Tournament $tournament, ?string $reason): void
+    public function expel(Team $team, Tournament $tournament, ?string $reason, ?string $resolutionPdfPath = null): void
     {
         $tournament->globalTeams()->syncWithoutDetaching([$team->id]);
         $tournament->globalTeams()->updateExistingPivot($team->id, [
             'expelled_at' => now(),
             'expulsion_reason' => $reason,
+            'expulsion_resolution_pdf_path' => $resolutionPdfPath,
         ]);
 
         foreach ($this->unplayedMatches($team, $tournament) as $match) {
@@ -86,9 +88,54 @@ class TeamExpulsionService
             $match->save();
         }
 
+        $existingPdfPath = $team->expulsionResolutionPdfPathFor($tournament);
+
+        if ($existingPdfPath !== null) {
+            Storage::disk('public')->delete($existingPdfPath);
+        }
+
         $tournament->globalTeams()->updateExistingPivot($team->id, [
             'expelled_at' => null,
             'expulsion_reason' => null,
+            'expulsion_resolution_pdf_path' => null,
+        ]);
+    }
+
+    /**
+     * Attaches or replaces the resolution PDF on an already-recorded
+     * expulsion -- e.g. the wrong file was uploaded, or the feature got
+     * turned on afterward. Deletes whatever PDF was there before, and
+     * clears the plain-text reason since the PDF is now the record of
+     * truth (same convention as expel() itself).
+     */
+    public function replaceResolutionPdf(Team $team, Tournament $tournament, string $newPath): void
+    {
+        $existingPdfPath = $team->expulsionResolutionPdfPathFor($tournament);
+
+        if ($existingPdfPath !== null) {
+            Storage::disk('public')->delete($existingPdfPath);
+        }
+
+        $tournament->globalTeams()->updateExistingPivot($team->id, [
+            'expulsion_resolution_pdf_path' => $newPath,
+            'expulsion_reason' => null,
+        ]);
+    }
+
+    /**
+     * Removes a mistakenly attached resolution PDF -- pure cleanup, doesn't
+     * touch the expulsion itself (expelled_at, the walkover matches, ...).
+     */
+    public function removeResolutionPdf(Team $team, Tournament $tournament): void
+    {
+        $existingPdfPath = $team->expulsionResolutionPdfPathFor($tournament);
+
+        if ($existingPdfPath !== null) {
+            Storage::disk('public')->delete($existingPdfPath);
+        }
+
+        $tournament->globalTeams()->updateExistingPivot($team->id, [
+            'expulsion_resolution_pdf_path' => null,
         ]);
     }
 

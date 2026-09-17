@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
@@ -346,7 +348,7 @@ class Team extends Model
         return DB::table('tournament_team')
             ->where('tournament_id', $tournament->id)
             ->where('team_id', $this->id)
-            ->select('expelled_at', 'expulsion_reason')
+            ->select('expelled_at', 'expulsion_reason', 'expulsion_resolution_pdf_path')
             ->first();
     }
 
@@ -369,6 +371,40 @@ class Team extends Model
     public function expulsionReasonFor(Tournament $tournament): ?string
     {
         return $this->tournamentPivotRow($tournament)?->expulsion_reason;
+    }
+
+    /**
+     * Raw disk path (not a URL) for the committee's resolution PDF backing
+     * this team's expulsion from $tournament, if one was attached -- used
+     * by TeamExpulsionService::revert() to delete the file. See
+     * expulsionResolutionPdfUrlFor() for the public-facing URL.
+     */
+    public function expulsionResolutionPdfPathFor(Tournament $tournament): ?string
+    {
+        return $this->tournamentPivotRow($tournament)?->expulsion_resolution_pdf_path;
+    }
+
+    /**
+     * Public URL for the committee's resolution PDF backing this team's
+     * expulsion from $tournament, if one was attached (see
+     * Setting::sanctionPdfUploadsEnabled()). Null both when never expelled
+     * and when only a text reason was recorded.
+     */
+    public function expulsionResolutionPdfUrlFor(Tournament $tournament): ?string
+    {
+        $path = $this->expulsionResolutionPdfPathFor($tournament);
+
+        return $path !== null ? Storage::disk('public')->url($path) : null;
+    }
+
+    /**
+     * Filename offered to the browser when downloading
+     * expulsionResolutionPdfUrlFor(), e.g.
+     * "resolucion-sancion-expulsion-equipo-tigres-fc.pdf".
+     */
+    public function expulsionResolutionPdfDownloadName(): string
+    {
+        return 'resolucion-sancion-expulsion-equipo-'.Str::slug($this->name).'.pdf';
     }
 
     /**

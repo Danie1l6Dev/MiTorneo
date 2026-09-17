@@ -42,9 +42,9 @@
 
         @foreach ($expulsions as $expulsionTournament)
             <flux:callout variant="danger" icon="no-symbol" :heading="__('Expulsado de :tournament', ['tournament' => $expulsionTournament->name])">
-                @if ($team->expulsionReasonFor($expulsionTournament))
-                    {{ $team->expulsionReasonFor($expulsionTournament) }}
-                @endif
+                <flux:link :href="route('tournaments.categories.teams.expulsion.show', [$expulsionTournament, $team->category, $team])" wire:navigate>
+                    {{ __('Ver detalle de la expulsión') }}
+                </flux:link>
 
                 <x-slot:actions>
                     <form method="POST" action="{{ route('tournaments.categories.teams.expel.destroy', [$expulsionTournament, $team->category, $team]) }}">

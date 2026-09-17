@@ -30,4 +30,7 @@ Route::prefix('public/torneos')->name('public.tournaments.')->group(function () 
 
     Route::get('{tournament:slug}/sanciones', [PublicSanctionController::class, 'index'])
         ->name('sanctions.index');
+
+    Route::get('{tournament:slug}/sanciones/{sanction}', [PublicSanctionController::class, 'show'])
+        ->name('sanctions.show');
 });
