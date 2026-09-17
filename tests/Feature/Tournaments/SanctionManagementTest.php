@@ -17,6 +17,7 @@ use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
 use App\Services\SanctionService;
+use App\Services\TeamExpulsionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -516,6 +517,49 @@ class SanctionManagementTest extends TestCase
         $this->assertSame(2, $sanction->matchesServedCount());
         $this->assertTrue($sanction->isFulfilled());
         $this->assertFalse($player->fresh()->isSuspended());
+    }
+
+    public function test_a_walkover_forced_by_the_players_own_team_expulsion_does_not_serve_a_fecha(): void
+    {
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        // The origin match itself -- where the red card was actually shown
+        // -- must already be Finished, same as any real match a card comes
+        // from; otherwise TeamExpulsionService::expel() below would treat
+        // it as one more unplayed match and force it to a walkover too.
+        $match->update(['round_number' => 1, 'status' => MatchStatus::Finished, 'home_score' => 1, 'away_score' => 0]);
+
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $next = $this->makeFollowUpMatch($match, 2);
+        $afterNext = $this->makeFollowUpMatch($match, 3);
+
+        // First fecha served normally.
+        $next->update(['status' => MatchStatus::Finished, 'home_score' => 1, 'away_score' => 0]);
+        $this->assertSame(1, $sanction->matchesServedCount());
+
+        // Before the second fecha match is played, the player's own team
+        // gets expelled from the tournament -- the match is forced to a 0-3
+        // walkover loss instead of actually being played.
+        app(TeamExpulsionService::class)->expel($match->homeTeam, $match->tournament, null);
+
+        $afterNext->refresh();
+        $this->assertTrue($afterNext->is_walkover);
+        $this->assertSame(MatchStatus::Finished, $afterNext->status);
+
+        // The walkover doesn't count as the missing fecha -- nobody
+        // actually played it, so the suspension stays open instead of being
+        // silently cleared by a match that never happened.
+        $this->assertSame(1, $sanction->matchesServedCount());
+        $this->assertFalse($sanction->isFulfilled());
+        $this->assertTrue($sanction->isActive());
+        $this->assertTrue($player->fresh()->isSuspended());
     }
 
     public function test_a_match_from_before_the_sanctioned_red_card_is_never_blocked(): void

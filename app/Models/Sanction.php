@@ -292,7 +292,14 @@ class Sanction extends Model
      * already use to build the calendar/bracket in the first place --
      * nothing here is invented just for sanctions. A cancelled match is
      * left out entirely: it never happened, so it can neither serve a
-     * fecha nor occupy one.
+     * fecha nor occupy one. A walkover match (TournamentMatch::$is_walkover,
+     * "Perdido por W" -- see TeamExpulsionService) is excluded for the same
+     * reason: nobody actually played it, whichever side it was forced
+     * against, so it can't stand in for a fecha the suspended player was
+     * supposed to sit out either. Without this, a team's own expulsion
+     * (which forces its remaining matches to a walkover loss) would
+     * silently "serve" its players' still-pending suspensions for matches
+     * that never happened.
      *
      * @return Collection<int, TournamentMatch>
      */
@@ -305,6 +312,7 @@ class Sanction extends Model
                 $query->whereIn('home_team_id', $teamIds)->orWhereIn('away_team_id', $teamIds);
             })
             ->where('status', '!=', MatchStatus::Cancelled)
+            ->where('is_walkover', false)
             ->with(['competitionPhase', 'tournament'])
             ->get()
             ->sort(fn (TournamentMatch $a, TournamentMatch $b): int => [
