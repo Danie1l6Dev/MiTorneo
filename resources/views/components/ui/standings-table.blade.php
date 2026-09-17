@@ -96,7 +96,7 @@
                             @endif
                         </div>
                         <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
-                            {{ __('PJ') }} {{ $row['played'] }} &middot; {{ __('DG') }} {{ $row['goal_difference'] }}
+                            {{ __('PJ') }} {{ $row['played'] }} &middot; {{ __('GF') }} {{ $row['goals_for'] }} &middot; {{ __('GC') }} {{ $row['goals_against'] }} &middot; {{ __('DG') }} {{ $row['goal_difference'] }}
                         </div>
                     </div>
 
