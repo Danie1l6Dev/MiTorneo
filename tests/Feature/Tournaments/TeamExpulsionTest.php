@@ -228,6 +228,101 @@ class TeamExpulsionTest extends TestCase
         Storage::disk('public')->assertExists($pdfPath);
     }
 
+    // ── Estado de la expulsión (pendiente/activa/cumplida) ───────────────
+
+    public function test_an_expulsion_with_no_resolution_stays_pending_even_once_the_category_is_finished(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+
+        TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamA->id,
+            'away_team_id' => $teamB->id,
+            'status' => MatchStatus::Finished,
+            'home_score' => 2,
+            'away_score' => 1,
+        ]);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, null);
+
+        $this->assertTrue($teamA->isExpulsionPendingFor($tournament));
+        $this->assertFalse($teamA->isExpulsionActiveFor($tournament));
+        $this->assertFalse($teamA->isExpulsionFulfilledFor($tournament));
+    }
+
+    public function test_a_resolved_expulsion_stays_active_while_its_category_still_has_an_unfinished_match(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+        $teamC = Team::factory()->for($tournament)->for($category)->create();
+
+        // A match between two OTHER teams in the same category -- teamA's
+        // own expulsion never touches it, but it still keeps the category
+        // from being "done".
+        TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamB->id,
+            'away_team_id' => $teamC->id,
+            'status' => MatchStatus::Scheduled,
+        ]);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, 'Motivo.');
+
+        $this->assertTrue($teamA->isExpulsionActiveFor($tournament));
+        $this->assertFalse($teamA->isExpulsionFulfilledFor($tournament));
+    }
+
+    public function test_a_resolved_expulsion_is_fulfilled_once_every_match_of_the_category_is_finished(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+
+        TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamA->id,
+            'away_team_id' => $teamB->id,
+            'status' => MatchStatus::Finished,
+            'home_score' => 2,
+            'away_score' => 1,
+        ]);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, 'Motivo.');
+
+        $this->assertTrue($teamA->isExpulsionFulfilledFor($tournament));
+        $this->assertFalse($teamA->isExpulsionActiveFor($tournament));
+    }
+
+    public function test_a_new_phase_reopens_a_fulfilled_expulsion_back_to_active(): void
+    {
+        $user = User::factory()->create();
+        [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
+
+        TournamentMatch::factory()->for($phase)->create([
+            'tournament_id' => $tournament->id,
+            'category_id' => $category->id,
+            'home_team_id' => $teamA->id,
+            'away_team_id' => $teamB->id,
+            'status' => MatchStatus::Finished,
+            'home_score' => 2,
+            'away_score' => 1,
+        ]);
+
+        app(TeamExpulsionService::class)->expel($teamA, $tournament, 'Motivo.');
+        $this->assertTrue($teamA->isExpulsionFulfilledFor($tournament));
+
+        // A new phase for the same category (e.g. a knockout bracket once
+        // the league wraps up) -- even before it has any matches generated,
+        // the category isn't "done" anymore.
+        CompetitionPhase::factory()->for($tournament)->for($category)->create();
+
+        $this->assertFalse($teamA->isExpulsionFulfilledFor($tournament));
+        $this->assertTrue($teamA->isExpulsionActiveFor($tournament));
+    }
+
     public function test_expulsion_does_not_affect_the_same_clubs_team_in_another_category(): void
     {
         $user = User::factory()->create();

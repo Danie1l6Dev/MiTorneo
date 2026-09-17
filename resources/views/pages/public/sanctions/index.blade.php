@@ -79,7 +79,10 @@
                         @foreach ($expelledTeams as $expelledTeam)
                             {{-- Same layout as x-ui.public-sanction-row: name, subtitle, badge
                                 row, then the action button -- kept visually consistent between
-                                the two card types on this page. --}}
+                                the two card types on this page. Second badge mirrors
+                                Sanction::stateLabel() -- see
+                                Team::expulsionStateLabel()/expulsionStateColor() for what
+                                pending/active/fulfilled mean for an expulsion specifically. --}}
                             <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                                 <div class="min-w-0">
                                     <div class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $expelledTeam->name }}</div>
@@ -90,6 +93,9 @@
 
                                     <div class="mt-1.5 flex flex-wrap items-center gap-2">
                                         <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
+                                        <flux:badge size="sm" :color="$expelledTeam->expulsionStateColor($tournament)">
+                                            {{ $expelledTeam->expulsionStateLabel($tournament) }}
+                                        </flux:badge>
                                     </div>
                                 </div>
 

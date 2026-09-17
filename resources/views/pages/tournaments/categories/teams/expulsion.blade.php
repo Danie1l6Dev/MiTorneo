@@ -19,9 +19,15 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
+        @php $resolutionPdfPath = $team->expulsionResolutionPdfPathFor($tournament); @endphp
+        @php $hasExpulsionResolution = $resolutionPdfPath || $team->expulsionReasonFor($tournament); @endphp
+
         <div class="space-y-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-2">
                 <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
+                <flux:badge size="sm" :color="$team->expulsionStateColor($tournament)">
+                    {{ $team->expulsionStateLabel($tournament) }}
+                </flux:badge>
             </div>
 
             <dl class="grid grid-cols-2 gap-4 text-sm">
@@ -42,8 +48,7 @@
                     <dd class="font-medium text-zinc-800 dark:text-white">{{ $team->expelledAtFor($tournament)?->format('d/m/Y') }}</dd>
                 </div>
 
-                @php $resolutionPdfPath = $team->expulsionResolutionPdfPathFor($tournament); @endphp
-                @if ($resolutionPdfPath || $team->expulsionReasonFor($tournament) || $pdfUploadsEnabled)
+                @if ($hasExpulsionResolution || $pdfUploadsEnabled)
                     <div class="col-span-2 space-y-3">
                         <dt class="text-zinc-500 dark:text-white/50">{{ __('Resolución del comité') }}</dt>
                         <dd class="space-y-3">

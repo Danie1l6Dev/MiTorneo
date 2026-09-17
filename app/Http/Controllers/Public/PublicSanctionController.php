@@ -40,15 +40,16 @@ class PublicSanctionController extends Controller
             ->get();
 
         // See SanctionController::index() -- the stat cards cover every
-        // sanction, player/DT and team expulsion alike, read through the
-        // same "has a resolution been attached yet" lens the "ver/por
-        // resolución" badge already uses.
-        $expelledPendingCount = $expelledTeams->filter(fn (Team $team): bool => ! $team->pivot->getAttribute('expulsion_reason') && ! $team->pivot->getAttribute('expulsion_resolution_pdf_path'))->count();
-        $expelledActiveCount = $expelledTeams->count() - $expelledPendingCount;
+        // sanction, player/DT and team expulsion alike, read through
+        // Team::isExpulsionPendingFor()/isExpulsionActiveFor()/
+        // isExpulsionFulfilledFor().
+        $expelledPendingCount = $expelledTeams->filter(fn (Team $team): bool => $team->isExpulsionPendingFor($tournament))->count();
+        $expelledActiveCount = $expelledTeams->filter(fn (Team $team): bool => $team->isExpulsionActiveFor($tournament))->count();
+        $expelledFulfilledCount = $expelledTeams->filter(fn (Team $team): bool => $team->isExpulsionFulfilledFor($tournament))->count();
 
         $totalPendingCount = $pendingSanctions->count() + $expelledPendingCount;
         $totalActiveCount = $activeSanctions->count() + $expelledActiveCount;
-        $totalFulfilledCount = $fulfilledSanctions->count();
+        $totalFulfilledCount = $fulfilledSanctions->count() + $expelledFulfilledCount;
 
         return view('pages.public.sanctions.index', compact(
             'tournament', 'sanctions', 'pendingSanctions', 'activeSanctions', 'fulfilledSanctions', 'expelledTeams',

@@ -40,18 +40,19 @@ class SanctionController extends Controller
         // The stat cards at the top of the page cover EVERY sanction --
         // player/DT and team expulsion alike -- even though the two are
         // still listed in separate sections below (see the view). An
-        // expulsion has no pending/resolved lifecycle of its own (it's
-        // immediate, see TeamExpulsionService), so it's read through the
-        // same lens the "ver/por resolución" badge already uses: no
-        // resolution attached yet counts as pending, one attached counts as
-        // active (it never "finishes serving" the way a fechas-based
-        // sanction does, so it never contributes to fulfilled).
-        $expelledPendingCount = collect($expelledTeams)->filter(fn (array $e): bool => ! $e['reason'] && ! $e['resolution_pdf_path'])->count();
-        $expelledActiveCount = count($expelledTeams) - $expelledPendingCount;
+        // expulsion is read through Team::isExpulsionPendingFor()/
+        // isExpulsionActiveFor()/isExpulsionFulfilledFor(): no resolution
+        // attached yet is pending; resolved but the category still has
+        // unfinished matches is active; resolved AND the category's whole
+        // competition (every phase, including any added later) is finished
+        // is fulfilled.
+        $expelledPendingCount = collect($expelledTeams)->filter(fn (array $e): bool => $e['team']->isExpulsionPendingFor($e['tournament']))->count();
+        $expelledActiveCount = collect($expelledTeams)->filter(fn (array $e): bool => $e['team']->isExpulsionActiveFor($e['tournament']))->count();
+        $expelledFulfilledCount = collect($expelledTeams)->filter(fn (array $e): bool => $e['team']->isExpulsionFulfilledFor($e['tournament']))->count();
 
         $totalPendingCount = $pendingSanctions->count() + $expelledPendingCount;
         $totalActiveCount = $activeSanctions->count() + $expelledActiveCount;
-        $totalFulfilledCount = $fulfilledSanctions->count();
+        $totalFulfilledCount = $fulfilledSanctions->count() + $expelledFulfilledCount;
 
         return view('pages.sanctions.index', compact(
             'sanctions', 'pendingSanctions', 'activeSanctions', 'fulfilledSanctions', 'expelledTeams',

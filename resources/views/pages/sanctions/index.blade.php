@@ -90,12 +90,17 @@
 
                             {{-- Whole card is clickable into the expulsion's own detail page --
                                 same pattern as x-ui.sanction-row -- "Revertir" now lives there
-                                instead of here, since a form can't nest inside this <a>. --}}
+                                instead of here, since a form can't nest inside this <a>. Second
+                                badge mirrors Sanction::stateLabel() -- see
+                                Team::expulsionStateLabel()/expulsionStateColor(). --}}
                             <a href="{{ route('tournaments.categories.teams.expulsion.show', [$expelledTournament, $expelledTeam->category, $expelledTeam]) }}" wire:navigate class="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-white/5">
                                 <div class="min-w-0">
                                     <div class="flex items-center gap-2">
                                         <span class="truncate text-sm font-medium text-zinc-800 dark:text-white">{{ $expelledTeam->name }}</span>
                                         <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
+                                        <flux:badge size="sm" :color="$expelledTeam->expulsionStateColor($expelledTournament)">
+                                            {{ $expelledTeam->expulsionStateLabel($expelledTournament) }}
+                                        </flux:badge>
                                     </div>
 
                                     <div class="mt-0.5 truncate text-xs text-zinc-500 dark:text-white/50">

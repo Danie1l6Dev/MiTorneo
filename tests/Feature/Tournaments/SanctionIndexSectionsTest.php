@@ -212,21 +212,37 @@ class SanctionIndexSectionsTest extends TestCase
         $this->makeSanction($teamOne, $matchOne, SanctionStatus::Pending);
 
         // An expulsion with no resolution attached yet reads as pending,
-        // same as the "por resolución" badge shown on its own card.
+        // regardless of whether its category's matches are done.
         [$teamTwo, $matchTwo] = $this->makeTeamWithOriginMatch($user);
         app(TeamExpulsionService::class)->expel($teamTwo, $matchTwo->tournament, null);
 
-        // One with a resolution reads as active -- an expulsion never
-        // "finishes serving" the way a fechas-based sanction does.
+        // Resolved, but its category still has a match left to play
+        // (between two OTHER teams -- teamThree's own expulsion doesn't
+        // touch it) -- active.
         [$teamThree, $matchThree] = $this->makeTeamWithOriginMatch($user);
+        $otherTeamA = Team::factory()->for($matchThree->tournament)->for($matchThree->category)->create();
+        $otherTeamB = Team::factory()->for($matchThree->tournament)->for($matchThree->category)->create();
+        TournamentMatch::factory()->for($matchThree->competitionPhase)->create([
+            'tournament_id' => $matchThree->tournament_id,
+            'category_id' => $matchThree->category_id,
+            'home_team_id' => $otherTeamA->id,
+            'away_team_id' => $otherTeamB->id,
+            'round_number' => 2,
+            'status' => MatchStatus::Scheduled,
+        ]);
         app(TeamExpulsionService::class)->expel($teamThree, $matchThree->tournament, 'Motivo dado.');
+
+        // Resolved, and its category's only match is already finished --
+        // fulfilled.
+        [$teamFour, $matchFour] = $this->makeTeamWithOriginMatch($user);
+        app(TeamExpulsionService::class)->expel($teamFour, $matchFour->tournament, 'Motivo dado.');
 
         $response = $this->actingAs($user)->get(route('sanctions.index'));
 
         $response->assertOk()
             ->assertViewHas('totalPendingCount', 2)
             ->assertViewHas('totalActiveCount', 1)
-            ->assertViewHas('totalFulfilledCount', 0);
+            ->assertViewHas('totalFulfilledCount', 1);
     }
 
     // ── Seguridad/ownership ──────────────────────────────────────────────

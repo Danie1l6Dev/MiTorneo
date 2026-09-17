@@ -408,6 +408,99 @@ class Team extends Model
     }
 
     /**
+     * Whether this team's expulsion from $tournament still has no
+     * resolution (PDF or text) attached -- same "hasn't been decided yet"
+     * meaning Sanction::isPending() carries for a player/DT sanction.
+     */
+    public function isExpulsionPendingFor(Tournament $tournament): bool
+    {
+        return $this->isExpelledFrom($tournament)
+            && $this->expulsionResolutionPdfPathFor($tournament) === null
+            && $this->expulsionReasonFor($tournament) === null;
+    }
+
+    /**
+     * Whether every phase of this team's own category, in $tournament
+     * specifically, has finished every one of its matches -- i.e. whether
+     * that category's competition is entirely done. Recomputed from the
+     * calendar every time, never stored: adding a NEW phase later (another
+     * league stage, a knockout bracket, ...) naturally flips this back to
+     * false the moment it exists, even before it has any matches generated
+     * yet (CompetitionPhase::allMatchesFinished() requires at least one).
+     */
+    private function categoryCompetitionFinishedFor(Tournament $tournament): bool
+    {
+        $phases = CompetitionPhase::query()
+            ->where('tournament_id', $tournament->id)
+            ->where('category_id', $this->category_id)
+            ->get();
+
+        return $phases->isNotEmpty() && $phases->every(fn (CompetitionPhase $phase): bool => $phase->allMatchesFinished());
+    }
+
+    /**
+     * Whether this team's expulsion from $tournament is resolved (see
+     * isExpulsionPendingFor()) but its category's competition isn't fully
+     * finished yet -- the expulsion is still actively in effect. Same
+     * "resolved but not yet fulfilled" meaning Sanction::isActive() carries,
+     * just with "every match of the category concluded" standing in for a
+     * player sanction's fechas.
+     */
+    public function isExpulsionActiveFor(Tournament $tournament): bool
+    {
+        return $this->isExpelledFrom($tournament)
+            && ! $this->isExpulsionPendingFor($tournament)
+            && ! $this->categoryCompetitionFinishedFor($tournament);
+    }
+
+    /**
+     * Whether this team's expulsion from $tournament is resolved AND its
+     * category's competition is entirely finished -- there's nothing left
+     * this expulsion could still affect. A category that later gets a new
+     * phase (another league, a knockout bracket, ...) stops being
+     * "finished" the instant that phase exists, so this flips back to false
+     * -- and isExpulsionActiveFor() back to true -- automatically.
+     */
+    public function isExpulsionFulfilledFor(Tournament $tournament): bool
+    {
+        return $this->isExpelledFrom($tournament)
+            && ! $this->isExpulsionPendingFor($tournament)
+            && $this->categoryCompetitionFinishedFor($tournament);
+    }
+
+    /**
+     * "Pendiente de resolución" / "Expulsión cumplida" / "Expulsión activa"
+     * -- same three-way split (and badge color convention: amber/red/green)
+     * the sanctions index's stat cards already use for a player/DT
+     * sanction's own stateLabel().
+     */
+    public function expulsionStateLabel(Tournament $tournament): string
+    {
+        if ($this->isExpulsionPendingFor($tournament)) {
+            return __('Pendiente de resolución');
+        }
+
+        if ($this->isExpulsionFulfilledFor($tournament)) {
+            return __('Expulsión cumplida');
+        }
+
+        return __('Expulsión activa');
+    }
+
+    public function expulsionStateColor(Tournament $tournament): string
+    {
+        if ($this->isExpulsionPendingFor($tournament)) {
+            return 'amber';
+        }
+
+        if ($this->isExpulsionFulfilledFor($tournament)) {
+            return 'green';
+        }
+
+        return 'red';
+    }
+
+    /**
      * When this team was expelled from $tournament, if at all.
      */
     public function expelledAtFor(Tournament $tournament): ?Carbon
