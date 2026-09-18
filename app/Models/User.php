@@ -39,6 +39,9 @@ class User extends Authenticatable implements PasskeyUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
+    /** The shared public-demo account (portfolio visitors), see DemoResetCommand. */
+    public const DEMO_EMAIL = 'demo@mitorneo.test';
+
     /**
      * Get the attributes that should be cast.
      *
@@ -114,5 +117,10 @@ class User extends Authenticatable implements PasskeyUser
     public function usesMunicipalLetterhead(): bool
     {
         return $this->email === 'faudisp@uniguajira.edu.co';
+    }
+
+    public function isDemo(): bool
+    {
+        return $this->email === self::DEMO_EMAIL;
     }
 }

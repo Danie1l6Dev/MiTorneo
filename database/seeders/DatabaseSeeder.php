@@ -11,6 +11,7 @@ use App\Enums\ScheduleFormat;
 use App\Enums\TournamentStatus;
 use App\Enums\UserRole;
 use App\Models\Category;
+use App\Models\Club;
 use App\Models\Coach;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
@@ -49,16 +50,27 @@ class DatabaseSeeder extends Seeder
             'email' => 'daniel@mitorneo.test',
         ]);
 
-        User::factory()->create([
+        $demo = User::factory()->create([
             'name' => 'Usuario Demo',
-            'email' => 'demo@mitorneo.test',
+            'email' => User::DEMO_EMAIL,
         ]);
 
+        $this->seedDemoDataFor($daniel);
+        $this->seedDemoDataFor($demo);
+    }
+
+    /**
+     * Everything a fresh account needs to be explorable right away. Public
+     * so the `demo:reset` command can re-seed the public demo account alone,
+     * without touching anyone else's data.
+     */
+    public function seedDemoDataFor(User $user): void
+    {
         // Global referees, created once for Daniel and reused across every
         // finished match seeded below -- spanning more than one tournament,
         // so the referee list/detail pages have real data (match counts,
         // match history) to show immediately instead of an empty state.
-        $referees = $this->seedReferees($daniel);
+        $referees = $this->seedReferees($user);
 
         // Demo tournaments so there's always something ready to click through
         // right after logging in, covering the states that are otherwise
@@ -66,9 +78,19 @@ class DatabaseSeeder extends Seeder
         // already finished with a small group-stage draw ready to try, and
         // one with a full 8-team league already played out end to end so the
         // knockout bracket (cuartos -> semifinal -> final) can be tried too.
-        $this->seedReadyForScheduleTournament($daniel);
-        $this->seedReadyForDrawTournament($daniel, $referees);
-        $this->seedReadyForKnockoutBracketTournament($daniel, $referees);
+        $this->seedReadyForScheduleTournament($user);
+        $this->seedReadyForDrawTournament($user, $referees);
+        $this->seedReadyForKnockoutBracketTournament($user, $referees);
+    }
+
+    /**
+     * Tournament slugs are unique across the whole app, so a second account
+     * seeded with the same demo data (the public demo user) gets a suffix
+     * instead of colliding with Daniel's.
+     */
+    private function slugFor(string $slug, User $user): string
+    {
+        return $user->isDemo() ? "{$slug}-demo" : $slug;
     }
 
     /**
@@ -93,19 +115,19 @@ class DatabaseSeeder extends Seeder
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Campeonato Municipal 2026',
-            'slug' => 'campeonato-municipal-2026',
+            'slug' => $this->slugFor('campeonato-municipal-2026', $user),
             'season' => '2026',
             'status' => TournamentStatus::Active,
         ]);
 
-        $teterito = $tournament->categories()->create([
+        $teterito = $this->createCategory($tournament, [
             'name' => 'Teterito',
             'status' => CategoryStatus::Active,
             'uses_groups' => true,
             'order' => 0,
         ]);
 
-        $juvenil = $tournament->categories()->create([
+        $juvenil = $this->createCategory($tournament, [
             'name' => 'Juvenil',
             'status' => CategoryStatus::Active,
             'uses_groups' => false,
@@ -120,13 +142,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $groupA = $teterito->groups()->forceCreate([
-            'tournament_id' => $tournament->id,
+            'tournament_id' => null,
             'name' => 'Grupo A',
             'order' => 0,
         ]);
 
         $groupB = $teterito->groups()->forceCreate([
-            'tournament_id' => $tournament->id,
+            'tournament_id' => null,
             'name' => 'Grupo B',
             'order' => 1,
         ]);
@@ -152,12 +174,12 @@ class DatabaseSeeder extends Seeder
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Copa Relámpago 2026',
-            'slug' => 'copa-relampago-2026',
+            'slug' => $this->slugFor('copa-relampago-2026', $user),
             'season' => '2026',
             'status' => TournamentStatus::Active,
         ]);
 
-        $subquince = $tournament->categories()->create([
+        $subquince = $this->createCategory($tournament, [
             'name' => 'Sub-15',
             'status' => CategoryStatus::Active,
             'uses_groups' => true,
@@ -172,13 +194,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $groupA = $subquince->groups()->forceCreate([
-            'tournament_id' => $tournament->id,
+            'tournament_id' => null,
             'name' => 'Grupo A',
             'order' => 0,
         ]);
 
         $groupB = $subquince->groups()->forceCreate([
-            'tournament_id' => $tournament->id,
+            'tournament_id' => null,
             'name' => 'Grupo B',
             'order' => 1,
         ]);
@@ -215,12 +237,12 @@ class DatabaseSeeder extends Seeder
     {
         $tournament = Tournament::factory()->for($user)->create([
             'name' => 'Liga Profesional 2026',
-            'slug' => 'liga-profesional-2026',
+            'slug' => $this->slugFor('liga-profesional-2026', $user),
             'season' => '2026',
             'status' => TournamentStatus::Active,
         ]);
 
-        $primera = $tournament->categories()->create([
+        $primera = $this->createCategory($tournament, [
             'name' => 'Primera División',
             'status' => CategoryStatus::Active,
             'uses_groups' => false,
@@ -249,13 +271,46 @@ class DatabaseSeeder extends Seeder
         $this->seedSanctionScenarios($matches);
     }
 
+    /**
+     * Categories live in the organizer's global catalog (tournament_id NULL,
+     * owned by the tournament's user) and join a tournament through the
+     * tournament_category pivot -- a tournament never owns its own category.
+     * Scoped to the tournament's owner, so seeding one account never touches
+     * another's catalog.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function createCategory(Tournament $tournament, array $attributes): Category
+    {
+        $category = new Category($attributes);
+        $category->user_id = $tournament->user_id;
+        $category->tournament_id = null;
+        $category->save();
+
+        $tournament->globalCategories()->attach($category->id);
+
+        return $category;
+    }
+
+    /**
+     * A squad (Team) belongs to one of the organizer's clubs -- reused by name
+     * when the same club fields squads in more than one tournament -- and is
+     * entered into the tournament through the tournament_team pivot.
+     */
     private function createTeam(Category $category, Tournament $tournament, string $name, ?Group $group = null): Team
     {
+        $club = Club::query()->firstOrCreate(
+            ['user_id' => $tournament->user_id, 'name' => mb_strtoupper($name)],
+        );
+
         $team = $category->teams()->forceCreate([
-            'tournament_id' => $tournament->id,
+            'tournament_id' => null,
+            'club_id' => $club->id,
             'group_id' => $group?->id,
             'name' => $name,
         ]);
+
+        $tournament->globalTeams()->attach($team->id);
 
         $this->seedPlayersForTeam($team);
         $this->seedCoachForTeam($team);

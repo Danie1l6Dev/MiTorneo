@@ -51,6 +51,15 @@
             </div>
         </form>
 
+        @if (config('demo.enabled'))
+            <form method="POST" action="{{ route('demo.login') }}">
+                @csrf
+                <flux:button type="submit" variant="filled" icon="play" class="w-full" data-test="demo-login-button">
+                    {{ __('Entrar como demo') }}
+                </flux:button>
+            </form>
+        @endif
+
         <div class="space-x-1 text-sm text-center rtl:space-x-reverse text-zinc-600 dark:text-zinc-400">
             <span>{{ __('Don\'t have an account?') }}</span>
             <flux:link :href="route('register')" wire:navigate>{{ __('Sign up') }}</flux:link>

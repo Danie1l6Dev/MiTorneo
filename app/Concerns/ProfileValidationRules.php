@@ -3,6 +3,7 @@
 namespace App\Concerns;
 
 use App\Models\User;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
@@ -43,6 +44,11 @@ trait ProfileValidationRules
             'string',
             'email',
             'max:255',
+            // The shared demo account's email is reserved: DemoResetService wipes
+            // whatever account owns it, so no real user may ever hold it.
+            fn (string $attribute, mixed $value, Closure $fail) => mb_strtolower((string) $value) === User::DEMO_EMAIL
+                ? $fail(__('Este correo está reservado.'))
+                : null,
             $userId === null
                 ? Rule::unique(User::class)
                 : Rule::unique(User::class)->ignore($userId),

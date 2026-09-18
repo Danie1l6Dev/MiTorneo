@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\BlockDemoAccountChanges;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use Illuminate\Foundation\Application;
@@ -22,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             EnsureUserIsActive::class,
+            BlockDemoAccountChanges::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
