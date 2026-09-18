@@ -85,11 +85,14 @@
                             @foreach ($teamsByGroup as $groupName => $groupTeams)
                                 @foreach ($groupTeams as $team)
                                     @php
-                                        $byTo = $team->category->birth_year_to;
+                                        // Same cutoff as Player::ageEligibleForCategory(): the category's oldest birth year.
+                                        $cutoff = $team->category->birth_year_to === null
+                                            ? null
+                                            : ($team->category->birth_year_from ?? $team->category->birth_year_to);
                                         $femaleExtra = (int) ($team->category->female_extra_birth_years ?? 0);
-                                        $disabledExpr = $byTo === null
+                                        $disabledExpr = $cutoff === null
                                             ? '!birthDate'
-                                            : "!birthDate || parseInt(birthDate.split('-')[0]) < ({$byTo} - (gender === 'female' ? {$femaleExtra} : 0))";
+                                            : "!birthDate || parseInt(birthDate.split('-')[0]) < ({$cutoff} - (gender === 'female' ? {$femaleExtra} : 0))";
                                         $label = $team->name;
                                         if ($groupTeams->count() > 1 || $teamsByGroup->count() > 1) {
                                             $label .= ' — '.$groupName;
