@@ -3,13 +3,13 @@
 <head>
     <meta charset="utf-8">
     <style>
-        @page { margin: 190px 40px 60px 40px; }
+        @page { margin: {{ $letterhead === 'municipal' ? '190px' : '125px' }} 40px 60px 40px; }
 
         @include('pdf.partials.municipal-style')
     </style>
 </head>
 <body>
-    @include('pdf.partials.municipal-header')
+    @include("pdf.partials.{$letterhead}-header")
 
     <h1>Tabla de posiciones oficial</h1>
     <h2>{{ $tournament->name }}</h2>
@@ -20,6 +20,6 @@
 
     @include('pdf.partials.municipal-standings-tables')
 
-    @include('pdf.partials.municipal-signature')
+    @include("pdf.partials.{$letterhead}-signature")
 </body>
 </html>

@@ -108,11 +108,10 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
-     * Whether this user gets MunicipalStandingsPdfController's export button
-     * -- a one-off for Faudis' municipal league letterhead, not a general
-     * feature. See that controller's docblock for why.
+     * Whether standings PDFs use Faudis' LIFUTGUA letterhead instead of the
+     * generic MiTorneo one. See MunicipalStandingsPdfController's docblock.
      */
-    public function canExportMunicipalStandingsPdf(): bool
+    public function usesMunicipalLetterhead(): bool
     {
         return $this->email === 'faudisp@uniguajira.edu.co';
     }

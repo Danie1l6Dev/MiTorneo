@@ -23,10 +23,9 @@
             </div>
 
             <x-slot:actions>
-                {{-- One-off export for Faudis' municipal league letterhead --
-                     see MunicipalStandingsPdfController's docblock. Not a
-                     general feature, so it's only ever shown to his account. --}}
-                @if (auth()->user()?->canExportMunicipalStandingsPdf())
+                {{-- Letterhead (generic vs. Faudis' municipal one) is picked
+                     server-side, see MunicipalStandingsPdfController. --}}
+                @if ($tournament->competitionPhases()->where('type', \App\Enums\CompetitionPhaseType::League)->exists())
                     <x-ui.pdf-export-button :href="route('tournaments.standings.pdf', $tournament)" :filename="'tabla-posiciones-'.str($tournament->name)->slug().'.pdf'" variant="ghost" icon="arrow-down-tray">
                         {{ __('Exportar tabla de posiciones') }}
                     </x-ui.pdf-export-button>

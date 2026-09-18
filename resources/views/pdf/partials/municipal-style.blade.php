@@ -141,3 +141,45 @@ table.standings td.num {
     text-transform: uppercase;
     font-size: 13px;
 }
+
+/* Generic MiTorneo letterhead (no personal/federation branding) */
+header.default {
+    top: -95px;
+    height: 90px;
+    text-align: left;
+}
+
+header.default .crest img {
+    height: 56px;
+}
+
+header.default .brand {
+    vertical-align: middle;
+    padding-left: 8px;
+}
+
+header.default .brand-name {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 26px;
+    font-weight: bold;
+    color: #1f2937;
+}
+
+header.default .brand-tagline {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+header.default .brand-rule {
+    border-top: 2px solid #1f2937;
+    margin-top: 8px;
+}
+
+footer.default {
+    bottom: -35px;
+    height: 30px;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 10px;
+    color: #6b7280;
+}

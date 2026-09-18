@@ -391,10 +391,9 @@
                 <div class="flex items-center justify-between">
                     <flux:heading size="lg">{{ __('Tabla de posiciones') }}</flux:heading>
 
-                    {{-- One-off export for Faudis' municipal league letterhead --
-                         see MunicipalStandingsPdfController's docblock. Not a
-                         general feature, so it's only ever shown to his account. --}}
-                    @if (auth()->user()?->canExportMunicipalStandingsPdf() && count($standings) > 0)
+                    {{-- Letterhead (generic vs. Faudis' municipal one) is picked
+                         server-side, see MunicipalStandingsPdfController. --}}
+                    @if (count($standings) > 0 && $phase->type === \App\Enums\CompetitionPhaseType::League)
                         <x-ui.pdf-export-button :href="route('phases.standings.pdf', $phase)" :filename="'tabla-posiciones-'.str($category->name.'-'.$phase->name)->slug().'.pdf'" variant="ghost" size="sm" icon="arrow-down-tray">
                             {{ __('Exportar PDF') }}
                         </x-ui.pdf-export-button>

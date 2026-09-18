@@ -14,13 +14,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Exports standings tables (a single phase, or every league phase of a whole
- * tournament) as a PDF using the letterhead LIFUTGUA (Faudis' league)
- * already prints on its own official programming sheets -- a one-off for
- * that specific organizer, not a general feature. Municipal leagues like
- * his have their own federation branding/NIT that would be meaningless (or
- * actively wrong) on anyone else's export, so this is gated to his account
- * alone (see User::canExportMunicipalStandingsPdf()) rather than exposed to
- * every organizer.
+ * tournament) as a PDF. Available to every organizer: by default it prints
+ * the generic MiTorneo letterhead; Faudis' account (see
+ * User::usesMunicipalLetterhead()) prints the LIFUTGUA letterhead his league
+ * already uses on its official programming sheets. That federation
+ * branding/NIT would be meaningless (or actively wrong) on anyone else's
+ * export, hence the per-user switch.
  */
 class MunicipalStandingsPdfController extends Controller
 {
@@ -28,7 +27,6 @@ class MunicipalStandingsPdfController extends Controller
     {
         $this->authorize('view', $phase);
 
-        abort_unless(auth()->user()?->canExportMunicipalStandingsPdf(), 404);
         abort_unless($phase->type === CompetitionPhaseType::League, 404);
 
         $category = $phase->category;
@@ -40,7 +38,7 @@ class MunicipalStandingsPdfController extends Controller
             'category' => $category,
             'tournament' => $tournament,
             'tables' => $tables,
-            ...$this->letterheadImages(),
+            ...$this->letterhead(),
         ])->setPaper('letter');
 
         $fileName = 'tabla-posiciones-'.str($category->name.'-'.$phase->name)->slug().'.pdf';
@@ -58,8 +56,6 @@ class MunicipalStandingsPdfController extends Controller
     public function exportTournament(Tournament $tournament, StandingsService $standingsService): StreamedResponse|Response
     {
         $this->authorize('view', $tournament);
-
-        abort_unless(auth()->user()?->canExportMunicipalStandingsPdf(), 404);
 
         $leaguePhases = $tournament->competitionPhases()
             ->where('type', CompetitionPhaseType::League)
@@ -87,7 +83,7 @@ class MunicipalStandingsPdfController extends Controller
         $pdf = Pdf::loadView('pdf.standings-municipal-tournament', [
             'tournament' => $tournament,
             'sections' => $sections,
-            ...$this->letterheadImages(),
+            ...$this->letterhead(),
         ])->setPaper('letter');
 
         $fileName = 'tabla-posiciones-'.str($tournament->name)->slug().'.pdf';
@@ -96,11 +92,19 @@ class MunicipalStandingsPdfController extends Controller
     }
 
     /**
-     * @return array{lifutguaLogo: string, difutbolLogo: string, wordmark: string, signature: string}
+     * @return array<string, string>
      */
-    private function letterheadImages(): array
+    private function letterhead(): array
     {
+        if (! auth()->user()->usesMunicipalLetterhead()) {
+            return [
+                'letterhead' => 'default',
+                'appLogo' => $this->imageAsDataUri('mitorneo-logo.svg'),
+            ];
+        }
+
         return [
+            'letterhead' => 'municipal',
             'lifutguaLogo' => $this->imageAsDataUri('lifutgua.jpg'),
             'difutbolLogo' => $this->imageAsDataUri('difutbol.jpg'),
             'wordmark' => $this->imageAsDataUri('lifutgua-wordmark.png'),
@@ -111,7 +115,11 @@ class MunicipalStandingsPdfController extends Controller
     private function imageAsDataUri(string $fileName): string
     {
         $path = resource_path("images/standings-pdf/{$fileName}");
-        $mimeType = str($fileName)->endsWith('.png') ? 'image/png' : 'image/jpeg';
+        $mimeType = match (pathinfo($fileName, PATHINFO_EXTENSION)) {
+            'png' => 'image/png',
+            'svg' => 'image/svg+xml',
+            default => 'image/jpeg',
+        };
 
         return "data:{$mimeType};base64,".base64_encode(File::get($path));
     }
