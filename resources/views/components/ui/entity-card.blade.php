@@ -33,21 +33,19 @@
 @endphp
 
 <{{ $tag }} @if ($href) href="{{ $href }}" wire:navigate @endif {{ $attributes->class($classes) }}>
-    <div class="flex items-start justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-3">
-            @if ($icon)
-                <div class="flex {{ $iconBoxSize }} shrink-0 items-center justify-center rounded-2xl {{ $iconWrap }}">
-                    <flux:icon :icon="$icon" variant="micro" class="{{ $iconGlyphSize }}" />
-                </div>
-            @endif
+    <div class="flex min-w-0 items-center gap-3">
+        @if ($icon)
+            <div class="flex {{ $iconBoxSize }} shrink-0 items-center justify-center rounded-2xl {{ $iconWrap }}">
+                <flux:icon :icon="$icon" variant="micro" class="{{ $iconGlyphSize }}" />
+            </div>
+        @endif
 
-            <flux:heading size="lg" class="{{ $titleWrapClass }} {{ $titleSizeClass }}">{{ $title }}</flux:heading>
-        </div>
-
-        @isset($badges)
-            <div class="flex shrink-0 flex-wrap items-center gap-1.5">{{ $badges }}</div>
-        @endisset
+        <flux:heading size="lg" class="{{ $titleWrapClass }} {{ $titleSizeClass }}">{{ $title }}</flux:heading>
     </div>
+
+    @isset($badges)
+        <div class="mt-3 flex flex-wrap items-center gap-1.5">{{ $badges }}</div>
+    @endisset
 
     @isset($description)
         <flux:text class="mt-2 line-clamp-2 {{ $isLarge ? 'text-base' : '' }}">{{ $description }}</flux:text>

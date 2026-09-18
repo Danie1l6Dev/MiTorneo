@@ -46,6 +46,10 @@
                             @if ($category->uses_groups)
                                 <flux:badge size="sm" color="zinc">{{ __('Usa grupos') }}</flux:badge>
                             @endif
+
+                            @if ($category->female_extra_birth_years)
+                                <flux:badge size="sm" color="pink">{{ __('Mujeres +:years años', ['years' => $category->female_extra_birth_years]) }}</flux:badge>
+                            @endif
                         </x-slot:badges>
                     </x-ui.entity-card>
                 @endforeach
