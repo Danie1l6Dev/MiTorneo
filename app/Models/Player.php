@@ -362,7 +362,9 @@ class Player extends Model
      * their natural one OR any OLDER category (higher physical level),
      * never a younger one. Categories are ranked by $birth_year_to -- a
      * LOWER value means an OLDER category (its kids were born earlier).
-     * $playerBirthYear >= $category->birth_year_to therefore covers both
+     * (the cutoff is birth_year_from -- the category's oldest birth year --
+     * when set, else birth_year_to.)
+     * $playerBirthYear >= that cutoff therefore covers both
      * "fits exactly" and "playing up" in one comparison, and rejects
      * "playing down".
      *
@@ -386,7 +388,11 @@ class Player extends Model
             return true;
         }
 
-        $threshold = $category->birth_year_to;
+        // The cutoff is the category's OLDEST birth year (birth_year_from),
+        // so a kid born in the first year of a 2-year range (PRE-PONY
+        // 2015-2016, born 2015) fits their own category. Categories that
+        // only have birth_year_to configured fall back to it.
+        $threshold = $category->birth_year_from ?? $category->birth_year_to;
 
         if ($this->gender === Gender::Female && $category->female_extra_birth_years) {
             $threshold -= $category->female_extra_birth_years;
