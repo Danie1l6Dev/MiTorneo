@@ -164,11 +164,9 @@ class Player extends Model
      * Every player of this organizer's own catalog, across every club/
      * category -- not scoped to one team. This is what the Clubes
      * "Jugadores" view preloads for its live, client-side name/document
-     * search (see match-lineup-search.blade.php for the exact same
-     * preload-and-filter pattern, and why a live search endpoint would be
-     * overkill at this catalog's actual size). Built on the same ownership
-     * check findForOrganizer() already uses (team_id or the player_team
-     * pivot).
+     * search (a live search endpoint would be overkill at this catalog's
+     * actual size). Built on the same ownership check findForOrganizer()
+     * already uses (team_id or the player_team pivot).
      *
      * @return Collection<int, Player>
      */
@@ -343,18 +341,6 @@ class Player extends Model
     public function sanctions(): HasMany
     {
         return $this->hasMany(Sanction::class);
-    }
-
-    /**
-     * Every match this player was "convocado" (called up) for -- see
-     * MatchLineup's docblock for how this differs from just belonging to a
-     * team via $team_id/player_team.
-     *
-     * @return HasMany<MatchLineup, $this>
-     */
-    public function matchLineups(): HasMany
-    {
-        return $this->hasMany(MatchLineup::class);
     }
 
     /**

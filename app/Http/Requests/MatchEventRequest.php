@@ -4,7 +4,6 @@ namespace App\Http\Requests;
 
 use App\Enums\MatchEventType;
 use App\Models\MatchEvent;
-use App\Models\MatchLineup;
 use App\Models\Player;
 use App\Models\Sanction;
 use App\Models\Team;
@@ -51,6 +50,7 @@ class MatchEventRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var TournamentMatch|null $match */
         $match = $this->route('match');
 
         $eligibleTeamIds = array_filter([$match?->home_team_id, $match?->away_team_id]);
@@ -61,19 +61,17 @@ class MatchEventRequest extends FormRequest
             // unless the other is present" and mutual exclusivity are
             // enforced together in withValidator() below, since Laravel's
             // required_without doesn't also forbid both being sent at once.
-            // A player belongs to this match either directly (their own
-            // Player::$team_id is one of its two sides) or via a
-            // match_lineups row -- the latter is what lets a player called
-            // up to play UP from a younger category's roster register
-            // events here too, even though their own team_id points
-            // elsewhere. See TournamentMatch::lineupTeamIdFor().
+            // A player belongs to this match when they're eligible for
+            // either side -- their own roster, or a play-up candidate from
+            // a younger category of the same club, even though their own
+            // team_id points elsewhere. See
+            // TournamentMatch::eligibleTeamIdForPlayer().
             'player_id' => [
                 'nullable',
-                function (string $attribute, mixed $value, Closure $fail) use ($eligibleTeamIds, $match): void {
-                    $belongsDirectly = Player::query()->where('id', $value)->whereIn('team_id', $eligibleTeamIds)->exists();
-                    $belongsViaLineup = $match !== null && MatchLineup::query()->where('match_id', $match->id)->where('player_id', $value)->exists();
+                function (string $attribute, mixed $value, Closure $fail) use ($match): void {
+                    $player = Player::query()->where('id', $value)->first();
 
-                    if (! $belongsDirectly && ! $belongsViaLineup) {
+                    if ($match === null || $player === null || $match->eligibleTeamIdForPlayer($player) === null) {
                         $fail(__('El jugador seleccionado no pertenece a ninguno de los dos equipos de este partido.'));
                     }
                 },
@@ -139,10 +137,10 @@ class MatchEventRequest extends FormRequest
             // this match -- checked together since adding either a goal or
             // an assist can trip either one.
             if ($hasPlayer && in_array($this->input('type'), [MatchEventType::Goal->value, MatchEventType::Assist->value], true)) {
-                $player = Player::find($this->input('player_id'));
+                $player = Player::query()->where('id', $this->input('player_id'))->first();
 
                 if ($player !== null) {
-                    $matchTeamId = $match->lineupTeamIdFor($player);
+                    $matchTeamId = $match->eligibleTeamIdForPlayer($player);
 
                     $playerIdsFor = fn (MatchEventType $type) => MatchEvent::query()
                         ->where('match_id', $match->id)

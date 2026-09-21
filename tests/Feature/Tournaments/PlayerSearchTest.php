@@ -14,13 +14,11 @@ use Tests\TestCase;
  * The "Jugadores" view of Clubes (ClubController::index with
  * ?view=jugadores): every player of the organizer's own catalog is
  * preloaded once (Player::allForOrganizer()) and searched by name/document
- * entirely client-side as the organizer types (see
- * clubs/index.blade.php -- the same preload-and-filter pattern
- * match-lineup-search.blade.php already uses). These tests cover what's
- * actually server-verifiable: which players get preloaded (ownership
- * scoping) and that both empty-state prompts exist in the markup for
- * Alpine to toggle. The live typing/filtering itself is Alpine-only and
- * was checked in the browser, not here.
+ * entirely client-side as the organizer types (see clubs/index.blade.php).
+ * These tests cover what's actually server-verifiable: which players get
+ * preloaded (ownership scoping) and that both empty-state prompts exist in
+ * the markup for Alpine to toggle. The live typing/filtering itself is
+ * Alpine-only and was checked in the browser, not here.
  */
 class PlayerSearchTest extends TestCase
 {

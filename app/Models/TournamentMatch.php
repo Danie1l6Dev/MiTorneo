@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 /**
  * home_team_id/away_team_id are nullable so a match can be created before its
@@ -52,6 +53,12 @@ class TournamentMatch extends Model
 {
     /** @use HasFactory<TournamentMatchFactory> */
     use HasFactory;
+
+    /** @var Collection<int, int>|null Memoized by eligibleTeamIdForPlayer(). */
+    private ?Collection $homeEligiblePlayerIds = null;
+
+    /** @var Collection<int, int>|null Memoized by eligibleTeamIdForPlayer(). */
+    private ?Collection $awayEligiblePlayerIds = null;
 
     protected function casts(): array
     {
@@ -173,7 +180,7 @@ class TournamentMatch extends Model
      * moment TeamExpulsionService::revert() runs, which is the only way
      * this ever goes back to false). Checked by every controller that
      * mutates a match: TournamentMatchController, MatchResultController,
-     * MatchEventController, MatchLineupController.
+     * MatchEventController.
      */
     public function isLockedByExpulsion(): bool
     {
@@ -439,38 +446,31 @@ class TournamentMatch extends Model
     }
 
     /**
-     * Every player "convocado" (called up) to play this match, for either
-     * side -- see MatchLineup's docblock for why this is a separate record
-     * from Player::$team_id.
-     *
-     * @return HasMany<MatchLineup, $this>
+     * Which side of THIS match $player is eligible to play for: whichever
+     * of home/away team's Team::clubPlayersEligibleForLineup() (own roster,
+     * plus an age-eligible play-up candidate from the same club) they
+     * belong to -- null when they're not eligible for either side. Used
+     * instead of Player::$team_id directly whenever an event needs to be
+     * attributed to a match SIDE, since a player playing up from a younger
+     * category's roster has a Player::$team_id that points at their own
+     * team, not this match's. The two eligible-id lists are cached on this
+     * instance since MatchEventBatchRequest resolves this once per queued
+     * row in the same request.
      */
-    public function lineups(): HasMany
+    public function eligibleTeamIdForPlayer(Player $player): ?int
     {
-        return $this->hasMany(MatchLineup::class, 'match_id');
-    }
+        $this->homeEligiblePlayerIds ??= $this->homeTeam?->clubPlayersEligibleForLineup()->pluck('id') ?? new Collection;
+        $this->awayEligiblePlayerIds ??= $this->awayTeam?->clubPlayersEligibleForLineup()->pluck('id') ?? new Collection;
 
-    /**
-     * Which side of THIS match $player is playing for: their match_lineups
-     * entry when one exists, falling back to Player::$team_id otherwise --
-     * the pre-lineup-feature path every player created directly on the
-     * home/away team (and any programmatic event creation with no lineup
-     * row) still relies on. Used instead of Player::$team_id directly
-     * whenever an event needs to be attributed to a match SIDE, since a
-     * player playing up from a younger category's roster has a
-     * Player::$team_id that points at their own team, not this match's.
-     */
-    public function lineupTeamIdFor(Player $player): ?int
-    {
-        // Prefers the already-loaded relation (avoids re-querying once per
-        // event when several events/validations resolve this in the same
-        // request, e.g. MatchEventBatchRequest's per-row loop) and only
-        // falls back to a fresh query when lineups wasn't eager loaded.
-        $lineup = $this->relationLoaded('lineups')
-            ? $this->lineups->firstWhere('player_id', $player->id)
-            : $this->lineups()->where('player_id', $player->id)->first();
+        if ($this->homeEligiblePlayerIds->contains($player->id)) {
+            return $this->home_team_id;
+        }
 
-        return $lineup?->team_id ?? $player->team_id;
+        if ($this->awayEligiblePlayerIds->contains($player->id)) {
+            return $this->away_team_id;
+        }
+
+        return null;
     }
 
     /**

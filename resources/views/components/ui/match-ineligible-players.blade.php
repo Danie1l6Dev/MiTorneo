@@ -4,9 +4,8 @@
     // typically because the category's allowed years were edited after
     // they were already rostered. See Team::ineligibleRosterPlayers() --
     // clubPlayersEligibleForLineup() silently excludes them from the
-    // "Agregar convocados" search above instead of offering them for
-    // call-up, so this card is what actually explains why they're missing
-    // from it.
+    // quick-add roster panel above instead of offering them event buttons,
+    // so this card is what actually explains why they're missing from it.
     'players',
     'team',
 ])

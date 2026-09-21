@@ -274,7 +274,7 @@ class MatchEventController extends Controller
 
         $player = $player instanceof Player ? $player : Player::findOrFail($player);
 
-        return ['team_id' => $match->lineupTeamIdFor($player), 'player_id' => $player->id, 'coach_id' => null];
+        return ['team_id' => $match->eligibleTeamIdForPlayer($player) ?? $player->team_id, 'player_id' => $player->id, 'coach_id' => null];
     }
 
     /**

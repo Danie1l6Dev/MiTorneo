@@ -1,11 +1,6 @@
 @props([
     'team',
     'players',
-    // The match_lineups rows behind $players, one per player -- used only
-    // to find each player's lineup id for the "quitar de la convocatoria"
-    // button below. Not required: a caller with nothing to remove (there
-    // isn't one today) can simply omit it.
-    'lineups' => null,
     // True when the team's active coach is currently serving a sanction --
     // suppresses just the DT row (still shown, with its full roster, when
     // the team simply has no coach registered) so no card/goal buttons are
@@ -13,8 +8,6 @@
     // x-ui.match-unavailable-players for where they show up instead.
     'hideCoach' => false,
 ])
-
-@php $lineups ??= collect(); @endphp
 
 {{--
     No <form>/x-data of its own: every button here calls a method on the
@@ -76,13 +69,23 @@
     @endif
 
     @if ($players->isEmpty())
-        <div class="px-4 py-4 text-sm text-zinc-400 dark:text-white/40">{{ __('Todavía no hay jugadores convocados. Agrégalos con el buscador de arriba.') }}</div>
+        <div class="flex flex-col items-center gap-3 px-4 py-6 text-center">
+            <flux:text class="text-sm text-zinc-400 dark:text-white/40">{{ __('Este equipo todavía no tiene jugadores cargados.') }}</flux:text>
+            <flux:button :href="route('teams.players.create', $team)" variant="primary" size="sm" icon="plus" wire:navigate>
+                {{ __('Agregar jugador') }}
+            </flux:button>
+        </div>
     @else
         <div class="max-h-[32rem] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/5">
             @foreach ($players as $player)
                 @php
                     $jsName = \Illuminate\Support\Js::from($player->full_name);
-                    $lineup = $lineups->firstWhere('player_id', $player->id);
+                    // Whether this player is on the TEAM's own roster or
+                    // here as a play-up candidate from a younger category
+                    // of the same club (Team::clubPlayersEligibleForLineup()
+                    // mixes both into $players without distinguishing them).
+                    $isOwnRoster = $player->team_id === $team->id || $player->teams->contains('id', $team->id);
+                    $originCategory = $player->team?->category?->name;
                 @endphp
 
                 <div class="flex items-center justify-between gap-3 px-4 py-2.5">
@@ -90,6 +93,10 @@
                         <div class="flex flex-wrap items-baseline gap-x-1.5">
                             <span class="shrink-0 font-display text-sm font-bold tabular-nums text-zinc-500 dark:text-white/50">#{{ $player->jersey_number ?? '–' }}</span>
                             <span class="text-sm font-medium break-words text-zinc-700 dark:text-white/80">{{ $player->full_name }}</span>
+
+                            @unless ($isOwnRoster)
+                                <flux:badge size="sm" color="amber">{{ __('Juega arriba · :category', ['category' => $originCategory ?? '—']) }}</flux:badge>
+                            @endunless
                         </div>
 
                         <div class="mt-0.5 flex items-center gap-0.5" x-show="countFor('player', {{ $player->id }}) > 0 || isExpelled('player', {{ $player->id }})" x-cloak>
@@ -101,18 +108,6 @@
                     </div>
 
                     <div class="flex shrink-0 items-center gap-0.5">
-                        @if ($lineup)
-                            <flux:tooltip :content="__('Quitar de la convocatoria')">
-                                <form method="POST" action="{{ route('lineups.destroy', $lineup) }}">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-white/10">
-                                        <x-tabler-x class="size-3.5 text-zinc-400" />
-                                    </button>
-                                </form>
-                            </flux:tooltip>
-                        @endif
-
                         <flux:tooltip :content="__('Gol')">
                             <button
                                 type="button"

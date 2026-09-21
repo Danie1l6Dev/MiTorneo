@@ -472,7 +472,7 @@ class TeamExpulsionTest extends TestCase
 
     // ── Bloqueo de partidos "Perdido por W" ──────────────────────────────
 
-    public function test_a_walkover_match_rejects_result_event_and_lineup_changes(): void
+    public function test_a_walkover_match_rejects_result_and_event_changes(): void
     {
         $user = User::factory()->create();
         [$tournament, $category, $phase, $teamA, $teamB] = $this->makeLeague($user);
@@ -516,12 +516,6 @@ class TeamExpulsionTest extends TestCase
             'type' => 'goal', 'player_id' => $player->id,
         ])->assertRedirect(route('matches.edit', $match));
         $this->assertDatabaseMissing('match_events', ['match_id' => $match->id]);
-
-        $this->actingAs($user)->post(route('matches.lineups.store', $match), [
-            'team_id' => $teamB->id,
-            'player_ids' => [$player->id],
-        ])->assertRedirect(route('matches.edit', $match));
-        $this->assertDatabaseMissing('match_lineups', ['match_id' => $match->id, 'player_id' => $player->id]);
     }
 
     public function test_reverting_the_expulsion_unlocks_the_match_again(): void

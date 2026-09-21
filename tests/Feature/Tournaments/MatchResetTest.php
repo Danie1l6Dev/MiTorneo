@@ -8,7 +8,6 @@ use App\Enums\SanctionType;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\MatchEvent;
-use App\Models\MatchLineup;
 use App\Models\Player;
 use App\Models\Sanction;
 use App\Models\Team;
@@ -202,19 +201,6 @@ class MatchResetTest extends TestCase
             ->assertRedirect(route('phases.show', $phase));
 
         $this->assertDatabaseMissing('matches', ['id' => $match->id]);
-    }
-
-    public function test_resetting_leaves_the_matchs_lineup_untouched(): void
-    {
-        $user = User::factory()->create();
-        [$match, $home] = $this->makeFinishedMatch($user);
-        $player = Player::factory()->for($home)->create();
-
-        $lineup = MatchLineup::factory()->create(['match_id' => $match->id, 'team_id' => $home->id, 'player_id' => $player->id]);
-
-        $this->actingAs($user)->patch(route('matches.reset', $match));
-
-        $this->assertDatabaseHas('match_lineups', ['id' => $lineup->id]);
     }
 
     public function test_a_user_cannot_reset_another_users_match(): void

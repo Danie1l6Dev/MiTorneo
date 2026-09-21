@@ -154,16 +154,15 @@
             $homeCoachUnavailable = $match->homeTeam?->coach && $homeUnavailableSanctions->contains('coach_id', $match->homeTeam->coach->id);
             $awayCoachUnavailable = $match->awayTeam?->coach && $awayUnavailableSanctions->contains('coach_id', $match->awayTeam->coach->id);
 
-            // The roster panels only ever show players actually "convocados"
-            // for THIS match (see TournamentMatchController::edit()) -- not
-            // a team's full category plantel anymore. A suspended player is
-            // pulled from this list the same way as before, even though
-            // they're technically in the lineup: they still shouldn't get
-            // quick-add buttons.
-            $homeAvailablePlayers = $homeLineups->pluck('player')->whereNotIn('id', $homeUnavailablePlayerIds)->values();
-            $awayAvailablePlayers = $awayLineups->pluck('player')->whereNotIn('id', $awayUnavailablePlayerIds)->values();
-            $homeSearchCandidates = $homeCandidates->whereNotIn('id', $homeUnavailablePlayerIds)->values();
-            $awaySearchCandidates = $awayCandidates->whereNotIn('id', $awayUnavailablePlayerIds)->values();
+            // The roster panels automatically show every player eligible
+            // for each side (see TournamentMatchController::edit() --
+            // Team::clubPlayersEligibleForLineup()): the team's own roster,
+            // plus any play-up-eligible player from a younger category of
+            // the same club. A suspended player is pulled from this list
+            // the same way as before: they still shouldn't get quick-add
+            // buttons.
+            $homeAvailablePlayers = $homeEligiblePlayers->whereNotIn('id', $homeUnavailablePlayerIds)->values();
+            $awayAvailablePlayers = $awayEligiblePlayers->whereNotIn('id', $awayUnavailablePlayerIds)->values();
 
             $resultErrorKeys = ['home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score'];
             $resultErrorMessage = collect($resultErrorKeys)->map(fn ($key) => $errors->first($key))->first(fn ($message) => $message !== '');
@@ -214,8 +213,7 @@
             @unless ($pending || $locked)
                 <div class="space-y-4 lg:order-1">
                     <x-ui.match-ineligible-players :players="$homeIneligiblePlayers" :team="$match->homeTeam" />
-                    <x-ui.match-lineup-search :match="$match" :team="$match->homeTeam" :candidates="$homeSearchCandidates" :club-has-eligible-players="$homeClubHasEligiblePlayers" />
-                    <x-ui.match-roster-panel :team="$match->homeTeam" :players="$homeAvailablePlayers" :lineups="$homeLineups" :hide-coach="$homeCoachUnavailable" />
+                    <x-ui.match-roster-panel :team="$match->homeTeam" :players="$homeAvailablePlayers" :hide-coach="$homeCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->home_team_id" />
                     <x-ui.match-unavailable-players :sanctions="$homeUnavailableSanctions" :match-id="$match->id" />
                 </div>
@@ -477,7 +475,7 @@
                                     variant="warning"
                                     icon="arrow-path"
                                     :heading="__('¿Resetear este partido?')"
-                                    :description="__('Se borran el resultado y TODOS los eventos registrados (goles, asistencias, tarjetas) de este partido. Los jugadores convocados se mantienen. Esta acción no se puede deshacer.')"
+                                    :description="__('Se borran el resultado y TODOS los eventos registrados (goles, asistencias, tarjetas) de este partido. Esta acción no se puede deshacer.')"
                                     :confirm-label="__('Resetear partido')"
                                 >
                                     <flux:button variant="ghost" size="sm" icon="arrow-path">{{ __('Resetear partido') }}</flux:button>
@@ -491,8 +489,7 @@
             @unless ($pending || $locked)
                 <div class="space-y-4 lg:order-3">
                     <x-ui.match-ineligible-players :players="$awayIneligiblePlayers" :team="$match->awayTeam" />
-                    <x-ui.match-lineup-search :match="$match" :team="$match->awayTeam" :candidates="$awaySearchCandidates" :club-has-eligible-players="$awayClubHasEligiblePlayers" />
-                    <x-ui.match-roster-panel :team="$match->awayTeam" :players="$awayAvailablePlayers" :lineups="$awayLineups" :hide-coach="$awayCoachUnavailable" />
+                    <x-ui.match-roster-panel :team="$match->awayTeam" :players="$awayAvailablePlayers" :hide-coach="$awayCoachUnavailable" />
                     <x-ui.match-pending-tray :team-id="$match->away_team_id" />
                     <x-ui.match-unavailable-players :sanctions="$awayUnavailableSanctions" :match-id="$match->id" />
                 </div>

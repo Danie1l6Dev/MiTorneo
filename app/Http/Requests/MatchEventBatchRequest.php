@@ -116,20 +116,14 @@ class MatchEventBatchRequest extends FormRequest
                     continue;
                 }
 
-                // A player belongs to this match either directly (their own
-                // Player::$team_id is one of its two sides) or via a
-                // match_lineups row -- the latter is what lets a player
-                // called up to play UP from a younger category's roster
-                // register events here too. See
-                // TournamentMatch::lineupTeamIdFor().
-                $player = Player::query()->where('id', $playerId)
-                    ->where(function ($query) use ($eligibleTeamIds, $match) {
-                        $query->whereIn('team_id', $eligibleTeamIds)
-                            ->orWhereHas('matchLineups', fn ($q) => $q->where('match_id', $match->id));
-                    })
-                    ->first();
+                // A player belongs to this match when they're eligible for
+                // either side -- their own roster, or a play-up candidate
+                // from a younger category of the same club. See
+                // TournamentMatch::eligibleTeamIdForPlayer().
+                $player = Player::find($playerId);
+                $matchTeamId = $player !== null ? $match->eligibleTeamIdForPlayer($player) : null;
 
-                if ($player === null) {
+                if ($player === null || $matchTeamId === null) {
                     $validator->errors()->add("events.$index.player_id", __('Uno de los jugadores seleccionados no pertenece a ninguno de los dos equipos de este partido.'));
 
                     continue;
@@ -140,8 +134,6 @@ class MatchEventBatchRequest extends FormRequest
 
                     continue;
                 }
-
-                $matchTeamId = $match->lineupTeamIdFor($player);
 
                 if (in_array($type, ['goal', 'assist'], true)) {
                     $newPlayerIdsByTeam[$matchTeamId][$type][] = $player->id;

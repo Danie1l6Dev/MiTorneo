@@ -7,7 +7,6 @@ use App\Http\Controllers\CompetitionPhaseController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchEventController;
-use App\Http\Controllers\MatchLineupController;
 use App\Http\Controllers\MatchResultController;
 use App\Http\Controllers\MunicipalStandingsPdfController;
 use App\Http\Controllers\PhaseAdvancementController;
@@ -203,14 +202,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('matches/{match}/events/batch', [MatchEventController::class, 'storeBatch'])
         ->name('matches.events.batch-store');
-
-    // Who's actually called up to play a match, searched from across the
-    // whole club (not just this one category's plantel) -- see
-    // MatchLineup's docblock. No index/show/edit/update: the search panel
-    // only ever adds (store) or removes (destroy) one entry at a time.
-    Route::resource('matches.lineups', MatchLineupController::class)
-        ->shallow()
-        ->only(['store', 'destroy']);
 
     // Sanctions are only ever created by SanctionService, from card events
     // -- no create/store/destroy routes, this resource is read + resolve

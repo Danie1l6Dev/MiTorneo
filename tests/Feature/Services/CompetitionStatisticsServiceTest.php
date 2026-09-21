@@ -11,7 +11,6 @@ use App\Models\Club;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\MatchEvent;
-use App\Models\MatchLineup;
 use App\Models\Player;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -603,8 +602,8 @@ class CompetitionStatisticsServiceTest extends TestCase
 
     /**
      * The same isolation as above, but for one SINGLE player who scores in
-     * both their own (younger) category and, called up via match_lineups,
-     * in an OLDER category's match too (see MatchLineup's docblock). Each
+     * both their own (younger) category and, playing up, in an OLDER
+     * category's match too (see Team::clubPlayersEligibleForLineup()). Each
      * leaderboard query is scoped purely by MatchEvent->match->category_id
      * -- entirely independent of Player::$team_id -- so a play-up
      * performance can never leak into the player's natural category's
@@ -649,7 +648,6 @@ class CompetitionStatisticsServiceTest extends TestCase
             'away_team_id' => $olderAway->id,
             'status' => MatchStatus::Finished,
         ]);
-        MatchLineup::factory()->create(['match_id' => $playUpMatch->id, 'team_id' => $olderTeam->id, 'player_id' => $player->id]);
         MatchEvent::factory()->count(2)->create([
             'match_id' => $playUpMatch->id,
             'team_id' => $olderTeam->id,

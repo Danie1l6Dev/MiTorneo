@@ -36,13 +36,11 @@
         @endif
 
         {{-- All of the organizer's players are preloaded and filtered
-             entirely client-side as they type -- same pattern (and same
-             reasoning: this whole catalog is small enough that a live
-             search endpoint would be overkill) as x-ui.match-lineup-search's
-             own player search. Every row is rendered server-side up front;
-             only its visibility toggles, via a per-row precomputed
-             lowercase "name + documento" haystack checked against the
-             shared `query`. --}}
+             entirely client-side as they type -- this whole catalog is
+             small enough that a live search endpoint would be overkill.
+             Every row is rendered server-side up front; only its visibility
+             toggles, via a per-row precomputed lowercase "name + documento"
+             haystack checked against the shared `query`. --}}
         <div x-show="view === 'jugadores'" x-cloak x-data="{ query: '' }" class="space-y-6">
             <div class="mx-auto w-full max-w-xl">
                 <flux:input

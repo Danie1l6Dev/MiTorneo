@@ -230,19 +230,20 @@ class Team extends Model
      * candidate from a sibling club roster is held to the stricter rule
      * either way: missing birth_date excludes them here, unlike everywhere
      * else that field is optional. This is deliberately broader than
-     * globalPlayers()/players() alone -- see MatchLineup/MatchEventController
-     * for what actually gates a match's quick-add roster to a subset of
-     * this list. A team with no club (still a legacy per-tournament team)
-     * only ever offers its own roster: there's no sibling club roster to
-     * search across.
+     * globalPlayers()/players() alone -- this whole list is what the match
+     * edit page's quick-add roster panel shows automatically for each side,
+     * see TournamentMatchController::edit() and
+     * TournamentMatch::eligibleTeamIdForPlayer(). A team with no club
+     * (still a legacy per-tournament team) only ever offers its own
+     * roster: there's no sibling club roster to search across.
      *
      * @return Collection<int, Player>
      */
     public function clubPlayersEligibleForLineup(): Collection
     {
         if ($this->club_id === null) {
-            return $this->players()->get()
-                ->merge($this->globalPlayers()->get())
+            return $this->players()->with(['team.category', 'teams'])->get()
+                ->merge($this->globalPlayers()->with(['team.category', 'teams'])->get())
                 ->unique('id')
                 ->filter(fn (Player $player): bool => $player->ageEligibleForCategory($this->category))
                 ->sortBy('full_name')
@@ -272,10 +273,10 @@ class Team extends Model
      * down to whoever no longer fits its category's age rule -- typically
      * because the category's allowed years were edited after they were
      * already rostered. clubPlayersEligibleForLineup() silently drops these
-     * from the convocatoria search panel instead of offering them for
-     * call-up; this is what actually surfaces who's missing and why, see
-     * the "Ya no pueden jugar en esta categoría" card on the match edit
-     * page. Resolved via Player::promotionCandidateTeams()/promoteFromTeam().
+     * from the match edit page's quick-add roster panel; this is what
+     * actually surfaces who's missing and why, see the "Ya no pueden jugar
+     * en esta categoría" card there. Resolved via
+     * Player::promotionCandidateTeams()/promoteFromTeam().
      *
      * @return Collection<int, Player>
      */

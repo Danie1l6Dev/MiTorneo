@@ -27,10 +27,6 @@ class TournamentMatchController extends Controller
         $match->load([
             'homeTeam.coach',
             'awayTeam.coach',
-            // Who's actually called up to play this match -- what the
-            // quick-add roster panels are now built from instead of each
-            // team's full category plantel. See MatchLineup's docblock.
-            'lineups.player',
             // Ordered by registration order, not minute -- minute isn't
             // collected right now (see MatchEventRequest), so it's null for
             // most events and wouldn't produce a meaningful chronology.
@@ -40,30 +36,16 @@ class TournamentMatchController extends Controller
             'firstLeg',
         ]);
 
-        $homeLineups = $match->lineups->where('team_id', $match->home_team_id)->values();
-        $awayLineups = $match->lineups->where('team_id', $match->away_team_id)->values();
-
-        // The club-wide search candidates for each side's "agregar
-        // convocados" panel -- everything Team::clubPlayersEligibleForLineup()
-        // considers eligible (this team's own roster, plus play-up-eligible
-        // players from the rest of the club) minus whoever's already called
-        // up. Suspended players are filtered out client-side in the view,
-        // alongside the same $home/awayUnavailablePlayerIds the roster panel
-        // itself uses, since both lists are only known once
+        // Everything Team::clubPlayersEligibleForLineup() considers
+        // eligible for each side (this team's own roster, plus
+        // play-up-eligible players from the rest of the club) is what the
+        // quick-add roster panel shows automatically -- no separate
+        // call-up step. Suspended players are filtered out client-side in
+        // the view, alongside the same $home/awayUnavailablePlayerIds the
+        // roster panel itself uses, since both lists are only known once
         // unavailableSanctions() below has run.
         $homeEligiblePlayers = $match->homeTeam?->clubPlayersEligibleForLineup() ?? collect();
         $awayEligiblePlayers = $match->awayTeam?->clubPlayersEligibleForLineup() ?? collect();
-
-        $homeCandidates = $homeEligiblePlayers->whereNotIn('id', $homeLineups->pluck('player_id'))->values();
-        $awayCandidates = $awayEligiblePlayers->whereNotIn('id', $awayLineups->pluck('player_id'))->values();
-
-        // Lets the search panel tell "everyone eligible is already
-        // convocado" (nothing to do) apart from "this club has no players
-        // to search at all" (needs a "ve a cargarlos" pointer instead) --
-        // both look identical from $homeCandidates/$awayCandidates alone
-        // once it's empty.
-        $homeClubHasEligiblePlayers = $homeEligiblePlayers->isNotEmpty();
-        $awayClubHasEligiblePlayers = $awayEligiblePlayers->isNotEmpty();
 
         // Own-roster players clubPlayersEligibleForLineup() just excluded
         // above because they no longer fit this category's age rule (most
@@ -114,8 +96,7 @@ class TournamentMatchController extends Controller
         return view('pages.matches.edit', compact(
             'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds',
             'oldQueuedEvents', 'referees', 'homeUnavailableSanctions', 'awayUnavailableSanctions',
-            'homeLineups', 'awayLineups', 'homeCandidates', 'awayCandidates',
-            'homeClubHasEligiblePlayers', 'awayClubHasEligiblePlayers',
+            'homeEligiblePlayers', 'awayEligiblePlayers',
             'homeIneligiblePlayers', 'awayIneligiblePlayers'
         ));
     }
@@ -154,19 +135,15 @@ class TournamentMatchController extends Controller
             return [];
         }
 
-        // Same "belongs directly OR via the lineup" set MatchEventRequest/
-        // MatchEventBatchRequest validate against -- a queued event can be
-        // for a player called up through the new search panel (in
-        // $match->lineups) just as much as one created directly on the
-        // team (the pre-lineup-feature path some flows still use). See
-        // TournamentMatch::lineupTeamIdFor() for why teamId below can't
-        // just be $subject->team_id: a player called up to play UP from a
-        // younger category's roster has that pointing at their own team,
-        // not this match's side.
-        $players = collect($match->homeTeam?->players)
-            ->merge($match->awayTeam?->players ?? [])
-            ->merge($match->lineups->pluck('player'))
-            ->filter()
+        // Same eligibility set MatchEventRequest/MatchEventBatchRequest
+        // validate against -- a queued event can be for a play-up player
+        // from the rest of the club just as much as one on the team's own
+        // roster. See TournamentMatch::eligibleTeamIdForPlayer() for why
+        // teamId below can't just be $subject->team_id: a play-up player
+        // has that pointing at their own (younger) team, not this match's
+        // side.
+        $players = ($match->homeTeam?->clubPlayersEligibleForLineup() ?? collect())
+            ->merge($match->awayTeam?->clubPlayersEligibleForLineup() ?? collect())
             ->keyBy('id');
         $coaches = collect([$match->homeTeam?->coach, $match->awayTeam?->coach])->filter()->keyBy('id');
         $validTypes = array_column(MatchEventType::cases(), 'value');
@@ -186,7 +163,7 @@ class TournamentMatchController extends Controller
                     'type' => $type,
                     'subjectType' => $isCoach ? 'coach' : 'player',
                     'subjectId' => $subjectId,
-                    'teamId' => $isCoach ? $subject->team_id : $match->lineupTeamIdFor($subject),
+                    'teamId' => $isCoach ? $subject->team_id : $match->eligibleTeamIdForPlayer($subject),
                     'label' => $isCoach ? __('DT').': '.$subject->full_name : $subject->full_name,
                 ];
             })
@@ -228,8 +205,6 @@ class TournamentMatchController extends Controller
      * penalties), status back to Scheduled, and every match_event this
      * match has -- not just the scoreboard, since an organizer who wants to
      * redo a match usually got the events wrong too, not just the numbers.
-     * The lineup (match_lineups) is left untouched -- who was called up to
-     * play is independent of what happened once they did.
      *
      * Blocked the same way a single card's deletion already is
      * (MatchEventController) when any event here backs a Sanction the
