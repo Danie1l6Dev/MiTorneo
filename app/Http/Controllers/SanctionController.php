@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SanctionStatus;
+use App\Enums\SanctionType;
 use App\Http\Requests\ResolutionPdfRequest;
 use App\Http\Requests\SanctionResolveRequest;
 use App\Models\Sanction;
@@ -133,6 +134,39 @@ class SanctionController extends Controller
         ]);
 
         return to_route('sanctions.show', $sanction)->with('status', __('Sanción resuelta correctamente.'));
+    }
+
+    /**
+     * Sends a resolved red-card sanction back to Pending: fechas, notes,
+     * PDF, fine and resolved_at are all cleared, the card itself stays. The
+     * committee can then resolve it again, or the card can be deleted from
+     * the match -- once Pending, SanctionService treats it as auto-managed
+     * again and removes it along with the card (see protectedSanctionFor()).
+     * A double_yellow is never resolved by the committee, so it has nothing
+     * to reset.
+     */
+    public function reset(Sanction $sanction): RedirectResponse
+    {
+        $this->authorize('resolve', $sanction);
+
+        if (! $sanction->isResolved() || $sanction->type !== SanctionType::RedCard) {
+            return back()->with('error', __('Solo se puede restablecer una roja directa ya resuelta.'));
+        }
+
+        if ($sanction->resolution_pdf_path !== null) {
+            Storage::disk('public')->delete($sanction->resolution_pdf_path);
+        }
+
+        $sanction->update([
+            'status' => SanctionStatus::Pending,
+            'matches_banned' => null,
+            'fine_amount' => null,
+            'resolution_notes' => null,
+            'resolution_pdf_path' => null,
+            'resolved_at' => null,
+        ]);
+
+        return back()->with('status', __('Sanción restablecida: vuelve a estar pendiente de resolución.'));
     }
 
     /**

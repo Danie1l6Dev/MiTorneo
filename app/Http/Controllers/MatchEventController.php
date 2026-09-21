@@ -148,7 +148,7 @@ class MatchEventController extends Controller
 
         if ($sanctions->protectedSanctionFor($event) !== null) {
             return to_route('matches.edit', $match)->with('error', __(
-                'No se puede eliminar esta tarjeta: ya tiene una sanción resuelta por el Comité Directivo. Edita o elimina la sanción primero.'
+                'No se puede eliminar esta tarjeta: ya tiene una sanción resuelta por el Comité Directivo. Ve a Sanciones, abre esa sanción y usa «Restablecer sanción»; después podrás eliminar la tarjeta desde aquí.'
             ));
         }
 

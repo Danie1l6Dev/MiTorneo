@@ -356,6 +356,93 @@ class SanctionManagementTest extends TestCase
         Storage::disk('public')->assertExists($pdfPath);
     }
 
+    public function test_a_resolved_red_card_sanction_can_be_reset_to_pending_keeping_the_card(): void
+    {
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $pdfPath = UploadedFile::fake()->create('resolucion.pdf', 100, 'application/pdf')->store('resoluciones', 'public');
+        $card = MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']);
+        $sanction = Sanction::factory()->resolved(3)->create([
+            'match_id' => $match->id,
+            'match_event_id' => $card,
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+            'resolution_pdf_path' => $pdfPath,
+        ]);
+
+        $this->actingAs($user)->patch(route('sanctions.reset', $sanction))
+            ->assertSessionHas('status');
+
+        $sanction->refresh();
+        $this->assertTrue($sanction->isPending());
+        $this->assertNull($sanction->matches_banned);
+        $this->assertNull($sanction->resolved_at);
+        $this->assertNull($sanction->resolution_pdf_path);
+        $this->assertNull($sanction->resolution_notes);
+        $this->assertNull($sanction->fine_amount);
+        $this->assertModelExists($card);
+        Storage::disk('public')->assertMissing($pdfPath);
+    }
+
+    public function test_after_a_reset_deleting_the_red_card_also_removes_the_sanction(): void
+    {
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $card = MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']);
+        $sanction = Sanction::factory()->resolved(3)->create([
+            'match_id' => $match->id,
+            'match_event_id' => $card,
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $this->actingAs($user)->delete(route('events.destroy', $card))->assertSessionHas('error');
+        $this->assertModelExists($card);
+
+        $this->actingAs($user)->patch(route('sanctions.reset', $sanction));
+        $this->actingAs($user)->delete(route('events.destroy', $card))->assertSessionMissing('error');
+
+        $this->assertModelMissing($card);
+        $this->assertDatabaseMissing('sanctions', ['player_id' => $player->id]);
+    }
+
+    public function test_a_pending_sanction_cannot_be_reset(): void
+    {
+        $user = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($user);
+        $sanction = Sanction::factory()->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $this->actingAs($user)->patch(route('sanctions.reset', $sanction))->assertSessionHas('error');
+    }
+
+    public function test_a_user_cannot_reset_another_users_sanction(): void
+    {
+        $owner = User::factory()->create();
+        $intruder = User::factory()->create();
+        [$match, $player] = $this->makeMatchWithPlayers($owner);
+        $sanction = Sanction::factory()->resolved(2)->create([
+            'match_id' => $match->id,
+            'match_event_id' => MatchEvent::factory()->create(['match_id' => $match->id, 'team_id' => $player->team_id, 'player_id' => $player->id, 'type' => 'red_card']),
+            'team_id' => $player->team_id,
+            'player_id' => $player->id,
+            'type' => SanctionType::RedCard,
+        ]);
+
+        $this->actingAs($intruder)->patch(route('sanctions.reset', $sanction))->assertForbidden();
+
+        $this->assertTrue($sanction->fresh()->isResolved());
+    }
+
     public function test_a_resolved_sanction_cannot_be_resolved_again(): void
     {
         $user = User::factory()->create();
