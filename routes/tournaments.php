@@ -222,6 +222,11 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('sanctions/{sanction}/resolve', [SanctionController::class, 'resolve'])
         ->name('sanctions.resolve');
 
+    // Sends a resolved red card back to Pending so the committee can
+    // resolve it again (or the card can be deleted) -- see SanctionController.
+    Route::patch('sanctions/{sanction}/reset', [SanctionController::class, 'reset'])
+        ->name('sanctions.reset');
+
     // Fixing a resolution PDF attached when resolving (wrong file uploaded,
     // or attaching one after the fact) without redoing the whole
     // resolution -- see SanctionController.

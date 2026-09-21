@@ -106,6 +106,16 @@
             </dl>
         </div>
 
+        @if ($sanction->isResolved() && $sanction->type === \App\Enums\SanctionType::RedCard)
+            <div class="flex justify-end">
+                <x-ui.confirm-delete-form :action="route('sanctions.reset', $sanction)" method="PATCH" icon="arrow-path" variant="warning" :heading="__('¿Restablecer esta sanción?')" :description="__('Se borran las fechas, el motivo, la multa y el PDF de la resolución, y la sanción vuelve a quedar pendiente. La tarjeta del partido no se modifica.')" :confirm-label="__('Restablecer sanción')">
+                    <flux:button icon="arrow-path" size="sm">
+                        {{ __('Restablecer sanción') }}
+                    </flux:button>
+                </x-ui.confirm-delete-form>
+            </div>
+        @endif
+
         @if ($sanction->isPending())
             <div class="space-y-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
                 <flux:heading size="lg">{{ __('Resolución del Comité Directivo') }}</flux:heading>

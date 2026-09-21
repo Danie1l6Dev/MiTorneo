@@ -253,7 +253,7 @@ class TournamentMatchController extends Controller
 
         if ($protectedEvent !== null) {
             return to_route('matches.edit', $match)->with('error', __(
-                'No se puede resetear este partido: :subject tiene una sanción ya resuelta por el Comité Directivo originada aquí. Resuélvela o elimínala primero.',
+                'No se puede resetear este partido: :subject tiene una sanción ya resuelta por el Comité Directivo originada aquí. Ve a Sanciones y usa «Restablecer sanción» primero.',
                 ['subject' => $protectedEvent->subjectLabel()]
             ));
         }
@@ -291,7 +291,7 @@ class TournamentMatchController extends Controller
 
         if ($protectedEvent !== null) {
             return to_route('matches.edit', $match)->with('error', __(
-                'No se puede eliminar este partido: :subject tiene una sanción ya resuelta por el Comité Directivo originada aquí. Resuélvela o elimínala primero.',
+                'No se puede eliminar este partido: :subject tiene una sanción ya resuelta por el Comité Directivo originada aquí. Ve a Sanciones y usa «Restablecer sanción» primero.',
                 ['subject' => $protectedEvent->subjectLabel()]
             ));
         }
