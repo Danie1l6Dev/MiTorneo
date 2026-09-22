@@ -15,7 +15,7 @@
         @endif
 
         <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Ya no es permitido en esta categoría')">
-            {{ __(':name ya no cumple el rango de edad de :category. Elegí a qué plantel promoverlo -- deja de figurar en :team.', ['name' => $player->full_name, 'category' => $team->category->name, 'team' => $team->name]) }}
+            {{ __(':name ya no cumple el rango de edad de :category. Hay que elegir a qué plantel promoverlo -- deja de figurar en :team.', ['name' => $player->full_name, 'category' => $team->category->name, 'team' => $team->name]) }}
         </flux:callout>
 
         @if ($candidates->isEmpty())

@@ -17,7 +17,7 @@
 
         @unless ($player->birth_date)
             <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Falta la fecha de nacimiento')">
-                {{ __('Sin este dato no se puede sumar a este jugador a ningún otro plantel/categoría. Cárgala acá abajo para habilitar las opciones.') }}
+                {{ __('Sin este dato no se puede sumar a este jugador a ningún otro plantel/categoría. Se puede cargar aquí abajo para habilitar las opciones.') }}
             </flux:callout>
         @endunless
 

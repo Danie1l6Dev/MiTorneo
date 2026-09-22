@@ -105,7 +105,7 @@
                     type="date"
                     name="birth_date"
                     label="{{ __('Fecha de nacimiento') }}"
-                    description="{{ __('Obligatoria acá: habilita las categorías en las que puede jugar según su edad') }}"
+                    description="{{ __('Obligatoria aquí: habilita las categorías en las que puede jugar según su edad') }}"
                     x-model="birthDate"
                     required
                 />

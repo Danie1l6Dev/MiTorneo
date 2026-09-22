@@ -12,7 +12,7 @@
 
         @if ($locked)
             <flux:callout variant="warning" icon="lock-closed" :heading="__('Planteles bloqueados')">
-                {{ __('Esta categoría ya tiene una fase iniciada en este torneo -- el plantel ya quedó fijado para poder armar el calendario/cuadro sobre él, y no se puede modificar desde acá.') }}
+                {{ __('Esta categoría ya tiene una fase iniciada en este torneo -- el plantel ya quedó fijado para poder armar el calendario/cuadro sobre él, y no se puede modificar desde aquí.') }}
             </flux:callout>
         @endif
 

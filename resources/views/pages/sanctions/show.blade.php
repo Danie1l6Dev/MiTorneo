@@ -79,7 +79,7 @@
                                             {{ __('Descargar PDF') }}
                                         </flux:button>
 
-                                        <x-ui.confirm-delete-form :action="route('sanctions.resolution-pdf.destroy', $sanction)" :heading="__('¿Quitar el PDF de la resolución?')" :description="__('Podés subir uno nuevo después si hace falta.')" :confirm-label="__('Quitar PDF')">
+                                        <x-ui.confirm-delete-form :action="route('sanctions.resolution-pdf.destroy', $sanction)" :heading="__('¿Quitar el PDF de la resolución?')" :description="__('Se puede subir uno nuevo después si hace falta.')" :confirm-label="__('Quitar PDF')">
                                             <flux:button variant="danger" icon="trash" size="sm">
                                                 {{ __('Quitar PDF') }}
                                             </flux:button>

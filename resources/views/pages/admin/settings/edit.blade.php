@@ -16,7 +16,7 @@
                     </flux:text>
 
                     <flux:text class="text-xs text-zinc-500 dark:text-white/50">
-                        {{ __('El servidor actual tiene espacio limitado -- dejala apagada hasta migrar a un servidor con más capacidad.') }}
+                        {{ __('El servidor actual tiene espacio limitado -- conviene dejarla apagada hasta migrar a un servidor con más capacidad.') }}
                     </flux:text>
                 </div>
 

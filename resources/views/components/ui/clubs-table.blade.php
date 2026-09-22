@@ -29,7 +29,7 @@
 
     @if (count($teams) === 0)
         <div class="p-6">
-            <x-ui.empty-state icon="shield-check" :message="__('Ningún club tiene plantel acá todavía.')" />
+            <x-ui.empty-state icon="shield-check" :message="__('Ningún club tiene plantel aquí todavía.')" />
         </div>
     @else
         <div class="divide-y divide-zinc-100 dark:divide-white/5">

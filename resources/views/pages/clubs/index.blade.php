@@ -12,7 +12,7 @@
         <x-ui.page-header :title="__('Clubes')">
             <flux:text class="max-w-2xl" x-show="view === 'category'" x-cloak>{{ __('Organizados por categoría -- un club con varios planteles aparece en cada una.') }}</flux:text>
             <flux:text class="max-w-2xl" x-show="view === 'club'" x-cloak>{{ __('Cada club, con las categorías en las que tiene plantel.') }}</flux:text>
-            <flux:text class="max-w-2xl" x-show="view === 'jugadores'" x-cloak>{{ __('Buscá un jugador ya registrado por nombre o documento, en cualquier club/categoría.') }}</flux:text>
+            <flux:text class="max-w-2xl" x-show="view === 'jugadores'" x-cloak>{{ __('Buscar un jugador ya registrado por nombre o documento, en cualquier club o categoría.') }}</flux:text>
 
             <x-slot:actions>
                 <flux:button :href="route('clubs.create')" variant="primary" icon="plus" wire:navigate>
@@ -52,7 +52,7 @@
             </div>
 
             @if ($players->isEmpty())
-                <x-ui.empty-state icon="magnifying-glass" :message="__('Todavía no tenés jugadores registrados en ningún club.')" />
+                <x-ui.empty-state icon="magnifying-glass" :message="__('Todavía no hay jugadores registrados en ningún club.')" />
             @else
                 @php
                     $jsHaystacks = \Illuminate\Support\Js::from(
@@ -61,7 +61,7 @@
                 @endphp
 
                 <div x-show="query.trim() === ''" x-cloak>
-                    <x-ui.empty-state icon="magnifying-glass" :message="__('Escribí un nombre o número de documento para buscar.')" />
+                    <x-ui.empty-state icon="magnifying-glass" :message="__('Escriba un nombre o número de documento para buscar.')" />
                 </div>
 
                 <div x-show="query.trim() !== '' && ! {{ $jsHaystacks }}.some((h) => h.includes(query.trim().toLowerCase()))" x-cloak>

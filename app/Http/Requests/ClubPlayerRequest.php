@@ -63,7 +63,7 @@ class ClubPlayerRequest extends FormRequest
 
             if ($existingPlayer && $club instanceof Club && ($blockedBy = $existingPlayer->blocksJoiningClub($club)) !== null) {
                 $validator->errors()->add('document_number', __(
-                    'Este jugador (:name) pertenece a otro club (:club). Desactivalo ahí primero para poder agregarlo a este club.',
+                    'Este jugador (:name) pertenece a otro club (:club). Hay que desactivarlo ahí primero para poder agregarlo a este club.',
                     ['name' => $existingPlayer->full_name, 'club' => $blockedBy->name]
                 ));
 

@@ -181,7 +181,7 @@
 
         @if ($locked)
             <flux:callout variant="danger" icon="no-symbol" :heading="__('Partido bloqueado: perdido por W')">
-                {{ __(':team fue expulsado de esta categoría, así que este partido quedó 0-3 automáticamente y ya no se puede modificar. Para volver a editarlo, primero revertí la expulsión.', ['team' => $match->walkoverTeam?->name ?? __('El equipo')]) }}
+                {{ __(':team fue expulsado de esta categoría, así que este partido quedó 0-3 automáticamente y ya no se puede modificar. Para volver a editarlo, primero hay que revertir la expulsión.', ['team' => $match->walkoverTeam?->name ?? __('El equipo')]) }}
             </flux:callout>
         @endif
 
@@ -272,7 +272,7 @@
                             </div>
                             <flux:heading size="sm">{{ __('Perdido por W') }}</flux:heading>
                             <flux:text class="max-w-sm text-zinc-500 dark:text-white/60">
-                                {{ __('Este resultado quedó fijo por la expulsión de :team. Revertí la expulsión para poder editarlo.', ['team' => $match->walkoverTeam?->name ?? __('el equipo')]) }}
+                                {{ __('Este resultado quedó fijo por la expulsión de :team. Hay que revertir la expulsión para poder editarlo.', ['team' => $match->walkoverTeam?->name ?? __('el equipo')]) }}
                             </flux:text>
                         </div>
                     @elseif ($pending)

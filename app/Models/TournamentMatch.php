@@ -193,7 +193,7 @@ class TournamentMatch extends Model
     public function expulsionLockMessage(): string
     {
         return __(
-            'No se puede modificar este partido: :team fue expulsado y quedó "Perdido por W". Revertí la expulsión para poder editarlo.',
+            'No se puede modificar este partido: :team fue expulsado y quedó "Perdido por W". Hay que revertir la expulsión para poder editarlo.',
             ['team' => $this->walkoverTeam?->name ?? __('El equipo')]
         );
     }

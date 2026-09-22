@@ -112,7 +112,7 @@
             </div>
 
             @if ($tournament->globalCategories->isEmpty())
-                <x-ui.empty-state icon="rectangle-group" :message="__('Este torneo todavía no tiene categorías. Elegilas de tu catálogo.')">
+                <x-ui.empty-state icon="rectangle-group" :message="__('Este torneo todavía no tiene categorías. Se pueden elegir del catálogo.')">
                     <x-slot:action>
                         <flux:button :href="route('tournaments.global-categories.create', $tournament)" variant="primary" size="sm" icon="plus" wire:navigate>
                             {{ __('Agregar categoría') }}

@@ -115,7 +115,7 @@ class PlayerSearchTest extends TestCase
 
         $this->actingAs($user)->get(route('clubs.index', ['view' => 'jugadores']))
             ->assertOk()
-            ->assertSeeText('Escribí un nombre o número de documento')
+            ->assertSeeText('Escriba un nombre o número de documento')
             ->assertSeeText('No se encontró ningún jugador');
     }
 
@@ -125,6 +125,6 @@ class PlayerSearchTest extends TestCase
 
         $this->actingAs($user)->get(route('clubs.index', ['view' => 'jugadores']))
             ->assertOk()
-            ->assertSeeText('Todavía no tenés jugadores registrados');
+            ->assertSeeText('Todavía no hay jugadores registrados');
     }
 }

@@ -13,7 +13,7 @@
     quedaron guardados en $matches (home, away, home, away...) -- ese orden ya
     es el resultado del sorteo real (KnockoutBracketService::generateBracket
     baraja el pool antes de crear los partidos), así que no hay nada que
-    volver a randomizar acá: solo animar la revelación en ese orden y marcar
+    volver a randomizar aquí: solo animar la revelación en ese orden y marcar
     en las tablas de origen cada equipo a medida que "sale".
 --}}
 @php

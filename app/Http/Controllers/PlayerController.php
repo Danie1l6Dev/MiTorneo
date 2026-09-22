@@ -382,7 +382,7 @@ class PlayerController extends Controller
 
         if ($hasHistory) {
             return back()->with('error', __(
-                'No se puede eliminar a :name de :club: ya tiene goles, tarjetas o sanciones registradas en este club. Desactivalo en su lugar para conservar ese historial.',
+                'No se puede eliminar a :name de :club: ya tiene goles, tarjetas o sanciones registradas en este club. Se puede desactivar en su lugar para conservar ese historial.',
                 ['name' => $player->full_name, 'club' => $club->name]
             ));
         }
@@ -546,7 +546,7 @@ class PlayerController extends Controller
 
         if ($skipped > 0) {
             $status .= ' '.trans_choice(
-                ':count jugador no tiene todavía una categoría más vieja disponible en este club -- revisalo manualmente desde su fila en el plantel.|:count jugadores no tienen todavía una categoría más vieja disponible en este club -- revisalos manualmente desde su fila en el plantel.',
+                ':count jugador no tiene todavía una categoría más vieja disponible en este club -- se puede revisar manualmente desde su fila en el plantel.|:count jugadores no tienen todavía una categoría más vieja disponible en este club -- se pueden revisar manualmente desde su fila en el plantel.',
                 $skipped,
                 ['count' => $skipped]
             );
