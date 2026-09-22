@@ -1,10 +1,73 @@
 <x-layouts::app :title="__('Agregar jugador')">
-    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up">
+    <div
+        class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up"
+        x-data="{
+            documentNumber: '{{ old('document_number') }}',
+            fullName: '{{ old('full_name') }}',
+            birthDate: '{{ old('birth_date') }}',
+            gender: '{{ old('gender') }}',
+            checking: false,
+            found: false,
+            foundTeams: [],
+            currentClub: null,
+            thisClubId: {{ $team->club_id ?? 'null' }},
+            get foundMessage() {
+                const teams = this.foundTeams.map(t => t.category ? `${t.name} (${t.category})` : t.name).join(', ');
+                let message = `{{ __(':name ya está registrado -- planteles actuales: :teams.') }}`
+                    .replace(':name', this.fullName)
+                    .replace(':teams', teams);
+                if (this.currentClub && this.currentClub.id !== this.thisClubId) {
+                    message += ' ' + `{{ __('Pertenece al club :club -- agregarlo aquí lo moverá a este club.') }}`
+                        .replace(':club', this.currentClub.name);
+                }
+                if (!this.birthDate) {
+                    message += ' ' + `{{ __('Todavía no tiene fecha de nacimiento cargada -- puede completarla abajo para sumarlo a este plantel.') }}`;
+                }
+                return message;
+            },
+            async checkDocument() {
+                const value = this.documentNumber.trim();
+                if (value.length < 3) {
+                    this.checking = false;
+                    this.found = false;
+                    this.foundTeams = [];
+                    this.currentClub = null;
+                    return;
+                }
+                this.checking = true;
+                try {
+                    const response = await fetch(`{{ route('players.search') }}?document_number=${encodeURIComponent(value)}`, {
+                        headers: { Accept: 'application/json' },
+                    });
+                    const data = await response.json();
+                    this.found = data.found;
+                    if (data.found) {
+                        this.fullName = data.player.full_name;
+                        this.birthDate = data.player.birth_date ?? '';
+                        this.gender = data.player.gender ?? '';
+                        this.foundTeams = data.teams;
+                        this.currentClub = data.current_club;
+                    } else {
+                        this.foundTeams = [];
+                        this.currentClub = null;
+                    }
+                } finally {
+                    this.checking = false;
+                }
+            },
+        }"
+    >
         <x-ui.page-header :title="__('Agregar jugador')" :subtitle="$team->name" />
 
         <flux:callout variant="secondary" icon="information-circle" :heading="__('¿Ya juega en otro plantel tuyo?')">
-            {{ __('Si ya está registrado con este mismo documento en otro club/categoría tuya, se vincula directo a este plantel -- no hace falta volver a cargar sus datos.') }}
+            {{ __('Si ya está registrado con este mismo documento en otro club o categoría, se vincula directo a este plantel y sus datos se autocompletan -- pueden corregirse aquí mismo si hace falta.') }}
         </flux:callout>
+
+        <template x-if="found">
+            <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Ya está registrado')">
+                <span x-text="foundMessage"></span>
+            </flux:callout>
+        </template>
 
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
             <form method="POST" action="{{ route('teams.players.store', $team) }}" class="space-y-6">
@@ -14,15 +77,16 @@
                     name="document_number"
                     label="{{ __('Documento') }}"
                     description="{{ __('La forma en la que lo reconocemos si ya está cargado') }}"
-                    value="{{ old('document_number') }}"
+                    x-model="documentNumber"
+                    @input.debounce.500ms="checkDocument()"
                     autofocus
                 />
 
                 <flux:input
                     name="full_name"
                     label="{{ __('Nombre completo') }}"
-                    description="{{ __('Se ignora si el documento ya corresponde a alguien registrado') }}"
-                    value="{{ old('full_name') }}"
+                    description="{{ __('Si el documento ya está cargado, se autocompleta -- puede corregirse antes de guardar') }}"
+                    x-model="fullName"
                     required
                 />
 
@@ -31,17 +95,18 @@
                     name="birth_date"
                     label="{{ __('Fecha de nacimiento') }}"
                     description="{{ __('Opcional, pero se necesita para poder sumarlo a otra categoría más adelante') }}"
-                    value="{{ old('birth_date') }}"
+                    x-model="birthDate"
                 />
 
                 <flux:select
                     name="gender"
                     label="{{ __('Género') }}"
                     description="{{ __('Opcional. En categorías mixtas, habilita años extra permitidos para mujeres') }}"
+                    x-model="gender"
                 >
                     <flux:select.option value="">{{ __('Sin especificar') }}</flux:select.option>
                     @foreach (\App\Enums\Gender::cases() as $genderOption)
-                        <flux:select.option value="{{ $genderOption->value }}" :selected="$genderOption->value === old('gender')">
+                        <flux:select.option value="{{ $genderOption->value }}">
                             {{ $genderOption->label() }}
                         </flux:select.option>
                     @endforeach

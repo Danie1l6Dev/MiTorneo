@@ -9,6 +9,7 @@ use App\Models\MatchEvent;
 use App\Models\Player;
 use App\Models\Sanction;
 use App\Models\Team;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -18,6 +19,32 @@ use Illuminate\View\View;
 
 class PlayerController extends Controller
 {
+    /**
+     * Applies whatever this submission typed for full_name/birth_date/gender
+     * onto an existing player found by document_number -- letting the
+     * organizer correct or complete their data (a missing birth_date, a
+     * misspelled name, ...) right from this same "agregar jugador" form
+     * instead of a separate trip to their edit page. full_name is always
+     * overwritten (both forms require it); birth_date/gender only when this
+     * submission actually set them, so an untouched field never wipes out
+     * data already on file -- same fallback PlayerRequest/ClubPlayerRequest
+     * already used to validate age-eligibility for the plantel being added.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function applyEditableFields(Player $player, array $validated): void
+    {
+        $player->full_name = $validated['full_name'];
+
+        if (! empty($validated['birth_date'])) {
+            $player->birth_date = $validated['birth_date'];
+        }
+
+        if (! empty($validated['gender'])) {
+            $player->gender = $validated['gender'];
+        }
+    }
+
     public function create(Team $team): View
     {
         $this->authorize('create', [Player::class, $team]);
@@ -27,6 +54,51 @@ class PlayerController extends Controller
         }
 
         return view('pages.players.create', compact('team'));
+    }
+
+    /**
+     * Backs the "agregar jugador" forms' live document_number lookup: as
+     * soon as this organizer's own catalog (Player::findForOrganizer(),
+     * same scoping used at submit time) already has this document, the
+     * user sees it before typing the rest of the form, instead of only
+     * finding out from a rejected submit. Same ownership scoping as
+     * findForOrganizer() is the only access check here -- there's no
+     * $team/$club in scope yet on either form, and this never exposes
+     * anything outside Auth::id()'s own players.
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $documentNumber = trim((string) $request->query('document_number'));
+
+        if ($documentNumber === '') {
+            return response()->json(['found' => false]);
+        }
+
+        $player = Player::findForOrganizer($documentNumber, Auth::id());
+
+        if (! $player) {
+            return response()->json(['found' => false]);
+        }
+
+        $player->load(['team.category', 'team.club', 'teams.category', 'teams.club']);
+        $currentClub = $player->currentClub();
+
+        return response()->json([
+            'found' => true,
+            'player' => [
+                'full_name' => $player->full_name,
+                'birth_date' => $player->birth_date?->format('Y-m-d'),
+                'gender' => $player->gender?->value,
+                'is_active' => $player->is_active,
+            ],
+            'teams' => $player->allTeams()->map(fn (Team $team) => [
+                'id' => $team->id,
+                'name' => $team->name,
+                'category' => $team->category?->name,
+                'club' => $team->club?->name,
+            ])->values(),
+            'current_club' => $currentClub ? ['id' => $currentClub->id, 'name' => $currentClub->name] : null,
+        ]);
     }
 
     public function store(PlayerRequest $request, Team $team): RedirectResponse
@@ -47,8 +119,11 @@ class PlayerController extends Controller
      * finds-or-links instead of always creating: if a player with this
      * document already exists in this organizer's roster, they're just
      * attached to this team via player_team (age eligibility already
-     * checked by PlayerRequest) -- no re-typing their name/birth date. A
-     * genuinely new player is created the "old" way (players.team_id
+     * checked by PlayerRequest) instead of duplicated -- but whatever got
+     * typed for full_name/birth_date/gender this time still applies to
+     * them (see applyEditableFields()), so completing or correcting either
+     * one happens right here instead of a separate trip to their edit
+     * page. A genuinely new player is created the "old" way (players.team_id
      * pointing straight at this team) since it's their first and only
      * team so far; player_team only comes into play for a 2nd+ one.
      */
@@ -61,6 +136,8 @@ class PlayerController extends Controller
         $existingPlayer = $documentNumber ? Player::findForOrganizer($documentNumber, Auth::id()) : null;
 
         if ($existingPlayer) {
+            $this->applyEditableFields($existingPlayer, $validated);
+
             // PlayerRequest's blocksJoiningClub() check already confirmed
             // this is only reachable when they're inactive at their
             // current club -- a player only ever belongs to ONE club at a
@@ -79,10 +156,11 @@ class PlayerController extends Controller
                 ));
             }
 
+            $existingPlayer->save();
             $existingPlayer->teams()->attach($team->id, ['jersey_number' => $jerseyNumber]);
 
             return to_route('teams.show', $team)->with('status', __(
-                ':name ya estaba registrado -- se vinculó a este plantel sin duplicar sus datos.',
+                ':name ya estaba registrado -- se vinculó a este plantel sin duplicar su ficha.',
                 ['name' => $existingPlayer->full_name]
             ));
         }
@@ -123,6 +201,8 @@ class PlayerController extends Controller
         $existingPlayer = $documentNumber ? Player::findForOrganizer($documentNumber, Auth::id()) : null;
 
         if ($existingPlayer) {
+            $this->applyEditableFields($existingPlayer, $validated);
+
             // ClubPlayerRequest's blocksJoiningClub() check already
             // confirmed this is only reachable when they're inactive at
             // their current club -- a player only ever belongs to ONE
@@ -144,6 +224,8 @@ class PlayerController extends Controller
                 ));
             }
 
+            $existingPlayer->save();
+
             $alreadyLinkedIds = $existingPlayer->teams()->pluck('teams.id')
                 ->push($existingPlayer->team_id)
                 ->all();
@@ -152,7 +234,7 @@ class PlayerController extends Controller
             $existingPlayer->teams()->attach($newTeamIds);
 
             return to_route('clubs.show', $club)->with('status', __(
-                ':name ya estaba registrado -- se vinculó a :count plantel(es) nuevo(s) sin duplicar sus datos.',
+                ':name ya estaba registrado -- se vinculó a :count plantel(es) nuevo(s) sin duplicar su ficha.',
                 ['name' => $existingPlayer->full_name, 'count' => count($newTeamIds)]
             ));
         }

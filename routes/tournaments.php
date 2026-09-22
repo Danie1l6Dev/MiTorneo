@@ -150,6 +150,12 @@ Route::middleware(['auth'])->group(function () {
         ->shallow()
         ->except(['index', 'show', 'destroy']);
 
+    // Live lookup by document_number while filling either "agregar
+    // jugador" form, so a duplicate is caught before the user finishes
+    // typing every field -- see PlayerController::search().
+    Route::get('players/search', [PlayerController::class, 'search'])
+        ->name('players.search');
+
     Route::patch('players/{player}/toggle-active', [PlayerController::class, 'toggleActive'])
         ->name('players.toggle-active');
 

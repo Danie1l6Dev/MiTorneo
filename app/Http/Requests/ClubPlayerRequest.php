@@ -70,21 +70,12 @@ class ClubPlayerRequest extends FormRequest
                 return;
             }
 
-            if ($existingPlayer && $existingPlayer->birth_date === null) {
-                $validator->errors()->add('document_number', __(
-                    'Este jugador (:name) ya está registrado pero no tiene fecha de nacimiento cargada -- complétala primero desde su ficha para poder sumarlo a otro plantel.',
-                    ['name' => $existingPlayer->full_name]
-                ));
-
-                return;
-            }
-
-            // The existing player's own birth_date is authoritative once
-            // they're found -- what got typed into the form is ignored for
-            // them (same as the single-team flow), it only drives the
-            // check for a genuinely new player.
-            $birthDate = $existingPlayer?->birth_date ?? Carbon::parse($this->input('birth_date'));
-            $gender = $existingPlayer?->gender ?? $this->enum('gender', Gender::class);
+            // birth_date is required by this form's own rules above, so
+            // whatever was typed here -- correcting an existing player's
+            // stored value, or setting a brand-new one's -- is always what
+            // gets checked and saved; see PlayerController::storeForClub().
+            $birthDate = Carbon::parse($this->input('birth_date'));
+            $gender = $this->filled('gender') ? $this->enum('gender', Gender::class) : $existingPlayer?->gender;
             $probe = new Player(['birth_date' => $birthDate, 'gender' => $gender]);
 
             $teams = Team::query()->whereKey($teamIds)->with('category')->get()->keyBy('id');
@@ -95,9 +86,15 @@ class ClubPlayerRequest extends FormRequest
                     continue; // Already flagged by the 'exists' rule above.
                 }
 
+                // Silently skipped, not an error: the checkbox for a
+                // plantel the player is already on is rendered
+                // checked+disabled precisely so it's never meant to be
+                // resubmitted, but a stray resubmission still reaches here
+                // sometimes -- same non-error treatment PlayerController::
+                // update() already gives this exact case, and what
+                // storeForClub()'s own array_diff() already assumes when it
+                // dedupes $teamIds against the player's current plantels.
                 if ($existingPlayer && ($existingPlayer->team_id === $teamId || $existingPlayer->teams()->whereKey($teamId)->exists())) {
-                    $validator->errors()->add('team_ids', __('Ya está en el plantel :team.', ['team' => $team->name]));
-
                     continue;
                 }
 

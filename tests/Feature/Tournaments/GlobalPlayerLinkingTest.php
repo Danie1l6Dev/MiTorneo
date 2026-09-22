@@ -83,14 +83,14 @@ class GlobalPlayerLinkingTest extends TestCase
         $this->actingAs($user)
             ->post(route('teams.players.store', $secondTeam), [
                 'document_number' => '222',
-                'full_name' => 'Nombre Distinto Escrito Por Error',
+                'full_name' => 'Nombre Corregido',
                 'jersey_number' => 10,
             ])
             ->assertRedirect(route('teams.show', $secondTeam));
 
         $this->assertSame(1, Player::query()->where('document_number', '222')->count(), 'no debe duplicarse');
         $this->assertTrue($player->fresh()->teams()->whereKey($secondTeam->id)->exists());
-        $this->assertSame('KID ORIGINAL', $player->fresh()->full_name, 'no se sobreescribe con el nombre tipeado de nuevo');
+        $this->assertSame('NOMBRE CORREGIDO', $player->fresh()->full_name, 'este formulario permite corregir los datos del jugador ya registrado');
 
         $pivotJersey = DB::table('player_team')->where('player_id', $player->id)->where('team_id', $secondTeam->id)->value('jersey_number');
         $this->assertSame(10, $pivotJersey);
@@ -114,9 +114,43 @@ class GlobalPlayerLinkingTest extends TestCase
                 'document_number' => '333',
                 'full_name' => 'Sin Fecha',
             ])
-            ->assertSessionHasErrors('document_number');
+            ->assertSessionHasErrors('birth_date');
 
         $this->assertFalse($player->fresh()->teams()->whereKey($secondTeam->id)->exists());
+    }
+
+    /**
+     * The gap the client reported: a player already registered but missing
+     * their birth_date (a backfill-era record) showed up locked/disabled in
+     * this very form, forcing a separate trip to their edit page just to
+     * complete it before they could be added to a second plantel. Typing it
+     * right here, in the same submission, must be enough.
+     */
+    public function test_completing_a_found_players_missing_birth_date_here_enrolls_them_into_the_second_team(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $firstTeam = $this->makeTeamForClub($club, 'Infantil', 2012);
+        $secondTeam = $this->makeTeamForClub($club, 'Cebollita', 2016);
+
+        $player = Player::factory()->create([
+            'team_id' => $firstTeam->id,
+            'document_number' => '3330',
+            'full_name' => 'Sin Fecha Aun',
+            'birth_date' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('teams.players.store', $secondTeam), [
+                'document_number' => '3330',
+                'full_name' => 'Sin Fecha Aun',
+                'birth_date' => '2016-05-01',
+            ])
+            ->assertRedirect(route('teams.show', $secondTeam));
+
+        $player->refresh();
+        $this->assertNotNull($player->birth_date);
+        $this->assertTrue($player->teams()->whereKey($secondTeam->id)->exists());
     }
 
     public function test_linking_to_a_younger_category_than_the_players_age_is_blocked(): void
@@ -238,6 +272,43 @@ class GlobalPlayerLinkingTest extends TestCase
         $this->assertTrue($player->teams()->whereKey($preJuvenil->id)->exists());
     }
 
+    /**
+     * Reported by the client: the checkbox for a plantel the player is
+     * already on is rendered checked+disabled by the "agregar jugador"
+     * form's document lookup (see clubs/players/create.blade.php), meant to
+     * never be resubmitted -- but a stray resubmission of that same
+     * team_id still reached the server and got rejected outright with "Ya
+     * está en el plantel X", blocking the real, NEW plantel checked
+     * alongside it in the very same submission. Same non-error treatment
+     * PlayerController::update() already gives this exact case for the
+     * edit page.
+     */
+    public function test_resubmitting_a_plantel_the_player_is_already_on_alongside_a_new_one_is_not_an_error(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $originalTeam = $this->makeTeamForClub($club, 'Cebollita', 2017);
+        $newTeam = $this->makeTeamForClub($club, 'Infantil', 2012);
+
+        $player = Player::factory()->create([
+            'team_id' => $originalTeam->id,
+            'document_number' => '2222',
+            'birth_date' => '2012-06-20',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('clubs.players.store', $club), [
+                'document_number' => '2222',
+                'full_name' => $player->full_name,
+                'birth_date' => '2012-06-20',
+                'team_ids' => [$originalTeam->id, $newTeam->id],
+            ])
+            ->assertRedirect(route('clubs.show', $club))
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertTrue($player->fresh()->teams()->whereKey($newTeam->id)->exists());
+    }
+
     public function test_club_level_enrollment_requires_a_birth_date(): void
     {
         $user = User::factory()->create();
@@ -269,7 +340,7 @@ class GlobalPlayerLinkingTest extends TestCase
         $this->assertSame(0, Player::query()->where('full_name', 'Grandecito')->count());
     }
 
-    public function test_club_level_enrollment_links_an_existing_player_without_touching_their_stored_data(): void
+    public function test_club_level_enrollment_links_an_existing_player_and_saves_any_correction_made_here(): void
     {
         $user = User::factory()->create();
         $club = Club::factory()->for($user)->create();
@@ -286,14 +357,14 @@ class GlobalPlayerLinkingTest extends TestCase
         $this->actingAs($user)
             ->post(route('clubs.players.store', $club), [
                 'document_number' => '777',
-                'full_name' => 'Nombre Distinto',
+                'full_name' => 'Nombre Corregido',
                 'birth_date' => '2012-01-01',
                 'team_ids' => [$secondTeam->id],
             ])
             ->assertRedirect(route('clubs.show', $club));
 
         $this->assertSame(1, Player::query()->where('document_number', '777')->count());
-        $this->assertSame('YA EXISTE', $player->fresh()->full_name);
+        $this->assertSame('NOMBRE CORREGIDO', $player->fresh()->full_name, 'este formulario permite corregir los datos del jugador ya registrado');
         $this->assertTrue($player->fresh()->teams()->whereKey($secondTeam->id)->exists());
     }
 

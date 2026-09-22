@@ -7,6 +7,7 @@ use App\Models\Player;
 use App\Models\Team;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -167,16 +168,27 @@ class PlayerRequest extends FormRequest
                 return;
             }
 
-            if ($existingPlayer->birth_date === null) {
-                $validator->errors()->add('document_number', __(
-                    'Este jugador (:name) ya está registrado pero no tiene fecha de nacimiento cargada -- complétala primero desde su ficha para poder sumarlo a otro plantel.',
+            // Whatever this submission itself typed into birth_date/gender
+            // takes priority over the existing player's stored values -- see
+            // PlayerController::storeForTeam(). That's what lets completing
+            // (or correcting) either one happen right here, in the same step
+            // as adding them to a new plantel, instead of a separate trip to
+            // their edit page first.
+            $birthDate = $this->filled('birth_date') ? Carbon::parse($this->input('birth_date')) : $existingPlayer->birth_date;
+
+            if ($birthDate === null) {
+                $validator->errors()->add('birth_date', __(
+                    'Hace falta la fecha de nacimiento de :name para poder sumarlo a otro plantel.',
                     ['name' => $existingPlayer->full_name]
                 ));
 
                 return;
             }
 
-            if (! $existingPlayer->ageEligibleForCategory($routeTeam->category)) {
+            $gender = $this->filled('gender') ? $this->enum('gender', Gender::class) : $existingPlayer->gender;
+            $probe = new Player(['birth_date' => $birthDate, 'gender' => $gender]);
+
+            if (! $probe->ageEligibleForCategory($routeTeam->category)) {
                 $validator->errors()->add('document_number', __(
                     'Por su fecha de nacimiento, :name no puede jugar en la categoría :category.',
                     ['name' => $existingPlayer->full_name, 'category' => $routeTeam->category->name]
