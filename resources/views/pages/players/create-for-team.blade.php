@@ -7,9 +7,13 @@
             birthDate: '{{ old('birth_date') }}',
             gender: '{{ old('gender') }}',
             checking: false,
+            searched: false,
             found: false,
             foundTeams: [],
             currentClub: null,
+            nameTouched: false,
+            birthDateTouched: false,
+            genderTouched: false,
             thisClubId: {{ $team->club_id ?? 'null' }},
             get foundMessage() {
                 const teams = this.foundTeams.map(t => t.category ? `${t.name} (${t.category})` : t.name).join(', ');
@@ -29,6 +33,7 @@
                 const value = this.documentNumber.trim();
                 if (value.length < 3) {
                     this.checking = false;
+                    this.searched = false;
                     this.found = false;
                     this.foundTeams = [];
                     this.currentClub = null;
@@ -42,9 +47,10 @@
                     const data = await response.json();
                     this.found = data.found;
                     if (data.found) {
-                        this.fullName = data.player.full_name;
-                        this.birthDate = data.player.birth_date ?? '';
-                        this.gender = data.player.gender ?? '';
+                        // No pisamos lo que ya está escribiendo si tocó el campo mientras esperaba la respuesta.
+                        if (!this.nameTouched) this.fullName = data.player.full_name;
+                        if (!this.birthDateTouched) this.birthDate = data.player.birth_date ?? '';
+                        if (!this.genderTouched) this.gender = data.player.gender ?? '';
                         this.foundTeams = data.teams;
                         this.currentClub = data.current_club;
                     } else {
@@ -53,6 +59,7 @@
                     }
                 } finally {
                     this.checking = false;
+                    this.searched = true;
                 }
             },
         }"
@@ -64,7 +71,7 @@
         </flux:callout>
 
         <template x-if="found">
-            <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Ya está registrado')">
+            <flux:callout class="animate-fade-in-up" variant="warning" icon="exclamation-triangle" :heading="__('Ya está registrado')">
                 <span x-text="foundMessage"></span>
             </flux:callout>
         </template>
@@ -78,15 +85,32 @@
                     label="{{ __('Documento') }}"
                     description="{{ __('La forma en la que lo reconocemos si ya está cargado') }}"
                     x-model="documentNumber"
+                    @input="nameTouched = false; birthDateTouched = false; genderTouched = false"
                     @input.debounce.500ms="checkDocument()"
                     autofocus
                 />
+
+                <div class="flex items-center gap-1.5 text-sm" x-show="documentNumber.trim().length >= 3" x-cloak>
+                    <template x-if="checking">
+                        <span class="flex items-center gap-1.5 text-zinc-500 dark:text-white/50 animate-shimmer-pulse">
+                            <flux:icon.loading variant="mini" />
+                            {{ __('Buscando en la base de datos...') }}
+                        </span>
+                    </template>
+                    <template x-if="!checking && searched && !found">
+                        <span class="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 animate-fade-in-up">
+                            <flux:icon.check-circle variant="mini" />
+                            {{ __('No hay ningún jugador con este documento -- se cargará como nuevo.') }}
+                        </span>
+                    </template>
+                </div>
 
                 <flux:input
                     name="full_name"
                     label="{{ __('Nombre completo') }}"
                     description="{{ __('Si el documento ya está cargado, se autocompleta -- puede corregirse antes de guardar') }}"
                     x-model="fullName"
+                    @input="nameTouched = true"
                     required
                 />
 
@@ -96,6 +120,7 @@
                     label="{{ __('Fecha de nacimiento') }}"
                     description="{{ __('Opcional, pero se necesita para poder sumarlo a otra categoría más adelante') }}"
                     x-model="birthDate"
+                    @input="birthDateTouched = true"
                 />
 
                 <flux:select
@@ -103,6 +128,7 @@
                     label="{{ __('Género') }}"
                     description="{{ __('Opcional. En categorías mixtas, habilita años extra permitidos para mujeres') }}"
                     x-model="gender"
+                    @change="genderTouched = true"
                 >
                     <flux:select.option value="">{{ __('Sin especificar') }}</flux:select.option>
                     @foreach (\App\Enums\Gender::cases() as $genderOption)
