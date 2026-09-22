@@ -76,74 +76,90 @@
             </flux:button>
         </div>
     @else
-        <div class="max-h-[32rem] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/5">
-            @foreach ($players as $player)
-                @php
-                    $jsName = \Illuminate\Support\Js::from($player->full_name);
-                    // Whether this player is on the TEAM's own roster or
-                    // here as a play-up candidate from a younger category
-                    // of the same club (Team::clubPlayersEligibleForLineup()
-                    // mixes both into $players without distinguishing them).
-                    $isOwnRoster = $player->team_id === $team->id || $player->teams->contains('id', $team->id);
-                    $originCategory = $player->team?->category?->name;
-                @endphp
+        {{-- Filtering happens entirely client-side against the already-
+             rendered list, same pattern the old convocatoria search used --
+             this roster is small enough that a live search endpoint would
+             be overkill. Rows stay in the DOM and are only hidden (x-show),
+             each checked against a per-row precomputed lowercase name. --}}
+        <div x-data="{ query: '' }">
+            <div class="border-b border-zinc-200 px-4 py-2.5 dark:border-white/10">
+                <flux:input type="search" x-model="query" icon="magnifying-glass" size="sm" :placeholder="__('Buscar jugador...')" />
+            </div>
 
-                <div class="flex items-center justify-between gap-3 px-4 py-2.5">
-                    <div class="min-w-0 flex-1">
-                        <div class="flex flex-wrap items-baseline gap-x-1.5">
-                            <span class="shrink-0 font-display text-sm font-bold tabular-nums text-zinc-500 dark:text-white/50">#{{ $player->jersey_number ?? '–' }}</span>
-                            <span class="text-sm font-medium break-words text-zinc-700 dark:text-white/80">{{ $player->full_name }}</span>
+            <div class="max-h-[32rem] divide-y divide-zinc-100 overflow-y-auto dark:divide-white/5">
+                @foreach ($players as $player)
+                    @php
+                        $jsName = \Illuminate\Support\Js::from($player->full_name);
+                        $jsQuery = \Illuminate\Support\Js::from(mb_strtolower($player->full_name));
+                        // Whether this player is on the TEAM's own roster or
+                        // here as a play-up candidate from a younger category
+                        // of the same club (Team::clubPlayersEligibleForLineup()
+                        // mixes both into $players without distinguishing them).
+                        $isOwnRoster = $player->team_id === $team->id || $player->teams->contains('id', $team->id);
+                        $originCategory = $player->team?->category?->name;
+                    @endphp
 
-                            @unless ($isOwnRoster)
-                                <flux:badge size="sm" color="amber">{{ __('Juega arriba · :category', ['category' => $originCategory ?? '—']) }}</flux:badge>
-                            @endunless
+                    <div
+                        class="flex items-center justify-between gap-3 px-4 py-2.5"
+                        x-show="query === '' || {{ $jsQuery }}.includes(query.toLowerCase())"
+                        x-cloak
+                    >
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap items-baseline gap-x-1.5">
+                                <span class="shrink-0 font-display text-sm font-bold tabular-nums text-zinc-500 dark:text-white/50">#{{ $player->jersey_number ?? '–' }}</span>
+                                <span class="text-sm font-medium break-words text-zinc-700 dark:text-white/80">{{ $player->full_name }}</span>
+
+                                @unless ($isOwnRoster)
+                                    <flux:badge size="sm" color="amber">{{ __('Juega arriba · :category', ['category' => $originCategory ?? '—']) }}</flux:badge>
+                                @endunless
+                            </div>
+
+                            <div class="mt-0.5 flex items-center gap-0.5" x-show="countFor('player', {{ $player->id }}) > 0 || isExpelled('player', {{ $player->id }})" x-cloak>
+                                <template x-for="n in Math.min(countFor('player', {{ $player->id }}), 2)" :key="n">
+                                    <x-tabler-rectangle-vertical-filled class="size-3 text-amber-500" />
+                                </template>
+                                <x-tabler-rectangle-vertical-filled x-show="isExpelled('player', {{ $player->id }})" class="size-3 text-red-500" />
+                            </div>
                         </div>
 
-                        <div class="mt-0.5 flex items-center gap-0.5" x-show="countFor('player', {{ $player->id }}) > 0 || isExpelled('player', {{ $player->id }})" x-cloak>
-                            <template x-for="n in Math.min(countFor('player', {{ $player->id }}), 2)" :key="n">
-                                <x-tabler-rectangle-vertical-filled class="size-3 text-amber-500" />
-                            </template>
-                            <x-tabler-rectangle-vertical-filled x-show="isExpelled('player', {{ $player->id }})" class="size-3 text-red-500" />
+                        <div class="flex shrink-0 items-center gap-0.5">
+                            <flux:tooltip :content="__('Gol')">
+                                <button
+                                    type="button"
+                                    @click="addGoal({{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
+                                    class="rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-white/10"
+                                ><x-tabler-ball-football class="size-4 text-green-500" /></button>
+                            </flux:tooltip>
+
+                            <flux:tooltip :content="__('Asistencia')">
+                                <button
+                                    type="button"
+                                    @click="addAssist({{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
+                                    class="rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-white/10"
+                                ><x-tabler-shoe class="size-4 text-cyan-500" /></button>
+                            </flux:tooltip>
+
+                            <flux:tooltip :content="__('Amarilla (marcarla 2 veces = expulsión)')">
+                                <button
+                                    type="button"
+                                    x-bind:disabled="isExpelled('player', {{ $player->id }})"
+                                    @click="addYellow('player', {{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
+                                    class="rounded-md p-1.5 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10"
+                                ><x-tabler-rectangle-vertical-filled class="size-4 text-amber-500" /></button>
+                            </flux:tooltip>
+
+                            <flux:tooltip :content="__('Roja directa')">
+                                <button
+                                    type="button"
+                                    x-bind:disabled="isExpelled('player', {{ $player->id }})"
+                                    @click="addRed('player', {{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
+                                    class="rounded-md p-1.5 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10"
+                                ><x-tabler-rectangle-vertical-filled class="size-4 text-red-500" /></button>
+                            </flux:tooltip>
                         </div>
                     </div>
-
-                    <div class="flex shrink-0 items-center gap-0.5">
-                        <flux:tooltip :content="__('Gol')">
-                            <button
-                                type="button"
-                                @click="addGoal({{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
-                                class="rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-white/10"
-                            ><x-tabler-ball-football class="size-4 text-green-500" /></button>
-                        </flux:tooltip>
-
-                        <flux:tooltip :content="__('Asistencia')">
-                            <button
-                                type="button"
-                                @click="addAssist({{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
-                                class="rounded-md p-1.5 hover:bg-zinc-100 dark:hover:bg-white/10"
-                            ><x-tabler-shoe class="size-4 text-cyan-500" /></button>
-                        </flux:tooltip>
-
-                        <flux:tooltip :content="__('Amarilla (marcarla 2 veces = expulsión)')">
-                            <button
-                                type="button"
-                                x-bind:disabled="isExpelled('player', {{ $player->id }})"
-                                @click="addYellow('player', {{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
-                                class="rounded-md p-1.5 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10"
-                            ><x-tabler-rectangle-vertical-filled class="size-4 text-amber-500" /></button>
-                        </flux:tooltip>
-
-                        <flux:tooltip :content="__('Roja directa')">
-                            <button
-                                type="button"
-                                x-bind:disabled="isExpelled('player', {{ $player->id }})"
-                                @click="addRed('player', {{ $player->id }}, {{ $team->id }}, {{ $jsName }})"
-                                class="rounded-md p-1.5 hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-30 dark:hover:bg-white/10"
-                            ><x-tabler-rectangle-vertical-filled class="size-4 text-red-500" /></button>
-                        </flux:tooltip>
-                    </div>
-                </div>
-            @endforeach
+                @endforeach
+            </div>
         </div>
     @endif
 </div>
