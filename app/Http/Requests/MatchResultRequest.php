@@ -3,12 +3,15 @@
 namespace App\Http\Requests;
 
 use App\Enums\MatchStatus;
+use App\Http\Requests\Concerns\ValidatesQueuedMatchEvents;
 use App\Models\TournamentMatch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class MatchResultRequest extends FormRequest
 {
+    use ValidatesQueuedMatchEvents;
+
     public function authorize(): bool
     {
         return true;
@@ -19,9 +22,13 @@ class MatchResultRequest extends FormRequest
      */
     public function rules(): array
     {
+        // Any events still queued on the match edit page ("Por guardar")
+        // ride along with the result and are saved together with it --
+        // under exactly the same rules as the "Guardar eventos" button.
         $rules = [
             'home_score' => ['required', 'integer', 'min:0'],
             'away_score' => ['required', 'integer', 'min:0'],
+            ...$this->queuedEventRules(required: false),
         ];
 
         if ($this->isDecisiveLeg()) {
@@ -36,6 +43,19 @@ class MatchResultRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
+        $validator->after(function (Validator $validator): void {
+            $match = $this->route('match');
+
+            if (! $match instanceof TournamentMatch || $validator->errors()->hasAny(['home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score'])) {
+                return;
+            }
+
+            // Held to the score being submitted right now -- checked for
+            // BOTH teams even with nothing queued, so the score can't be
+            // lowered under the goals already saved as events either.
+            $this->validateQueuedEvents($validator, $match, (array) $this->input('events', []), $this->submittedGoals(), 'home_score');
+        });
+
         $validator->after(function (Validator $validator): void {
             if ($validator->errors()->has('home_score') || $validator->errors()->has('away_score')) {
                 return;
@@ -114,6 +134,23 @@ class MatchResultRequest extends FormRequest
                 $validator->errors()->add('home_penalty_score', __('Los penales no pueden terminar empatados; debe haber un ganador.'));
             }
         });
+    }
+
+    /**
+     * The goals each side scores with the submitted result: regular time
+     * plus extra time -- the latter only counts on a decisive leg, the
+     * only kind MatchResultController ever saves it for.
+     *
+     * @return array{home: int, away: int}
+     */
+    private function submittedGoals(): array
+    {
+        $withExtraTime = $this->isDecisiveLeg();
+
+        return [
+            'home' => (int) $this->input('home_score') + ($withExtraTime ? (int) $this->input('home_extra_time_score') : 0),
+            'away' => (int) $this->input('away_score') + ($withExtraTime ? (int) $this->input('away_extra_time_score') : 0),
+        ];
     }
 
     /**

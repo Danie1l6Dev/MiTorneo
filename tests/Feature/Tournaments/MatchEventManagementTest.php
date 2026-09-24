@@ -1017,4 +1017,232 @@ class MatchEventManagementTest extends TestCase
         MatchEvent::query()->where('match_id', $match->id)->where('type', MatchEventType::Goal)->first()->delete();
         $this->assertTrue($match->fresh()->hasGoalMismatch());
     }
+
+    // ── Eventos en cola guardados junto con el resultado ────────────────
+
+    public function test_registering_the_result_also_saves_the_queued_events(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer, $awayPlayer] = $this->makeMatchWithPlayers($user);
+        $homeAssister = Player::factory()->for($match->homeTeam)->create(['jersey_number' => 10]);
+
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 1,
+            'away_score' => 0,
+            'events' => [
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'assist', 'player_id' => $homeAssister->id],
+                ['type' => 'yellow_card', 'player_id' => $awayPlayer->id],
+                ['type' => 'yellow_card', 'player_id' => $awayPlayer->id],
+                ['type' => 'red_card', 'player_id' => $awayPlayer->id],
+            ],
+        ])->assertRedirect(route('matches.edit', $match))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'Resultado registrado correctamente, junto con 5 eventos.');
+
+        $match->refresh();
+        $this->assertSame(MatchStatus::Finished, $match->status);
+        $this->assertSame(1, $match->home_score);
+        $this->assertSame(5, $match->events()->count());
+        $this->assertSame($match->home_team_id, $match->goals()->first()->team_id);
+        // The double yellow went through SanctionService like any saved card.
+        $this->assertSame(1, $match->sanctions()->where('player_id', $awayPlayer->id)->count());
+    }
+
+    public function test_queued_events_that_break_the_event_rules_block_the_result_too(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer, , $outsiderPlayer] = $this->makeMatchWithPlayers($user);
+
+        // An assist with no goal for the team: same rule as "Guardar eventos".
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 2,
+            'away_score' => 0,
+            'events' => [['type' => 'assist', 'player_id' => $homePlayer->id]],
+        ])->assertSessionHasErrors('events.0.type');
+
+        // A player from neither team.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 2,
+            'away_score' => 0,
+            'events' => [['type' => 'goal', 'player_id' => $outsiderPlayer->id]],
+        ])->assertSessionHasErrors('events.0.player_id');
+
+        // Neither the score nor any event was saved.
+        $match->refresh();
+        $this->assertNull($match->home_score);
+        $this->assertSame(MatchStatus::Scheduled, $match->status);
+        $this->assertSame(0, $match->events()->count());
+    }
+
+    // ── Goles registrados nunca por encima del marcador ─────────────────
+
+    public function test_quick_add_goals_cannot_exceed_the_registered_score(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+        $match->forceFill(['home_score' => 2, 'away_score' => 0, 'status' => MatchStatus::Finished])->save();
+
+        // 3 goals for a team that scored 2: rejected, nothing saved.
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => array_fill(0, 3, ['type' => 'goal', 'player_id' => $homePlayer->id]),
+        ])->assertSessionHasErrors('events.2.type');
+
+        $this->assertSame(0, $match->events()->count());
+
+        // Exactly 2 is fine.
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => array_fill(0, 2, ['type' => 'goal', 'player_id' => $homePlayer->id]),
+        ])->assertSessionHasNoErrors();
+
+        // ...and a 3rd one later, on its own, is rejected too -- by the
+        // quick-add batch and by the single-event form alike.
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => [['type' => 'goal', 'player_id' => $homePlayer->id]],
+        ])->assertSessionHasErrors('events.0.type');
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'goal', 'player_id' => $homePlayer->id,
+        ])->assertSessionHasErrors('type');
+
+        $this->assertSame(2, $match->goals()->count());
+    }
+
+    public function test_extra_time_goals_count_toward_the_goal_limit(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+        $match->forceFill([
+            'home_score' => 1, 'away_score' => 0,
+            'home_extra_time_score' => 2, 'away_extra_time_score' => 0,
+            'status' => MatchStatus::Finished,
+        ])->save();
+
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => array_fill(0, 3, ['type' => 'goal', 'player_id' => $homePlayer->id]),
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(3, $match->goals()->count());
+    }
+
+    public function test_the_result_cannot_leave_fewer_goals_than_those_registered_or_queued(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer, $awayPlayer] = $this->makeMatchWithPlayers($user);
+
+        // Queued goals beyond the score being submitted: blocked.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 1,
+            'away_score' => 0,
+            'events' => array_fill(0, 2, ['type' => 'goal', 'player_id' => $homePlayer->id]),
+        ])->assertSessionHasErrors('home_score');
+
+        $this->assertNull($match->fresh()->home_score);
+
+        // 2-1 with 2 home goals and 1 away goal: fine.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 2,
+            'away_score' => 1,
+            'events' => [
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'goal', 'player_id' => $awayPlayer->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        // Lowering the score under the 2 goals already saved, with nothing
+        // queued at all, is blocked as well.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 1,
+            'away_score' => 1,
+        ])->assertSessionHasErrors('home_score');
+
+        $this->assertSame(2, $match->fresh()->home_score);
+    }
+
+    public function test_assists_cannot_exceed_the_score_in_any_form(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+        $teammate = Player::factory()->for($match->homeTeam)->create(['jersey_number' => 10]);
+        $third = Player::factory()->for($match->homeTeam)->create(['jersey_number' => 11]);
+
+        // Result 1-0 with 1 goal + 2 assists queued: blocked on the result form.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 1,
+            'away_score' => 0,
+            'events' => [
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'assist', 'player_id' => $teammate->id],
+                ['type' => 'assist', 'player_id' => $third->id],
+            ],
+        ])->assertSessionHasErrors();
+
+        $this->assertNull($match->fresh()->home_score);
+
+        // Result 1-0 with 1 goal + 1 assist: fine.
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 1,
+            'away_score' => 0,
+            'events' => [
+                ['type' => 'goal', 'player_id' => $homePlayer->id],
+                ['type' => 'assist', 'player_id' => $teammate->id],
+            ],
+        ])->assertSessionHasNoErrors();
+
+        // A 2nd assist afterwards is rejected by the quick-add batch and by
+        // the single-event form.
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => [['type' => 'assist', 'player_id' => $third->id]],
+        ])->assertSessionHasErrors('events.0.type');
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'assist', 'player_id' => $third->id,
+        ])->assertSessionHasErrors('type');
+
+        $this->assertSame(1, $match->assists()->count());
+    }
+
+    public function test_a_player_can_never_assist_their_own_goal_in_any_form(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+
+        // 2 goals + 2 assists by the same player, nobody else scoring.
+        $selfAssisted = [
+            ['type' => 'goal', 'player_id' => $homePlayer->id],
+            ['type' => 'goal', 'player_id' => $homePlayer->id],
+            ['type' => 'assist', 'player_id' => $homePlayer->id],
+            ['type' => 'assist', 'player_id' => $homePlayer->id],
+        ];
+
+        $this->actingAs($user)->patch(route('matches.result.update', $match), [
+            'home_score' => 2, 'away_score' => 0, 'events' => $selfAssisted,
+        ])->assertSessionHasErrors('events.3.type');
+
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => $selfAssisted,
+        ])->assertSessionHasErrors('events.3.type');
+
+        // With the 2 goals already saved, a single self-assist is rejected too.
+        $this->actingAs($user)->post(route('matches.events.batch-store', $match), [
+            'events' => array_slice($selfAssisted, 0, 2),
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($user)->post(route('matches.events.store', $match), [
+            'type' => 'assist', 'player_id' => $homePlayer->id,
+        ])->assertSessionHasErrors('type');
+
+        $this->assertSame(0, $match->assists()->count());
+    }
+
+    public function test_the_result_form_carries_the_event_queue(): void
+    {
+        $user = User::factory()->create();
+        [$match] = $this->makeMatchWithPlayers($user);
+
+        $this->actingAs($user)->get(route('matches.edit', $match))
+            ->assertOk()
+            ->assertSee("x-for=\"(event, index) in flatEvents()\" :key=\"'r' + index\"", false);
+    }
 }

@@ -9,6 +9,7 @@ use App\Models\Coach;
 use App\Models\MatchEvent;
 use App\Models\Player;
 use App\Models\TournamentMatch;
+use App\Services\MatchEventBatchService;
 use App\Services\SanctionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -73,9 +74,10 @@ class MatchEventController extends Controller
      * state), and nothing is persisted until this single "Guardar eventos"
      * submission. A "segunda amarilla" click is not a special case here
      * either -- the client simply queues an extra independent yellow + red
-     * pair, so this always just creates one plain row per queued item.
+     * pair, so this always just creates one plain row per queued item
+     * (see MatchEventBatchService, shared with the result submit).
      */
-    public function storeBatch(MatchEventBatchRequest $request, TournamentMatch $match, SanctionService $sanctions): RedirectResponse
+    public function storeBatch(MatchEventBatchRequest $request, TournamentMatch $match, MatchEventBatchService $batch): RedirectResponse
     {
         $this->authorize('create', [MatchEvent::class, $match]);
 
@@ -87,45 +89,12 @@ class MatchEventController extends Controller
             return $redirect;
         }
 
-        $events = collect($request->validated('events'));
-        $players = Player::query()->whereIn('id', $events->pluck('player_id')->filter()->unique())->get()->keyBy('id');
-        $coaches = Coach::query()->whereIn('id', $events->pluck('coach_id')->filter()->unique())->get()->keyBy('id');
-
-        // Keyed by "player:{id}"/"coach:{id}" so every subject that
-        // received a card in this batch only gets synced once, after all
-        // of the batch's events are actually saved -- SanctionService
-        // always recomputes from the DB, so syncing mid-batch would just
-        // redo the same work for nothing.
-        $cardSubjects = [];
-
-        DB::transaction(function () use ($match, $events, $players, $coaches, $sanctions, &$cardSubjects): void {
-            foreach ($events as $eventData) {
-                $subject = ! empty($eventData['coach_id'])
-                    ? $this->resolveSubject($match, null, $coaches->get($eventData['coach_id']))
-                    : $this->resolveSubject($match, $players->get($eventData['player_id']), null);
-
-                $type = MatchEventType::from($eventData['type']);
-
-                $match->events()->create([
-                    ...$subject,
-                    'type' => $type,
-                ]);
-
-                if (in_array($type, [MatchEventType::YellowCard, MatchEventType::RedCard], true)) {
-                    $key = $subject['coach_id'] !== null ? "coach:{$subject['coach_id']}" : "player:{$subject['player_id']}";
-                    $cardSubjects[$key] = $subject;
-                }
-            }
-
-            foreach ($cardSubjects as $subject) {
-                $sanctions->syncForSubject($match, $subject);
-            }
-        });
+        $count = $batch->store($match, $request->validated('events'));
 
         return to_route('matches.edit', $match)->with('status', trans_choice(
             ':count evento registrado correctamente.|:count eventos registrados correctamente.',
-            $events->count(),
-            ['count' => $events->count()]
+            $count,
+            ['count' => $count]
         ));
     }
 

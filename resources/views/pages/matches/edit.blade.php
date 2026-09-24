@@ -340,6 +340,18 @@
                             @csrf
                             @method('PATCH')
 
+                            {{-- Whatever is still queued in the rosters ("Por guardar")
+                                 goes along with the result and is saved with it, under
+                                 the same rules as the "Guardar eventos" button (see
+                                 MatchResultRequest). Same one-field-name-per-row
+                                 emission as that form below. --}}
+                            <template x-for="(event, index) in flatEvents()" :key="'r' + index">
+                                <span>
+                                    <input type="hidden" :name="`events[${index}][type]`" :value="event.type">
+                                    <input type="hidden" :name="`events[${index}][${event.subjectType === 'coach' ? 'coach_id' : 'player_id'}]`" :value="event.subjectId">
+                                </span>
+                            </template>
+
                             <div class="flex flex-nowrap items-end justify-center gap-4">
                                 <flux:input
                                     name="home_score"
@@ -473,7 +485,9 @@
                             @endif
 
                             <div class="flex justify-center">
-                                <flux:button type="submit" variant="primary" icon="check">{{ __('Registrar resultado') }}</flux:button>
+                                <flux:button type="submit" variant="primary" icon="check" :loading="false">
+                                    <span x-text="pending.length > 0 ? '{{ __('Registrar resultado y') }} ' + totalPendingCount() + ' {{ __('evento(s)') }}' : '{{ __('Registrar resultado') }}'">{{ __('Registrar resultado') }}</span>
+                                </flux:button>
                             </div>
                         </form>
 

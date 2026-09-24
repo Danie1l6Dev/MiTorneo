@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\MatchEventType;
+use App\Http\Requests\Concerns\ValidatesQueuedMatchEvents;
 use App\Models\MatchEvent;
 use App\Models\Player;
 use App\Models\Sanction;
@@ -15,6 +16,8 @@ use Illuminate\Validation\Validator;
 
 class MatchEventRequest extends FormRequest
 {
+    use ValidatesQueuedMatchEvents;
+
     /**
      * The only knob to turn if a future competition needs to record beyond
      * regulation + extra time; nothing else assumes this ceiling.
@@ -168,6 +171,22 @@ class MatchEventRequest extends FormRequest
                         // assists can only ever cover goals scored by
                         // teammates.
                         $validator->errors()->add('type', __('Algún jugador de :team tiene más asistencias que goles anotados por sus compañeros.', ['team' => Team::find($matchTeamId)?->name]));
+                    }
+
+                    // Never more goal (or assist) events than the goals the team
+                    // actually scored, once a result is registered -- same
+                    // rule as the quick-add batch (see ValidatesQueuedMatchEvents).
+                    $scored = $match->goalsScored();
+
+                    if ($scored !== null) {
+                        $side = $matchTeamId === $match->home_team_id ? 'home' : 'away';
+                        $message = $this->input('type') === MatchEventType::Goal->value
+                            ? $this->scoreLimitError($matchTeamId, MatchEventType::Goal, count($goalPlayerIds), $scored[$side])
+                            : $this->scoreLimitError($matchTeamId, MatchEventType::Assist, count($assistPlayerIds), $scored[$side]);
+
+                        if ($message !== null) {
+                            $validator->errors()->add('type', $message);
+                        }
                     }
                 }
             }
