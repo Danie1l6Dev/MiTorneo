@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tournaments;
 
 use App\Enums\MatchEventType;
+use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\Coach;
 use App\Models\CompetitionPhase;
@@ -982,5 +983,38 @@ class MatchEventManagementTest extends TestCase
         $response = $this->actingAs($user)->get(route('matches.edit', $match));
 
         $response->assertOk()->assertSeeText('no coinciden con el marcador');
+    }
+
+    public function test_goals_scored_in_extra_time_count_toward_the_goal_event_check(): void
+    {
+        $user = User::factory()->create();
+        [$match, $homePlayer] = $this->makeMatchWithPlayers($user);
+
+        // 1-0 in regular time plus 2-0 in the prórroga: 3 home goals in total.
+        $match->forceFill([
+            'home_score' => 1, 'away_score' => 0,
+            'home_extra_time_score' => 2, 'away_extra_time_score' => 0,
+            'status' => MatchStatus::Finished,
+        ])->save();
+
+        MatchEvent::factory()->count(3)->create([
+            'match_id' => $match->id,
+            'team_id' => $homePlayer->team_id,
+            'player_id' => $homePlayer->id,
+            'type' => MatchEventType::Goal,
+        ]);
+
+        $this->assertSame(['home' => 3, 'away' => 0], $match->fresh()->goalsScored());
+        $this->assertFalse($match->fresh()->hasGoalMismatch());
+
+        // The callout is compared against the 3 goals, not the regular-time 1.
+        $this->actingAs($user)->get(route('matches.edit', $match))
+            ->assertOk()
+            ->assertSee("queuedGoalCount({$match->home_team_id})) !== 3", false)
+            ->assertSeeText('3, incluida la prórroga');
+
+        // One goal short of that total is still flagged.
+        MatchEvent::query()->where('match_id', $match->id)->where('type', MatchEventType::Goal)->first()->delete();
+        $this->assertTrue($match->fresh()->hasGoalMismatch());
     }
 }

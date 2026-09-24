@@ -475,21 +475,44 @@ class TournamentMatch extends Model
     }
 
     /**
+     * Every goal each side actually scored in THIS match: regular time plus
+     * extra time, if one was played. Penalty shoot-out goals are never match
+     * goals, so they're left out -- this is what the logged goal events are
+     * expected to add up to. Null while no score is recorded yet.
+     *
+     * @return array{home: int, away: int}|null
+     */
+    public function goalsScored(): ?array
+    {
+        if ($this->home_score === null || $this->away_score === null) {
+            return null;
+        }
+
+        return [
+            'home' => $this->home_score + ($this->home_extra_time_score ?? 0),
+            'away' => $this->away_score + ($this->away_extra_time_score ?? 0),
+        ];
+    }
+
+    /**
      * True once the match is finished and either team's tally of logged goal
-     * events disagrees with its final score -- purely informational, mirrors
-     * the callout on the match edit screen so the discrepancy is visible from
-     * calendar/bracket cards too, without needing to open the match.
+     * events disagrees with the goals it scored (regular + extra time, see
+     * goalsScored()) -- purely informational, mirrors the callout on the
+     * match edit screen so the discrepancy is visible from calendar/bracket
+     * cards too, without needing to open the match.
      */
     public function hasGoalMismatch(): bool
     {
-        if ($this->status !== MatchStatus::Finished || $this->home_score === null || $this->away_score === null) {
+        $scored = $this->goalsScored();
+
+        if ($this->status !== MatchStatus::Finished || $scored === null) {
             return false;
         }
 
         $goals = $this->relationLoaded('goals') ? $this->goals : $this->goals()->get();
 
-        return $goals->where('team_id', $this->home_team_id)->count() !== $this->home_score
-            || $goals->where('team_id', $this->away_team_id)->count() !== $this->away_score;
+        return $goals->where('team_id', $this->home_team_id)->count() !== $scored['home']
+            || $goals->where('team_id', $this->away_team_id)->count() !== $scored['away'];
     }
 
     /**

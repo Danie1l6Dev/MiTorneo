@@ -570,30 +570,39 @@
                      queuedGoalCount) so the mismatch appears/disappears as
                      goals are queued, without waiting for the batch save --
                      $goalCounts itself is only the already-saved DB count. --}}
-                @if (! $pending && $match->home_score !== null && $match->away_score !== null)
+                {{-- Compared against goalsScored() -- regular time PLUS extra
+                     time, never penalties -- since a goal logged during a
+                     prórroga is still a goal of this match. --}}
+                @php $scored = $pending ? null : $match->goalsScored(); @endphp
+
+                @if ($scored !== null)
                     @php
+                        $wentToExtraTime = $match->home_extra_time_score !== null && $match->away_extra_time_score !== null;
+                        $scoreLabel = fn (int $goals): string => $wentToExtraTime
+                            ? __(':score, incluida la prórroga', ['score' => $goals])
+                            : (string) $goals;
                         $homeMismatchPrefix = \Illuminate\Support\Js::from(__('Los goles registrados como eventos de :team', ['team' => $match->homeTeam->name]));
-                        $homeMismatchSuffix = \Illuminate\Support\Js::from(__('no coinciden con el marcador (:score).', ['score' => $match->home_score]));
+                        $homeMismatchSuffix = \Illuminate\Support\Js::from(__('no coinciden con el marcador (:score).', ['score' => $scoreLabel($scored['home'])]));
                         $awayMismatchPrefix = \Illuminate\Support\Js::from(__('Los goles registrados como eventos de :team', ['team' => $match->awayTeam->name]));
-                        $awayMismatchSuffix = \Illuminate\Support\Js::from(__('no coinciden con el marcador (:score).', ['score' => $match->away_score]));
+                        $awayMismatchSuffix = \Illuminate\Support\Js::from(__('no coinciden con el marcador (:score).', ['score' => $scoreLabel($scored['away'])]));
                     @endphp
 
-                    <div x-show="({{ $goalCounts['home'] }} + queuedGoalCount({{ $match->home_team_id }})) !== {{ $match->home_score }}" x-cloak>
+                    <div x-show="({{ $goalCounts['home'] }} + queuedGoalCount({{ $match->home_team_id }})) !== {{ $scored['home'] }}" x-cloak>
                         <flux:callout variant="warning" icon="exclamation-triangle">
                             <flux:callout.heading>
                                 {{-- Server-rendered text is the fallback for
                                      no-JS/tests; x-text overwrites it the
                                      instant Alpine initializes, then keeps it
                                      live as goals are queued/unqueued. --}}
-                                <span x-text="{{ $homeMismatchPrefix }} + ' (' + ({{ $goalCounts['home'] }} + queuedGoalCount({{ $match->home_team_id }})) + ') ' + {{ $homeMismatchSuffix }}">{{ __('Los goles registrados como eventos de :team (:count) no coinciden con el marcador (:score).', ['team' => $match->homeTeam->name, 'count' => $goalCounts['home'], 'score' => $match->home_score]) }}</span>
+                                <span x-text="{{ $homeMismatchPrefix }} + ' (' + ({{ $goalCounts['home'] }} + queuedGoalCount({{ $match->home_team_id }})) + ') ' + {{ $homeMismatchSuffix }}">{{ __('Los goles registrados como eventos de :team (:count) no coinciden con el marcador (:score).', ['team' => $match->homeTeam->name, 'count' => $goalCounts['home'], 'score' => $scoreLabel($scored['home'])]) }}</span>
                             </flux:callout.heading>
                         </flux:callout>
                     </div>
 
-                    <div x-show="({{ $goalCounts['away'] }} + queuedGoalCount({{ $match->away_team_id }})) !== {{ $match->away_score }}" x-cloak>
+                    <div x-show="({{ $goalCounts['away'] }} + queuedGoalCount({{ $match->away_team_id }})) !== {{ $scored['away'] }}" x-cloak>
                         <flux:callout variant="warning" icon="exclamation-triangle">
                             <flux:callout.heading>
-                                <span x-text="{{ $awayMismatchPrefix }} + ' (' + ({{ $goalCounts['away'] }} + queuedGoalCount({{ $match->away_team_id }})) + ') ' + {{ $awayMismatchSuffix }}">{{ __('Los goles registrados como eventos de :team (:count) no coinciden con el marcador (:score).', ['team' => $match->awayTeam->name, 'count' => $goalCounts['away'], 'score' => $match->away_score]) }}</span>
+                                <span x-text="{{ $awayMismatchPrefix }} + ' (' + ({{ $goalCounts['away'] }} + queuedGoalCount({{ $match->away_team_id }})) + ') ' + {{ $awayMismatchSuffix }}">{{ __('Los goles registrados como eventos de :team (:count) no coinciden con el marcador (:score).', ['team' => $match->awayTeam->name, 'count' => $goalCounts['away'], 'score' => $scoreLabel($scored['away'])]) }}</span>
                             </flux:callout.heading>
                         </flux:callout>
                     </div>
