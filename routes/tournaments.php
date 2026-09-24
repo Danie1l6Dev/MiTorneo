@@ -16,6 +16,7 @@ use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\RefereeController;
 use App\Http\Controllers\SanctionController;
+use App\Http\Controllers\StatisticsPdfController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TeamExpulsionController;
 use App\Http\Controllers\TournamentCategoryController;
@@ -271,6 +272,11 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('tournaments/{tournament}/categories/{category}/results/pdf', [MatchResultsPdfController::class, 'exportCategory'])
         ->name('tournaments.categories.results.pdf');
+
+    // Player statistics tables (?type=goal|assist|yellow_card|red_card|all),
+    // one column per phase -- see StatisticsPdfController.
+    Route::get('tournaments/{tournament}/categories/{category}/statistics/pdf', [StatisticsPdfController::class, 'export'])
+        ->name('tournaments.categories.statistics.pdf');
 
     // Official programming sheet of one fecha (?round=, optional ?category=)
     // -- see MatchProgrammingPdfController.

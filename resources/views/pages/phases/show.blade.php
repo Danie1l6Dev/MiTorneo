@@ -470,7 +470,27 @@
 
             @foreach (\App\Enums\MatchEventType::cases() as $statType)
                 <div x-show="section === '{{ $statType->value }}'" x-cloak class="mt-4 space-y-4">
-                    <flux:heading size="lg">{{ __($statType->leaderboardTitle()) }}</flux:heading>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <flux:heading size="lg">{{ __($statType->leaderboardTitle()) }}</flux:heading>
+
+                        {{-- Whole category in this tournament, one column per phase
+                             plus the total -- see StatisticsPdfController. --}}
+                        @php $statsPdfPrefix = str($phase->tournament->name.'-'.$category->name)->slug(); @endphp
+                        <x-ui.pdf-export-menu variant="ghost" size="sm">
+                            <flux:menu.item
+                                icon="table-cells"
+                                x-on:click="download({{ \Illuminate\Support\Js::from(route('tournaments.categories.statistics.pdf', [$phase->tournament, $category, 'type' => $statType->value])) }}, {{ \Illuminate\Support\Js::from(str($statType->leaderboardTitle())->slug().'-'.$statsPdfPrefix.'.pdf') }})"
+                            >
+                                {{ __($statType->leaderboardTitle()) }}
+                            </flux:menu.item>
+                            <flux:menu.item
+                                icon="rectangle-stack"
+                                x-on:click="download({{ \Illuminate\Support\Js::from(route('tournaments.categories.statistics.pdf', [$phase->tournament, $category, 'type' => 'all'])) }}, {{ \Illuminate\Support\Js::from('estadisticas-'.$statsPdfPrefix.'.pdf') }})"
+                            >
+                                {{ __('Todas las estadísticas') }}
+                            </flux:menu.item>
+                        </x-ui.pdf-export-menu>
+                    </div>
 
                     <div class="flex flex-wrap items-center gap-3">
                         @if ($statistics['groupOptions']->isNotEmpty())
