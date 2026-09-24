@@ -39,6 +39,15 @@
     :disabled="$readonly"
 />
 
+<flux:input
+    name="venue"
+    label="{{ __('Cancha / lugar (opcional)') }}"
+    placeholder="{{ __('Ej.: Cancha Parque Boscán') }}"
+    value="{{ old('venue', $match->venue) }}"
+    maxlength="120"
+    :disabled="$readonly"
+/>
+
 <flux:select name="referee_id" label="{{ __('Árbitro (opcional)') }}" placeholder="{{ __('Sin árbitro asignado') }}" :disabled="$readonly">
     @php $currentReferee = old('referee_id', $match->referee_id ?? ''); @endphp
 

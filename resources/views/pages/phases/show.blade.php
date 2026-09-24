@@ -217,7 +217,51 @@
                 }"
                 x-effect="syncCalendarHash(section)"
             >
-                <flux:heading size="lg">{{ __('Calendario') }}</flux:heading>
+                @php
+                    $resultsFilePrefix = 'resultados-'.str($category->name.'-'.$phase->name)->slug();
+                @endphp
+
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <flux:heading size="lg">{{ __('Calendario') }}</flux:heading>
+
+                    {{-- "Jornada actual" follows whichever group/jornada the pager
+                         below is showing (roundNumbers/activeGroup/currentRound
+                         come from this calendar's own x-data); the export itself
+                         covers that jornada across every group of the phase. --}}
+                    @if ($schedules->isNotEmpty())
+                        <x-ui.pdf-export-menu :label="__('Exportar PDF')" variant="ghost" size="sm">
+                            <flux:menu.item
+                                icon="calendar-days"
+                                x-on:click="download(
+                                    {{ \Illuminate\Support\Js::from(route('phases.results.pdf', [$phase, 'round' => '__ROUND__'])) }}.replace('__ROUND__', roundNumbers[activeGroup][currentRound[activeGroup]]),
+                                    {{ \Illuminate\Support\Js::from($resultsFilePrefix.'-jornada-') }} + roundNumbers[activeGroup][currentRound[activeGroup]] + '.pdf'
+                                )"
+                            >
+                                <span x-text="'{{ __('Jornada') }} ' + roundNumbers[activeGroup][currentRound[activeGroup]]"></span>
+                            </flux:menu.item>
+                            <flux:menu.item
+                                icon="table-cells"
+                                x-on:click="download({{ \Illuminate\Support\Js::from(route('phases.results.pdf', $phase)) }}, {{ \Illuminate\Support\Js::from($resultsFilePrefix.'.pdf') }})"
+                            >
+                                {{ __('Fase completa') }}
+                            </flux:menu.item>
+                            <flux:menu.separator />
+                            <flux:menu.item
+                                icon="rectangle-stack"
+                                x-on:click="download({{ \Illuminate\Support\Js::from(route('tournaments.categories.results.pdf', [$phase->tournament, $category])) }}, {{ \Illuminate\Support\Js::from('resultados-'.str($phase->tournament->name.'-'.$category->name)->slug().'.pdf') }})"
+                            >
+                                {{ __('Toda la categoría (partidos jugados)') }}
+                            </flux:menu.item>
+
+                        </x-ui.pdf-export-menu>
+                    @endif
+
+                    {{-- Programming sheet (pending matches) of this category only;
+                         the whole tournament's lives on the tournament page. --}}
+                    @if ($programmingRounds !== [])
+                        <x-ui.programming-export :tournament="$phase->tournament" :rounds="$programmingRounds" :category="$category" variant="ghost" size="sm" />
+                    @endif
+                </div>
 
                 @if ($schedules->isEmpty())
                     <x-ui.empty-state icon="calendar-days" :message="__('Todavía no se ha generado ningún calendario para esta fase.')" />
@@ -513,7 +557,42 @@
             <flux:separator variant="subtle" />
         @else
             <div id="cuadro" class="scroll-mt-24 space-y-6">
-                <flux:heading size="lg">{{ __('Cuadro de eliminación') }}</flux:heading>
+                @php
+                    $resultsFilePrefix = 'resultados-'.str($category->name.'-'.$phase->name)->slug();
+                @endphp
+
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <flux:heading size="lg">{{ __('Cuadro de eliminación') }}</flux:heading>
+
+                    {{-- One entry per round (octavos, cuartos...); the final's
+                         export also carries the 3er/4to puesto match, which
+                         shares its round. --}}
+                    @unless (empty($bracketRounds))
+                        <x-ui.pdf-export-menu :label="__('Exportar resultados')" variant="ghost" size="sm">
+                            @foreach ($bracketRounds as $round)
+                                <flux:menu.item
+                                    icon="bolt"
+                                    x-on:click="download({{ \Illuminate\Support\Js::from(route('phases.results.pdf', [$phase, 'round' => $round['round_number']])) }}, {{ \Illuminate\Support\Js::from($resultsFilePrefix.'-'.str($round['label'])->slug().'.pdf') }})"
+                                >
+                                    {{ $round['label'] }}
+                                </flux:menu.item>
+                            @endforeach
+                            <flux:menu.separator />
+                            <flux:menu.item
+                                icon="table-cells"
+                                x-on:click="download({{ \Illuminate\Support\Js::from(route('phases.results.pdf', $phase)) }}, {{ \Illuminate\Support\Js::from($resultsFilePrefix.'.pdf') }})"
+                            >
+                                {{ __('Fase completa') }}
+                            </flux:menu.item>
+                            <flux:menu.item
+                                icon="rectangle-stack"
+                                x-on:click="download({{ \Illuminate\Support\Js::from(route('tournaments.categories.results.pdf', [$phase->tournament, $category])) }}, {{ \Illuminate\Support\Js::from('resultados-'.str($phase->tournament->name.'-'.$category->name)->slug().'.pdf') }})"
+                            >
+                                {{ __('Toda la categoría (partidos jugados)') }}
+                            </flux:menu.item>
+                        </x-ui.pdf-export-menu>
+                    @endunless
+                </div>
 
                 @if (empty($bracketRounds))
                     <x-ui.empty-state icon="bolt" :message="__('Todavía no se ha generado el cuadro de esta fase.')" />

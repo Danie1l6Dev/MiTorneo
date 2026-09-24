@@ -31,6 +31,12 @@
                     </x-ui.pdf-export-button>
                 @endif
 
+                {{-- Official programming sheet (pending matches) of the chosen
+                     fechas, every category -- see MatchProgrammingPdfController. --}}
+                @if ($programmingRounds !== [])
+                    <x-ui.programming-export :tournament="$tournament" :rounds="$programmingRounds" variant="ghost" />
+                @endif
+
                 <flux:button :href="route('tournaments.edit', $tournament)" variant="ghost" icon="pencil" wire:navigate>
                     {{ __('Editar') }}
                 </flux:button>

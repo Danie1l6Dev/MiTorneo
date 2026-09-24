@@ -7,7 +7,9 @@ use App\Http\Controllers\CompetitionPhaseController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchEventController;
+use App\Http\Controllers\MatchProgrammingPdfController;
 use App\Http\Controllers\MatchResultController;
+use App\Http\Controllers\MatchResultsPdfController;
 use App\Http\Controllers\MunicipalStandingsPdfController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
@@ -258,6 +260,22 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('tournaments/{tournament}/standings/pdf', [MunicipalStandingsPdfController::class, 'exportTournament'])
         ->name('tournaments.standings.pdf');
+
+    // Match results PDFs -- see MatchResultsPdfController. phases.results.pdf
+    // takes an optional ?round= to export a single jornada/knockout round.
+    Route::get('matches/{match}/pdf', [MatchResultsPdfController::class, 'exportMatch'])
+        ->name('matches.pdf');
+
+    Route::get('phases/{phase}/results/pdf', [MatchResultsPdfController::class, 'exportPhase'])
+        ->name('phases.results.pdf');
+
+    Route::get('tournaments/{tournament}/categories/{category}/results/pdf', [MatchResultsPdfController::class, 'exportCategory'])
+        ->name('tournaments.categories.results.pdf');
+
+    // Official programming sheet of one fecha (?round=, optional ?category=)
+    // -- see MatchProgrammingPdfController.
+    Route::get('tournaments/{tournament}/programming/pdf', [MatchProgrammingPdfController::class, 'export'])
+        ->name('tournaments.programming.pdf');
 
     Route::patch('matches/{match}/result', [MatchResultController::class, 'update'])
         ->name('matches.result.update');

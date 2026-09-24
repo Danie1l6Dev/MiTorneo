@@ -117,16 +117,29 @@
                  page (see MatchResultController) -- this is the explicit
                  way back, landing on the same tab/group this match's own
                  entry lives under (TournamentMatch::calendarHash()). --}}
-            <flux:button
-                :href="route('phases.show', $match->competitionPhase).$match->calendarHash()"
-                variant="ghost"
-                size="sm"
-                icon="chevron-left"
-                wire:navigate
-                class="mt-1"
-            >
-                {{ __('Volver al calendario') }}
-            </flux:button>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+                <flux:button
+                    :href="route('phases.show', $match->competitionPhase).$match->calendarHash()"
+                    variant="ghost"
+                    size="sm"
+                    icon="chevron-left"
+                    wire:navigate
+                >
+                    {{ __('Volver al calendario') }}
+                </flux:button>
+
+                {{-- Full single-match report (rosters, statistics, events,
+                     sanctions) -- see MatchResultsPdfController::exportMatch(). --}}
+                <x-ui.pdf-export-button
+                    :href="route('matches.pdf', $match)"
+                    :filename="'resultado-partido-'.str(collect([$match->homeTeam?->name, $match->awayTeam?->name])->filter()->implode(' vs ') ?: (string) $match->id)->slug().'.pdf'"
+                    variant="ghost"
+                    size="sm"
+                    icon="arrow-down-tray"
+                >
+                    {{ __('Exportar PDF') }}
+                </x-ui.pdf-export-button>
+            </div>
         </x-ui.page-header>
 
         @if (session('status'))

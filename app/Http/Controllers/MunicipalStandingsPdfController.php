@@ -6,10 +6,10 @@ use App\Enums\CompetitionPhaseType;
 use App\Models\Category;
 use App\Models\CompetitionPhase;
 use App\Models\Tournament;
+use App\Services\PdfLetterheadService;
 use App\Services\StandingsService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\File;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -17,13 +17,11 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * tournament) as a PDF. Available to every organizer: by default it prints
  * the generic MiTorneo letterhead; Faudis' account (see
  * User::usesMunicipalLetterhead()) prints the LIFUTGUA letterhead his league
- * already uses on its official programming sheets. That federation
- * branding/NIT would be meaningless (or actively wrong) on anyone else's
- * export, hence the per-user switch.
+ * already uses on its official programming sheets -- see PdfLetterheadService.
  */
 class MunicipalStandingsPdfController extends Controller
 {
-    public function export(CompetitionPhase $phase, StandingsService $standingsService): StreamedResponse|Response
+    public function export(CompetitionPhase $phase, StandingsService $standingsService, PdfLetterheadService $letterhead): StreamedResponse|Response
     {
         $this->authorize('view', $phase);
 
@@ -38,7 +36,7 @@ class MunicipalStandingsPdfController extends Controller
             'category' => $category,
             'tournament' => $tournament,
             'tables' => $tables,
-            ...$this->letterhead(),
+            ...$letterhead->forUser(auth()->user()),
         ])->setPaper('letter');
 
         $fileName = 'tabla-posiciones-'.str($category->name.'-'.$phase->name)->slug().'.pdf';
@@ -53,7 +51,7 @@ class MunicipalStandingsPdfController extends Controller
      * league-type phase yet (still knockout-only, or not started) simply
      * doesn't get a section.
      */
-    public function exportTournament(Tournament $tournament, StandingsService $standingsService): StreamedResponse|Response
+    public function exportTournament(Tournament $tournament, StandingsService $standingsService, PdfLetterheadService $letterhead): StreamedResponse|Response
     {
         $this->authorize('view', $tournament);
 
@@ -83,44 +81,11 @@ class MunicipalStandingsPdfController extends Controller
         $pdf = Pdf::loadView('pdf.standings-municipal-tournament', [
             'tournament' => $tournament,
             'sections' => $sections,
-            ...$this->letterhead(),
+            ...$letterhead->forUser(auth()->user()),
         ])->setPaper('letter');
 
         $fileName = 'tabla-posiciones-'.str($tournament->name)->slug().'.pdf';
 
         return $pdf->download($fileName);
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    private function letterhead(): array
-    {
-        if (! auth()->user()->usesMunicipalLetterhead()) {
-            return [
-                'letterhead' => 'default',
-                'appLogo' => $this->imageAsDataUri('mitorneo-logo.svg'),
-            ];
-        }
-
-        return [
-            'letterhead' => 'municipal',
-            'lifutguaLogo' => $this->imageAsDataUri('lifutgua.jpg'),
-            'difutbolLogo' => $this->imageAsDataUri('difutbol.jpg'),
-            'wordmark' => $this->imageAsDataUri('lifutgua-wordmark.png'),
-            'signature' => $this->imageAsDataUri('coordinador-firma.jpg'),
-        ];
-    }
-
-    private function imageAsDataUri(string $fileName): string
-    {
-        $path = resource_path("images/standings-pdf/{$fileName}");
-        $mimeType = match (pathinfo($fileName, PATHINFO_EXTENSION)) {
-            'png' => 'image/png',
-            'svg' => 'image/svg+xml',
-            default => 'image/jpeg',
-        };
-
-        return "data:{$mimeType};base64,".base64_encode(File::get($path));
     }
 }

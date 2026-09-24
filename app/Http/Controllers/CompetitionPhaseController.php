@@ -10,6 +10,7 @@ use App\Models\CompetitionPhase;
 use App\Models\Tournament;
 use App\Services\CompetitionStatisticsService;
 use App\Services\KnockoutBracketService;
+use App\Services\MatchProgrammingReportService;
 use App\Services\PhaseBoardService;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
@@ -165,6 +166,7 @@ class CompetitionPhaseController extends Controller
         PhaseEligibilityService $eligibilityService,
         CompetitionStatisticsService $statisticsService,
         PhaseBoardService $boardService,
+        MatchProgrammingReportService $programming,
     ): View {
         $this->authorize('view', $phase);
 
@@ -241,10 +243,17 @@ class CompetitionPhaseController extends Controller
             ? $boardService->statisticsPanels($request, $category, $statisticsService)
             : null;
 
+        // Fechas of this category (in this tournament) with matches still to
+        // be played -- the calendar's export menu offers a programming sheet
+        // for each one.
+        $programmingRounds = $phase->type === CompetitionPhaseType::League
+            ? $programming->pendingRounds($phase->tournament, $category)
+            : [];
+
         return view('pages.phases.show', compact(
             'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'thirdPlaceMatch',
             'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal', 'statistics',
-            'previousPhase', 'nextPhase'
+            'previousPhase', 'nextPhase', 'programmingRounds'
         ));
     }
 

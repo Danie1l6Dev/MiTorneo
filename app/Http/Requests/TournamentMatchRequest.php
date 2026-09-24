@@ -21,6 +21,7 @@ class TournamentMatchRequest extends FormRequest
         return [
             'status' => ['required', Rule::enum(MatchStatus::class)],
             'scheduled_at' => ['nullable', 'date'],
+            'venue' => ['nullable', 'string', 'max:120'],
             // Scoped to the authenticated organizer's own referees -- a
             // referee is global, but never across different organizers.
             'referee_id' => ['nullable', Rule::exists('referees', 'id')->where('user_id', $this->user()?->id)],

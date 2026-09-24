@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TournamentRequest;
 use App\Models\CompetitionPhase;
 use App\Models\Tournament;
+use App\Services\MatchProgrammingReportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +31,7 @@ class TournamentController extends Controller
         return to_route('tournaments.show', $tournament);
     }
 
-    public function show(Tournament $tournament): View
+    public function show(Tournament $tournament, MatchProgrammingReportService $programming): View
     {
         $this->authorize('view', $tournament);
 
@@ -56,7 +57,11 @@ class TournamentController extends Controller
             ->pluck('category_id')
             ->unique();
 
-        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds'));
+        // Fechas with at least one match still to be played -- one entry
+        // each in the "Exportar programación" menu.
+        $programmingRounds = $programming->pendingRounds($tournament);
+
+        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds'));
     }
 
     public function edit(Tournament $tournament): View

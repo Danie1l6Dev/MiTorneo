@@ -44,11 +44,12 @@ use Illuminate\Support\Collection;
  * @property int|null $walkover_team_id
  * @property int|null $round_number
  * @property Carbon|null $scheduled_at
+ * @property string|null $venue Where it's played ("Cancha Parque Boscán"), free text, optional.
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Table('matches')]
-#[Fillable(['group_id', 'referee_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at'])]
+#[Fillable(['group_id', 'referee_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at', 'venue'])]
 class TournamentMatch extends Model
 {
     /** @use HasFactory<TournamentMatchFactory> */
