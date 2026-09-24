@@ -224,12 +224,17 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <flux:heading size="lg">{{ __('Calendario') }}</flux:heading>
 
+                    {{-- Both exports grouped in their own box, so the row's
+                         justify-between only ever splits heading vs. buttons
+                         (with three direct children the results menu ended up
+                         floating in the middle of the row). --}}
+                    <div class="flex flex-wrap items-center gap-2">
                     {{-- "Jornada actual" follows whichever group/jornada the pager
                          below is showing (roundNumbers/activeGroup/currentRound
                          come from this calendar's own x-data); the export itself
                          covers that jornada across every group of the phase. --}}
                     @if ($schedules->isNotEmpty())
-                        <x-ui.pdf-export-menu :label="__('Exportar PDF')" variant="ghost" size="sm">
+                        <x-ui.pdf-export-menu :label="__('Exportar resultados')" variant="ghost" size="sm">
                             <flux:menu.item
                                 icon="calendar-days"
                                 x-on:click="download(
@@ -252,7 +257,6 @@
                             >
                                 {{ __('Toda la categoría (partidos jugados)') }}
                             </flux:menu.item>
-
                         </x-ui.pdf-export-menu>
                     @endif
 
@@ -261,6 +265,7 @@
                     @if ($programmingRounds !== [])
                         <x-ui.programming-export :tournament="$phase->tournament" :rounds="$programmingRounds" :category="$category" variant="ghost" size="sm" />
                     @endif
+                    </div>
                 </div>
 
                 @if ($schedules->isEmpty())

@@ -215,7 +215,7 @@ class MatchResultsPdfTest extends TestCase
         $this->actingAs($data['user'])
             ->get(route('phases.show', $data['phase']))
             ->assertOk()
-            ->assertSee('Exportar PDF')
+            ->assertSee('Exportar resultados')
             ->assertSee('Fase completa')
             // Jornada 2 is still pending, so its programming sheet is offered.
             ->assertSee('Exportar programación')
