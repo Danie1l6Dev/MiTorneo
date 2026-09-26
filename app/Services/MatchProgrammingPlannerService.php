@@ -27,9 +27,10 @@ class MatchProgrammingPlannerService
      *
      * @return Collection<int, TournamentMatch>
      */
-    public function candidates(Tournament $tournament, int $round, bool $overwrite): Collection
+    public function candidates(Tournament $tournament, int $round, bool $overwrite, ?Category $category = null): Collection
     {
         return $this->report->pendingRoundMatches($tournament, $round)
+            ->when($category, fn ($query) => $query->where('category_id', $category->id))
             ->when(! $overwrite, fn ($query) => $query->whereNull('scheduled_at'))
             ->with(['homeTeam', 'awayTeam', 'category', 'group', 'venue', 'referee'])
             ->get();
@@ -66,6 +67,22 @@ class MatchProgrammingPlannerService
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * One category's matches of a fecha in the order they'll be played, with a
+     * single day/cancha/first-hour/rest applied to all of them. A category
+     * with groups is chained group after group.
+     *
+     * @param  Collection<int, TournamentMatch>  $matches  All belonging to one category.
+     * @param  array{date?: string|null, venue_id?: int|string|null, start?: string|null, rest?: int|string|null}  $config
+     * @return array<int, array{at: CarbonInterface, venue_id: int|null}> Keyed by match id.
+     */
+    public function planCategory(Collection $matches, array $config): array
+    {
+        $rows = $this->rows($matches);
+
+        return $this->plan($rows, collect($rows)->mapWithKeys(fn (array $row): array => [$row['key'] => $config])->all());
     }
 
     public static function rowKey(TournamentMatch $match): string
@@ -117,7 +134,7 @@ class MatchProgrammingPlannerService
             $cursor = TournamentMatch::composeScheduledAt($date, $start);
             $slotKey = Carbon::parse($date)->toDateString().'|'.$venueId;
 
-            if ($venueId !== null && isset($venueFreeAt[$slotKey]) && $venueFreeAt[$slotKey]->gt($cursor)) {
+            if (isset($venueFreeAt[$slotKey]) && $venueFreeAt[$slotKey]->gt($cursor)) {
                 $cursor = $venueFreeAt[$slotKey]->copy();
             }
 
@@ -126,9 +143,7 @@ class MatchProgrammingPlannerService
                 $cursor = $cursor->copy()->addMinutes($interval);
             }
 
-            if ($venueId !== null) {
-                $venueFreeAt[$slotKey] = $cursor;
-            }
+            $venueFreeAt[$slotKey] = $cursor;
         }
 
         return $proposed;

@@ -47,6 +47,32 @@ class MatchSchedulingConflictService
     }
 
     /**
+     * From when a cancha is free on a day: the end of the last match already
+     * booked there (kickoff plus its category's duration), or null when nothing
+     * with a kickoff time is booked. $ignoring are matches about to be
+     * re-scheduled, so they don't count as occupying it.
+     *
+     * @param  list<int>  $ignoring
+     */
+    public function venueFreeFrom(int $venueId, CarbonInterface $day, array $ignoring = []): ?CarbonInterface
+    {
+        $start = Carbon::parse($day->toDateString())->startOfDay();
+
+        return TournamentMatch::query()
+            ->where('venue_id', $venueId)
+            ->whereNotIn('id', $ignoring)
+            ->whereNotNull('scheduled_at')
+            ->where('status', '!=', MatchStatus::Postponed)
+            ->whereBetween('scheduled_at', [$start, $start->copy()->endOfDay()])
+            ->with('category')
+            ->get()
+            ->filter(fn (TournamentMatch $match): bool => $match->hasKickoffTime())
+            ->map(fn (TournamentMatch $match): CarbonInterface => $match->scheduledEndsAt())
+            ->sortDesc()
+            ->first();
+    }
+
+    /**
      * @param  Collection<int, TournamentMatch>  $matches  The matches being (re)scheduled.
      * @param  array<int, array{at: CarbonInterface|null, venue_id: int|null}>  $proposed  Their new slots, keyed by match id.
      * @return array<int, list<string>> Blocking clashes per match id (only matches with at least one).

@@ -54,6 +54,117 @@ class MatchProgrammingReportService
     }
 
     /**
+     * How far along each fecha's programming is: every match of the fecha that
+     * still has to be played or was already played (cancelled ones don't count),
+     * and how many of those are "ready" -- they already have a day, or were
+     * already played (finished), even if they never had a date. What the
+     * "Programar fecha" picker shows on each fecha's tile.
+     *
+     * @return array<int, array{total: int, ready: int}>
+     */
+    public function roundSummaries(Tournament $tournament): array
+    {
+        return TournamentMatch::query()
+            ->where('tournament_id', $tournament->id)
+            ->whereNotNull('home_team_id')
+            ->whereNotNull('away_team_id')
+            ->whereNotNull('round_number')
+            ->where('status', '!=', MatchStatus::Cancelled)
+            ->whereHas('competitionPhase', fn (Builder $query) => $query->where('type', CompetitionPhaseType::League))
+            ->selectRaw('round_number, count(*) as total, sum(case when status = ? or scheduled_at is not null then 1 else 0 end) as ready', [MatchStatus::Finished->value])
+            ->groupBy('round_number')
+            ->orderBy('round_number')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [(int) $row->round_number => ['total' => (int) $row->total, 'ready' => (int) $row->ready]])
+            ->all();
+    }
+
+    /**
+     * Everything the "Programar fecha" page needs, in one go: every fecha that
+     * still has pending matches, each with its progress and its categories
+     * (youngest first) -- and per category its progress plus the pending
+     * matches themselves, in play order. The page keeps this in the browser and
+     * filters it there, so switching fecha or category never reloads anything.
+     *
+     * @return list<array{number: int, title: string, total: int, ready: int, categories: list<array{id: int, name: string, total: int, ready: int, matches: list<array{id: int, home: string, away: string, group: string|null, has_day: bool}>}>}>
+     */
+    public function programmingCatalog(Tournament $tournament): array
+    {
+        $pending = $this->pendingMatches($tournament, null)
+            ->whereNotNull('round_number')
+            ->where('is_walkover', false)
+            ->with(['homeTeam', 'awayTeam', 'group', 'category'])
+            ->get();
+
+        // Progress counts every match of the fecha (played ones included), not
+        // just the pending ones listed below.
+        $roundStats = $this->roundSummaries($tournament);
+        $categoryStats = TournamentMatch::query()
+            ->where('tournament_id', $tournament->id)
+            ->whereNotNull('home_team_id')
+            ->whereNotNull('away_team_id')
+            ->whereNotNull('round_number')
+            ->where('status', '!=', MatchStatus::Cancelled)
+            ->whereHas('competitionPhase', fn (Builder $query) => $query->where('type', CompetitionPhaseType::League))
+            ->selectRaw('round_number, category_id, count(*) as total, sum(case when status = ? or scheduled_at is not null then 1 else 0 end) as ready', [MatchStatus::Finished->value])
+            ->groupBy('round_number', 'category_id')
+            ->get()
+            ->groupBy('round_number');
+
+        $categoryOrder = Category::query()
+            ->whereIn('id', $pending->pluck('category_id')->unique())
+            ->orderedByAge()
+            ->pluck('id')
+            ->flip();
+
+        return $pending
+            ->groupBy('round_number')
+            ->sortKeys()
+            ->map(function (Collection $roundMatches, int $round) use ($roundStats, $categoryStats, $categoryOrder): array {
+                $categories = $roundMatches
+                    ->groupBy('category_id')
+                    ->sortBy(fn (Collection $matches, int $categoryId): int => $categoryOrder[$categoryId])
+                    ->map(function (Collection $matches, int $categoryId) use ($round, $categoryStats): array {
+                        $stat = $categoryStats[$round]?->firstWhere('category_id', $categoryId);
+
+                        return [
+                            'id' => $categoryId,
+                            'name' => $matches->first()->category->name,
+                            'total' => (int) ($stat->total ?? $matches->count()),
+                            'ready' => (int) ($stat->ready ?? 0),
+                            'matches' => $matches
+                                ->sortBy([
+                                    fn (TournamentMatch $a, TournamentMatch $b): int => ($a->group?->order ?? 0) <=> ($b->group?->order ?? 0),
+                                    fn (TournamentMatch $a, TournamentMatch $b): int => ($a->group_id ?? 0) <=> ($b->group_id ?? 0),
+                                    fn (TournamentMatch $a, TournamentMatch $b): int => $a->id <=> $b->id,
+                                ])
+                                ->map(fn (TournamentMatch $match): array => [
+                                    'id' => $match->id,
+                                    'home' => $match->homeTeam->name,
+                                    'away' => $match->awayTeam->name,
+                                    'group' => $match->group?->name,
+                                    'has_day' => $match->scheduled_at !== null,
+                                ])
+                                ->values()
+                                ->all(),
+                        ];
+                    })
+                    ->values()
+                    ->all();
+
+                return [
+                    'number' => $round,
+                    'title' => $this->roundTitle($round),
+                    'total' => $roundStats[$round]['total'] ?? 0,
+                    'ready' => $roundStats[$round]['ready'] ?? 0,
+                    'categories' => $categories,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
      * The pending matches of $roundNumbers (every pending fecha when null),
      * one section per fecha, split by category (youngest first), then into
      * one block per day + venue: days ascending with undated matches last,

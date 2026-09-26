@@ -27,6 +27,7 @@ class MatchProgrammingStoreRequest extends FormRequest
     {
         return [
             'round' => ['required', 'integer', 'min:1'],
+            'category' => ['nullable', 'integer'],
             'overwrite' => ['nullable', 'boolean'],
             'matches' => ['required', 'array'],
             'matches.*.date' => ['nullable', 'date'],
