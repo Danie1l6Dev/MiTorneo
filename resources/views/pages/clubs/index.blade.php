@@ -128,7 +128,35 @@
                 </x-ui.empty-state>
             </div>
         @else
-            <div x-show="view === 'club'" x-cloak class="space-y-3">
+            {{-- Live search by club name, same idea as the players' one below: every
+                 card is rendered up front and only its visibility toggles against the
+                 typed text. Case and accents are ignored on both sides. --}}
+            <div
+                x-show="view === 'club'"
+                x-cloak
+                class="space-y-6"
+                x-data="{
+                    query: '',
+                    names: {{ \Illuminate\Support\Js::from($clubs->map(fn ($club) => \Illuminate\Support\Str::ascii(mb_strtolower($club->name)))->values()) }},
+                    normalize(text) { return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); },
+                    matches(name) { return this.query.trim() === '' || name.includes(this.normalize(this.query)); },
+                    get hasResults() { return this.names.some((name) => this.matches(name)); },
+                }"
+            >
+                <div class="mx-auto w-full max-w-xl">
+                    <flux:input
+                        type="search"
+                        x-model="query"
+                        icon="magnifying-glass"
+                        :placeholder="__('Nombre del club...')"
+                    />
+                </div>
+
+                <div x-show="! hasResults" x-cloak>
+                    <x-ui.empty-state icon="magnifying-glass" :message="__('No se encontró ningún club con esa búsqueda.')" />
+                </div>
+
+                <div class="space-y-3">
                 @foreach ($clubs as $club)
                     @php
                         $clubTeams = $teamsByClub->get($club->id, collect());
@@ -138,7 +166,12 @@
                             ->map(fn ($teams) => $teams->groupBy(fn ($team) => $team->group->name ?? __('Sin grupo')));
                     @endphp
 
-                    <div class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel" x-data="{ open: false }">
+                    <div
+                        class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel"
+                        x-data="{ open: false }"
+                        data-name="{{ \Illuminate\Support\Str::ascii(mb_strtolower($club->name)) }}"
+                        x-show="matches($el.dataset.name)"
+                    >
                         <div class="flex w-full items-center justify-between gap-3 px-6 py-4">
                             <button type="button" @click="open = !open" class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left">
                                 <flux:icon.shield-check variant="micro" class="size-5 shrink-0 text-zinc-400" />
@@ -203,9 +236,36 @@
                         </div>
                     </div>
                 @endforeach
+                </div>
             </div>
 
-            <div x-show="view === 'category'" x-cloak class="space-y-3">
+            {{-- Same live search for the categories. --}}
+            <div
+                x-show="view === 'category'"
+                x-cloak
+                class="space-y-6"
+                x-data="{
+                    query: '',
+                    names: {{ \Illuminate\Support\Js::from($categories->map(fn ($category) => \Illuminate\Support\Str::ascii(mb_strtolower($category->name)))->values()) }},
+                    normalize(text) { return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); },
+                    matches(name) { return this.query.trim() === '' || name.includes(this.normalize(this.query)); },
+                    get hasResults() { return this.names.some((name) => this.matches(name)); },
+                }"
+            >
+                <div class="mx-auto w-full max-w-xl">
+                    <flux:input
+                        type="search"
+                        x-model="query"
+                        icon="magnifying-glass"
+                        :placeholder="__('Nombre de la categoría...')"
+                    />
+                </div>
+
+                <div x-show="! hasResults" x-cloak>
+                    <x-ui.empty-state icon="magnifying-glass" :message="__('No se encontró ninguna categoría con esa búsqueda.')" />
+                </div>
+
+                <div class="space-y-3">
                 @foreach ($categories as $category)
                     @php
                         $categoryTeams = $teams->get($category->id, collect());
@@ -213,7 +273,12 @@
                         $hasIncompleteInCategory = $categoryTeams->flatten(1)->contains(fn ($team) => in_array($team->id, $incompleteTeamIds));
                     @endphp
 
-                    <div class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel" x-data="{ open: false }">
+                    <div
+                        class="overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel"
+                        x-data="{ open: false }"
+                        data-name="{{ \Illuminate\Support\Str::ascii(mb_strtolower($category->name)) }}"
+                        x-show="matches($el.dataset.name)"
+                    >
                         <button type="button" @click="open = !open" class="flex w-full cursor-pointer items-center justify-between gap-3 px-6 py-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-white/5">
                             <div class="flex min-w-0 items-center gap-3">
                                 <flux:icon.rectangle-stack variant="micro" class="size-5 shrink-0 text-zinc-400" />
@@ -305,6 +370,7 @@
                         </div>
                     </div>
                 @endforeach
+                </div>
             </div>
         @endif
     </div>
