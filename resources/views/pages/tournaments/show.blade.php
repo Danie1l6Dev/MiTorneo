@@ -34,6 +34,10 @@
                 {{-- Official programming sheet (pending matches) of the chosen
                      fechas, every category -- see MatchProgrammingPdfController. --}}
                 @if ($programmingRounds !== [])
+                    <flux:button :href="route('tournaments.programming.edit', $tournament)" variant="ghost" icon="calendar-days" wire:navigate>
+                        {{ __('Programar fecha') }}
+                    </flux:button>
+
                     <x-ui.programming-export :tournament="$tournament" :rounds="$programmingRounds" variant="ghost" />
                 @endif
 

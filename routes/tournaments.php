@@ -22,6 +22,7 @@ use App\Http\Controllers\TeamExpulsionController;
 use App\Http\Controllers\TournamentCategoryController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
+use App\Http\Controllers\TournamentProgrammingController;
 use App\Http\Controllers\VenueController;
 use Illuminate\Support\Facades\Route;
 
@@ -288,6 +289,16 @@ Route::middleware(['auth'])->group(function () {
     // -- see MatchProgrammingPdfController.
     Route::get('tournaments/{tournament}/programming/pdf', [MatchProgrammingPdfController::class, 'export'])
         ->name('tournaments.programming.pdf');
+
+    // "Programar fecha": mass-assign days, hours and canchas to one fecha's
+    // pending matches (pick per category, review the proposal, save) -- see
+    // TournamentProgrammingController.
+    Route::get('tournaments/{tournament}/programming', [TournamentProgrammingController::class, 'edit'])
+        ->name('tournaments.programming.edit');
+    Route::post('tournaments/{tournament}/programming/preview', [TournamentProgrammingController::class, 'preview'])
+        ->name('tournaments.programming.preview');
+    Route::post('tournaments/{tournament}/programming', [TournamentProgrammingController::class, 'store'])
+        ->name('tournaments.programming.store');
 
     Route::patch('matches/{match}/result', [MatchResultController::class, 'update'])
         ->name('matches.result.update');
