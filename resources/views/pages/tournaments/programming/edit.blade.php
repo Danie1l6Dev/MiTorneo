@@ -338,6 +338,7 @@
                                         <span class="text-zinc-400 dark:text-white/40">vs</span>
                                         <span x-text="match.away"></span>
                                         <span x-show="match.group" class="rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-white/10 dark:text-white/60" x-text="match.group"></span>
+                                        <span x-show="match.current" class="w-full text-xs font-normal text-zinc-500 dark:text-white/50" x-text="'{{ __('Actualmente') }}: ' + match.current"></span>
                                     </div>
                                 </template>
                             </div>

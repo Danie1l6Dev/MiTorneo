@@ -49,6 +49,12 @@
                     @endif
                 </div>
 
+                @if ($match->scheduleSummary())
+                    <div class="text-xs text-zinc-500 dark:text-white/50">
+                        {{ __('Actualmente') }}: {{ $match->scheduleSummary() }}
+                    </div>
+                @endif
+
                 <div class="grid gap-3 sm:grid-cols-3">
                     <input
                         type="date"

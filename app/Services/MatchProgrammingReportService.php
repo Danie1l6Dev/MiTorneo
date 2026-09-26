@@ -86,14 +86,14 @@ class MatchProgrammingReportService
      * matches themselves, in play order. The page keeps this in the browser and
      * filters it there, so switching fecha or category never reloads anything.
      *
-     * @return list<array{number: int, title: string, total: int, ready: int, categories: list<array{id: int, name: string, total: int, ready: int, matches: list<array{id: int, home: string, away: string, group: string|null, has_day: bool}>}>}>
+     * @return list<array{number: int, title: string, total: int, ready: int, categories: list<array{id: int, name: string, total: int, ready: int, matches: list<array{id: int, home: string, away: string, group: string|null, has_day: bool, current: string|null}>}>}>
      */
     public function programmingCatalog(Tournament $tournament): array
     {
         $pending = $this->pendingMatches($tournament, null)
             ->whereNotNull('round_number')
             ->where('is_walkover', false)
-            ->with(['homeTeam', 'awayTeam', 'group', 'category'])
+            ->with(['homeTeam', 'awayTeam', 'group', 'category', 'venue'])
             ->get();
 
         // Progress counts every match of the fecha (played ones included), not
@@ -144,6 +144,7 @@ class MatchProgrammingReportService
                                     'away' => $match->awayTeam->name,
                                     'group' => $match->group?->name,
                                     'has_day' => $match->scheduled_at !== null,
+                                    'current' => $match->scheduleSummary(),
                                 ])
                                 ->values()
                                 ->all(),

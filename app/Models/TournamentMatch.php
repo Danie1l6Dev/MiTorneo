@@ -136,6 +136,24 @@ class TournamentMatch extends Model
     }
 
     /**
+     * "sáb. 19 sep. · 7:30 AM · CANCHA BOSCÁN" -- when and where it is set to be
+     * played, or null while it has no day. What the "Programar fecha" tool shows as
+     * a match's current programming.
+     */
+    public function scheduleSummary(): ?string
+    {
+        if ($this->scheduled_at === null) {
+            return null;
+        }
+
+        return collect([
+            $this->scheduled_at->locale('es')->translatedFormat('D d M'),
+            $this->hasKickoffTime() ? $this->scheduled_at->format('g:i A') : __('Hora por definir'),
+            $this->venue?->name,
+        ])->filter()->implode(' · ');
+    }
+
+    /**
      * When this match is expected to end -- kickoff plus its category's
      * match duration -- or null while it has no kickoff time.
      */

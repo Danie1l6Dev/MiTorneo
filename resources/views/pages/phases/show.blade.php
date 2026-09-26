@@ -276,6 +276,17 @@
                     {{-- Programming sheet (pending matches) of this category only;
                          the whole tournament's lives on the tournament page. --}}
                     @if ($programmingRounds !== [])
+                        {{-- Opens the tool on the jornada this pager is showing, in this category. --}}
+                        <flux:button
+                            variant="ghost"
+                            size="sm"
+                            icon="calendar-days"
+                            href="{{ route('tournaments.programming.edit', $phase->tournament) }}"
+                            x-bind:href="{{ \Illuminate\Support\Js::from(route('tournaments.programming.edit', $phase->tournament)) }} + '?' + new URLSearchParams({ round: roundNumbers[activeGroup][currentRound[activeGroup]], category: {{ $category->id }} })"
+                        >
+                            {{ __('Programar fecha') }}
+                        </flux:button>
+
                         <x-ui.programming-export :tournament="$phase->tournament" :rounds="$programmingRounds" :category="$category" variant="ghost" size="sm" />
                     @endif
                     </div>

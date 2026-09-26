@@ -5,6 +5,7 @@ namespace Tests\Feature\Tournaments;
 use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\Group;
+use App\Models\LeagueSchedule;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
@@ -514,6 +515,66 @@ class MatchProgrammingToolTest extends TestCase
             ->assertSee('queueMatches()', false)
             ->assertSee("refresh('matches')", false)
             ->assertSee("body.set('mode', mode)", false);
+    }
+
+    public function test_a_match_with_a_day_shows_its_current_programming_as_a_reference(): void
+    {
+        $data = $this->setUpFecha();
+        $data['matches']['tigres']->update(['scheduled_at' => '2026-09-19 07:30:00', 'venue_id' => $data['venue']->id]);
+
+        $summary = $data['matches']['tigres']->fresh()->scheduleSummary();
+        $this->assertSame('sáb. 19 sep. · 7:30 AM · CANCHA BOSCÁN', $summary);
+        $this->assertNull($data['matches']['osos']->scheduleSummary());
+
+        // In the catalog the page starts from...
+        $catalog = app(MatchProgrammingReportService::class)->programmingCatalog($data['tournament']);
+        $this->assertSame([$summary, null], array_column($catalog[0]['categories'][0]['matches'], 'current'));
+
+        // ...and in the proposal panel, next to the fields that will replace it.
+        $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.preview', $data['tournament']), [...$this->previewPayload($data), 'overwrite' => 1])
+            ->assertOk()
+            ->assertSee('Actualmente: '.$summary)
+            ->assertSee('OSOS');
+    }
+
+    public function test_a_day_without_a_time_is_summarized_as_hora_por_definir(): void
+    {
+        $data = $this->setUpFecha();
+        $data['matches']['osos']->update(['scheduled_at' => '2026-09-19 00:00:00']);
+
+        $this->assertSame('sáb. 19 sep. · Hora por definir', $data['matches']['osos']->fresh()->scheduleSummary());
+    }
+
+    public function test_a_phases_calendar_opens_the_tool_on_the_jornada_being_viewed(): void
+    {
+        $data = $this->setUpFecha();
+        $phase = $data['matches']['tigres']->competitionPhase;
+        $schedule = LeagueSchedule::factory()->for($phase, 'competitionPhase')->for($data['tournament'])->create();
+        foreach ([$data['matches']['tigres'], $data['matches']['osos'], $data['matches']['fecha6']] as $match) {
+            $match->forceFill(['league_schedule_id' => $schedule->id])->save();
+        }
+
+        $this->actingAs($data['user'])
+            ->get(route('phases.show', $phase))
+            ->assertOk()
+            ->assertSee('Programar fecha')
+            ->assertSee(str_replace('/', '\\/', route('tournaments.programming.edit', $data['tournament'])), false)
+            ->assertSee('roundNumbers[activeGroup][currentRound[activeGroup]]', false)
+            ->assertSee('category: '.$data['sub13']->id, false);
+    }
+
+    public function test_team_names_on_match_cards_wrap_instead_of_being_cut(): void
+    {
+        $data = $this->setUpFecha();
+        $phase = $data['matches']['tigres']->competitionPhase;
+        $schedule = LeagueSchedule::factory()->for($phase, 'competitionPhase')->for($data['tournament'])->create();
+        $data['matches']['tigres']->forceFill(['league_schedule_id' => $schedule->id])->save();
+
+        $this->actingAs($data['user'])
+            ->get(route('phases.show', $phase))
+            ->assertOk()
+            ->assertSee('line-clamp-2', false);
     }
 
     // ── Guardar ──────────────────────────────────────────────────────────

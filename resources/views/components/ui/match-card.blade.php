@@ -41,7 +41,7 @@
             class="hover-lift group block h-full w-full rounded-3xl border border-t-2 border-zinc-200 bg-white p-6 dark:border-white/10 glass-panel {{ $accentClasses }} {{ $href && ! $pending ? 'cursor-pointer' : '' }}"
         >
             <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0 flex-1 text-right text-base font-semibold truncate text-zinc-800 dark:text-white">
+                <div class="min-w-0 flex-1 text-right text-base font-semibold leading-tight line-clamp-2 break-words text-zinc-800 dark:text-white">
                     {{ $match->homeTeam?->name ?? __('Por definir') }}
                 </div>
 
@@ -51,7 +51,7 @@
                     <span class="font-display text-xl font-bold tabular-nums {{ $scoreClasses }}">{{ $match->away_score ?? '–' }}</span>
                 </div>
 
-                <div class="min-w-0 flex-1 text-left text-base font-semibold truncate text-zinc-800 dark:text-white">
+                <div class="min-w-0 flex-1 text-left text-base font-semibold leading-tight line-clamp-2 break-words text-zinc-800 dark:text-white">
                     {{ $match->awayTeam?->name ?? __('Por definir') }}
                 </div>
             </div>
