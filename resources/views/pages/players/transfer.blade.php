@@ -56,10 +56,25 @@
                     clubs: {{ \Illuminate\Support\Js::from($clubs) }},
                     clubId: {{ \Illuminate\Support\Js::from((string) old('club_id', '')) }},
                     selected: {{ \Illuminate\Support\Js::from(array_map('strval', (array) old('team_ids', []))) }},
+                    search: '',
                     get club() {
                         return this.clubs.find((club) => String(club.id) === String(this.clubId)) ?? null;
                     },
-                    pickClub() {
+                    normalize(text) {
+                        return String(text).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+                    },
+                    get filteredClubs() {
+                        const query = this.normalize(this.search);
+
+                        return query === '' ? this.clubs : this.clubs.filter((club) => this.normalize(club.name).includes(query));
+                    },
+                    pickClub(id) {
+                        this.clubId = String(id);
+                        this.selected = [];
+                        this.search = '';
+                    },
+                    clearClub() {
+                        this.clubId = '';
                         this.selected = [];
                     },
                 }"
@@ -70,17 +85,39 @@
                     <flux:field>
                         <flux:label>{{ __('Club de destino') }}</flux:label>
 
-                        <select
-                            name="club_id"
-                            x-model="clubId"
-                            x-on:change="pickClub()"
-                            class="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 dark:border-white/10 dark:bg-white/5 dark:text-white"
-                        >
-                            <option value="">{{ __('Elige un club') }}</option>
-                            <template x-for="club in clubs" :key="club.id">
-                                <option :value="club.id" x-text="club.name" :selected="String(club.id) === String(clubId)"></option>
-                            </template>
-                        </select>
+                        <input type="hidden" name="club_id" :value="clubId">
+
+                        {{-- Chosen: shows the club with a way back to the search. --}}
+                        <div x-show="club !== null" x-cloak class="flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/5">
+                            <span class="text-sm font-medium text-zinc-800 dark:text-white" x-text="club?.name"></span>
+                            <button type="button" x-on:click="clearClub()" class="text-xs font-medium text-accent-content hover:underline">{{ __('Cambiar') }}</button>
+                        </div>
+
+                        {{-- Not chosen yet: a search box that filters the clubs as you type. --}}
+                        <div x-show="club === null" class="space-y-2">
+                            <flux:input
+                                type="search"
+                                icon="magnifying-glass"
+                                x-model="search"
+                                placeholder="{{ __('Buscar club...') }}"
+                                autocomplete="off"
+                            />
+
+                            <div class="max-h-56 overflow-y-auto rounded-lg border border-zinc-200 dark:border-white/10">
+                                <template x-for="item in filteredClubs" :key="item.id">
+                                    <button
+                                        type="button"
+                                        x-on:click="pickClub(item.id)"
+                                        class="block w-full border-b border-zinc-100 px-3 py-2 text-start text-sm text-zinc-800 last:border-b-0 hover:bg-zinc-50 dark:border-white/5 dark:text-white dark:hover:bg-white/10"
+                                        x-text="item.name"
+                                    ></button>
+                                </template>
+
+                                <div x-show="filteredClubs.length === 0" x-cloak class="px-3 py-3 text-sm text-zinc-500 dark:text-white/60">
+                                    {{ __('Ningún club coincide con la búsqueda.') }}
+                                </div>
+                            </div>
+                        </div>
 
                         <flux:error name="club_id" />
                     </flux:field>
