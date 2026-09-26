@@ -326,6 +326,26 @@ button:disabled {
     animation: reveal-pop .5s cubic-bezier(.34, 1.56, .64, 1) both;
 }
 
+/* Chip "Jornada N — Primera/Segunda vuelta" del calendario: entra con el mismo
+   pop del sorteo y luego late con un halo del color de su vuelta (--leg-glow). */
+@keyframes leg-glow {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+
+    50% {
+        box-shadow: 0 0 16px 3px var(--leg-glow);
+    }
+}
+
+.animate-leg-badge {
+    animation:
+        reveal-pop .5s cubic-bezier(.34, 1.56, .64, 1) both,
+        leg-glow 2s ease-in-out .5s infinite;
+}
+
 @keyframes shimmer-pulse {
 
     0%,

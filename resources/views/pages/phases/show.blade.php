@@ -138,6 +138,12 @@
                 $calendarGroupIds = $schedules->pluck('schedule.group.id')->values();
                 $calendarStartRounds = $schedules->pluck('start_round_index')->values();
                 $calendarRoundNumbers = $schedules->map(fn (array $item) => collect($item['rounds'])->pluck('round_number')->values())->values();
+                // Leg (1/2) of every jornada, only for home-and-away schedules;
+                // null everywhere else so single-round calendars never get the
+                // second-leg highlight.
+                $calendarRoundLegs = $schedules->map(fn (array $item) => $item['schedule']->format === \App\Enums\ScheduleFormat::HomeAndAway
+                    ? collect($item['rounds'])->pluck('leg')->values()
+                    : collect($item['rounds'])->map(fn () => null)->values())->values();
             @endphp
 
             <div
@@ -167,6 +173,13 @@
                     })(),
                     startRound: {{ \Illuminate\Support\Js::from($calendarStartRounds) }},
                     roundNumbers: {{ \Illuminate\Support\Js::from($calendarRoundNumbers) }},
+                    roundLegs: {{ \Illuminate\Support\Js::from($calendarRoundLegs) }},
+                    isFirstLeg(groupIndex) {
+                        return this.roundLegs[groupIndex]?.[this.currentRound[groupIndex]] === 1;
+                    },
+                    isSecondLeg(groupIndex) {
+                        return this.roundLegs[groupIndex]?.[this.currentRound[groupIndex]] === 2;
+                    },
                     currentRound: (() => {
                         const startRoundArr = {{ \Illuminate\Support\Js::from($calendarStartRounds) }};
                         const roundNumbersArr = {{ \Illuminate\Support\Js::from($calendarRoundNumbers) }};
@@ -299,7 +312,23 @@
                             x-transition:enter-end="opacity-100 translate-y-0 scale-100"
                             class="relative space-y-6 overflow-hidden rounded-3xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-7"
                         >
-                            <div class="pointer-events-none absolute -top-32 left-1/2 h-56 w-[140%] -translate-x-1/2 bg-gradient-to-b from-green-500/15 via-cyan-500/5 to-transparent blur-2xl"></div>
+                            <div
+                                class="pointer-events-none absolute -top-32 left-1/2 h-56 w-[140%] -translate-x-1/2 bg-gradient-to-b from-green-500/15 via-cyan-500/5 to-transparent blur-2xl transition-opacity duration-500"
+                                :class="(isFirstLeg({{ $index }}) || isSecondLeg({{ $index }})) ? 'opacity-0' : 'opacity-100'"
+                            ></div>
+                            {{-- First-leg glow: same strength as the amber one below, so both vueltas get
+                                 an equally visible tint (the plain green above is the subtle default for
+                                 single-round calendars). --}}
+                            <div
+                                class="pointer-events-none absolute -top-32 left-1/2 h-56 w-[140%] -translate-x-1/2 bg-gradient-to-b from-green-500/30 via-emerald-500/10 to-transparent opacity-0 blur-2xl transition-opacity duration-500"
+                                :class="isFirstLeg({{ $index }}) ? 'opacity-100' : 'opacity-0'"
+                            ></div>
+                            {{-- Second-leg (amber) glow: fades in over the green one so crossing into the
+                                 second vuelta changes the whole panel's tint, not just the pager. --}}
+                            <div
+                                class="pointer-events-none absolute -top-32 left-1/2 h-56 w-[140%] -translate-x-1/2 bg-gradient-to-b from-amber-500/30 via-yellow-500/10 to-transparent opacity-0 blur-2xl transition-opacity duration-500"
+                                :class="isSecondLeg({{ $index }}) ? 'opacity-100' : 'opacity-0'"
+                            ></div>
 
                             <div class="relative flex flex-wrap items-center justify-between gap-3">
                                 <div class="flex items-center gap-3">
@@ -330,7 +359,14 @@
                                      shifting the panel's rendered height per round. A fixed mb-6
                                      that doesn't depend on sibling position sidesteps both. --}}
                                 <div>
-                                    <div class="relative mb-6 flex items-center justify-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                                    <div
+                                        class="relative mb-6 flex items-center justify-center gap-4 rounded-2xl border px-4 py-3 transition-colors duration-500"
+                                        :class="isSecondLeg({{ $index }})
+                                            ? 'border-amber-500/60 bg-amber-500/10 ring-2 ring-amber-500/30 dark:border-amber-400/60 dark:bg-amber-500/15'
+                                            : (isFirstLeg({{ $index }})
+                                                ? 'border-green-500/60 bg-green-500/10 ring-2 ring-green-500/30 dark:border-green-400/60 dark:bg-green-500/15'
+                                                : 'border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-white/5')"
+                                    >
                                         <flux:button
                                             variant="ghost"
                                             size="sm"
@@ -359,12 +395,30 @@
                                             x-cloak
                                             class="relative"
                                         >
-                                            <div class="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
-                                                {{ __('Jornada :number', ['number' => $round['round_number']]) }}
-                                                @if ($schedule->format === \App\Enums\ScheduleFormat::HomeAndAway)
-                                                    — {{ $round['leg'] === 1 ? __('Primera vuelta') : __('Segunda vuelta') }}
-                                                @endif
-                                            </div>
+                                            @if ($schedule->format === \App\Enums\ScheduleFormat::HomeAndAway)
+                                                {{-- The leg lives in this chip (not in the pager bar): it is what sits right above
+                                                     the match cards, so it is what a user looks at before typing a result. The
+                                                     pop restarts every time x-show reveals this jornada. --}}
+                                                <div class="mb-3 flex justify-center">
+                                                    <span @class([
+                                                        'animate-leg-badge inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider',
+                                                        'bg-green-600 text-white [--leg-glow:rgb(34_197_94/0.55)]' => $round['leg'] === 1,
+                                                        'bg-amber-500 text-white [--leg-glow:rgb(245_158_11/0.6)]' => $round['leg'] === 2,
+                                                    ])>
+                                                        @if ($round['leg'] === 1)
+                                                            <flux:icon.play variant="micro" class="size-3.5" />
+                                                        @else
+                                                            <flux:icon.arrow-path variant="micro" class="size-3.5" />
+                                                        @endif
+                                                        {{ __('Jornada :number', ['number' => $round['round_number']]) }}
+                                                        — {{ $round['leg'] === 1 ? __('Primera vuelta') : __('Segunda vuelta') }}
+                                                    </span>
+                                                </div>
+                                            @else
+                                                <div class="mb-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                                    {{ __('Jornada :number', ['number' => $round['round_number']]) }}
+                                                </div>
+                                            @endif
 
                                             <div class="flex flex-wrap justify-center gap-4">
                                                 @foreach ($round['matches'] as $match)
