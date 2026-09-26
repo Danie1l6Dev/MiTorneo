@@ -82,16 +82,6 @@ class ClubsIndexLiveSearchTest extends TestCase
         $this->assertStringContainsString('ninos unidos', $html);
     }
 
-    public function test_the_players_search_is_still_there(): void
-    {
-        ['user' => $user] = $this->organizerWithClubsAndCategories();
-
-        $this->actingAs($user)
-            ->get(route('clubs.index', ['view' => 'jugadores']))
-            ->assertOk()
-            ->assertSee('Nombre o documento del jugador...', false);
-    }
-
     public function test_no_search_box_is_offered_when_there_is_nothing_to_search(): void
     {
         $user = User::factory()->create();

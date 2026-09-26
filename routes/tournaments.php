@@ -14,6 +14,8 @@ use App\Http\Controllers\MunicipalStandingsPdfController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\PlayerController;
+use App\Http\Controllers\PlayerProfileController;
+use App\Http\Controllers\PlayerSearchController;
 use App\Http\Controllers\RefereeController;
 use App\Http\Controllers\SanctionController;
 use App\Http\Controllers\StatisticsPdfController;
@@ -165,6 +167,16 @@ Route::middleware(['auth'])->group(function () {
     // typing every field -- see PlayerController::search().
     Route::get('players/search', [PlayerController::class, 'search'])
         ->name('players.search');
+
+    // "Buscar jugador": live search over the organizer's players, and one
+    // player's ficha (stats, sanctions, clubs). Registered after the literal
+    // players/search above so {player} never swallows it.
+    Route::get('players', [PlayerSearchController::class, 'index'])
+        ->name('players.index');
+
+    Route::get('players/{player}', [PlayerProfileController::class, 'show'])
+        ->whereNumber('player')
+        ->name('players.show');
 
     Route::patch('players/{player}/toggle-active', [PlayerController::class, 'toggleActive'])
         ->name('players.toggle-active');

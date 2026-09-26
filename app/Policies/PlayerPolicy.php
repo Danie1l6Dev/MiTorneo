@@ -9,6 +9,11 @@ use App\Models\User;
 
 class PlayerPolicy
 {
+    public function viewAny(User $user): bool
+    {
+        return true;
+    }
+
     public function view(User $user, Player $player): bool
     {
         return $user->id === $player->team->ownerId();

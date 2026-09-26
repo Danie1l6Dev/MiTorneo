@@ -58,6 +58,10 @@
                             {{ __('Clubes') }}
                         </flux:sidebar.item>
 
+                        <flux:sidebar.item icon="magnifying-glass" :href="route('players.index')" :current="request()->routeIs('players.index', 'players.show')" wire:navigate>
+                            {{ __('Buscar jugador') }}
+                        </flux:sidebar.item>
+
                         <flux:sidebar.item icon="rectangle-stack" :href="route('categories.index')" :current="request()->routeIs('categories.index', 'categories.create')" wire:navigate>
                             {{ __('Categorías') }}
                         </flux:sidebar.item>

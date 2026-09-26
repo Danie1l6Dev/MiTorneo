@@ -12,7 +12,6 @@
         <x-ui.page-header :title="__('Clubes')">
             <flux:text class="max-w-2xl" x-show="view === 'category'" x-cloak>{{ __('Organizados por categoría -- un club con varios planteles aparece en cada una.') }}</flux:text>
             <flux:text class="max-w-2xl" x-show="view === 'club'" x-cloak>{{ __('Cada club, con las categorías en las que tiene plantel.') }}</flux:text>
-            <flux:text class="max-w-2xl" x-show="view === 'jugadores'" x-cloak>{{ __('Buscar un jugador ya registrado por nombre o documento, en cualquier club o categoría.') }}</flux:text>
 
             <x-slot:actions>
                 <flux:button :href="route('clubs.create')" variant="primary" icon="plus" wire:navigate>
@@ -24,7 +23,6 @@
         <x-ui.section-tabs model="view" :tabs="[
             ['key' => 'category', 'label' => __('Por categoría'), 'icon' => 'rectangle-stack'],
             ['key' => 'club', 'label' => __('Por club'), 'icon' => 'shield-check'],
-            ['key' => 'jugadores', 'label' => __('Jugadores'), 'icon' => 'magnifying-glass'],
         ]" />
 
         @if (session('status'))
@@ -34,78 +32,6 @@
         @if (session('error'))
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
-
-        {{-- All of the organizer's players are preloaded and filtered
-             entirely client-side as they type -- this whole catalog is
-             small enough that a live search endpoint would be overkill.
-             Every row is rendered server-side up front; only its visibility
-             toggles, via a per-row precomputed lowercase "name + documento"
-             haystack checked against the shared `query`. --}}
-        <div x-show="view === 'jugadores'" x-cloak x-data="{ query: '' }" class="space-y-6">
-            <div class="mx-auto w-full max-w-xl">
-                <flux:input
-                    type="search"
-                    x-model="query"
-                    icon="magnifying-glass"
-                    :placeholder="__('Nombre o documento del jugador...')"
-                />
-            </div>
-
-            @if ($players->isEmpty())
-                <x-ui.empty-state icon="magnifying-glass" :message="__('Todavía no hay jugadores registrados en ningún club.')" />
-            @else
-                @php
-                    $jsHaystacks = \Illuminate\Support\Js::from(
-                        $players->map(fn ($player) => mb_strtolower($player->full_name.' '.$player->document_number))->values()
-                    );
-                @endphp
-
-                <div x-show="query.trim() === ''" x-cloak>
-                    <x-ui.empty-state icon="magnifying-glass" :message="__('Escriba un nombre o número de documento para buscar.')" />
-                </div>
-
-                <div x-show="query.trim() !== '' && ! {{ $jsHaystacks }}.some((h) => h.includes(query.trim().toLowerCase()))" x-cloak>
-                    <x-ui.empty-state icon="magnifying-glass" :message="__('No se encontró ningún jugador con esa búsqueda.')" />
-                </div>
-
-                <div class="mx-auto w-full max-w-3xl space-y-3">
-                    @foreach ($players as $player)
-                        @php
-                            $jsHaystack = \Illuminate\Support\Js::from(mb_strtolower($player->full_name.' '.$player->document_number));
-                        @endphp
-
-                        <a
-                            href="{{ route('players.edit', $player) }}"
-                            wire:navigate
-                            x-show="query.trim() !== '' && {{ $jsHaystack }}.includes(query.trim().toLowerCase())"
-                            x-cloak
-                            class="hover-lift block overflow-hidden rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel"
-                        >
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <div class="min-w-0">
-                                    <flux:heading size="lg" class="truncate">{{ $player->full_name }}</flux:heading>
-                                    @if ($player->document_number)
-                                        <flux:text class="text-zinc-500 dark:text-white/50">{{ __('Documento') }}: {{ $player->document_number }}</flux:text>
-                                    @endif
-                                </div>
-
-                                @unless ($player->is_active)
-                                    <flux:badge size="sm" color="zinc">{{ __('Inactivo') }}</flux:badge>
-                                @endunless
-                            </div>
-
-                            <div class="mt-3 flex flex-wrap gap-2">
-                                @forelse ($player->allTeams() as $team)
-                                    <flux:badge size="sm" color="cyan">{{ $team->club?->name ?? $team->name }} · {{ $team->category->name }}</flux:badge>
-                                @empty
-                                    <flux:badge size="sm" color="zinc">{{ __('Sin plantel') }}</flux:badge>
-                                @endforelse
-                            </div>
-                        </a>
-                    @endforeach
-                </div>
-            @endif
-        </div>
 
         @if ($clubCount === 0)
             <div x-show="view === 'category' || view === 'club'" x-cloak>

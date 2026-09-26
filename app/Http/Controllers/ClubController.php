@@ -27,13 +27,18 @@ class ClubController extends Controller
      * every load is cheap. ?view= still picks which tab starts active, so
      * an existing deep link keeps working.
      */
-    public function index(Request $request): View
+    public function index(Request $request): View|RedirectResponse
     {
         $this->authorize('viewAny', Club::class);
 
+        // The players' search moved out of Clubes into its own sidebar section;
+        // an old bookmark to this tab lands there.
+        if ($request->query('view') === 'jugadores') {
+            return to_route('players.index');
+        }
+
         $view = match ($request->query('view')) {
             'club' => 'club',
-            'jugadores' => 'jugadores',
             default => 'category',
         };
 
@@ -63,12 +68,8 @@ class ClubController extends Controller
         $teams = $allTeams->groupBy(['category_id', 'group_id']);
         $teamsByClub = $allTeams->groupBy('club_id');
 
-        // Preloaded once; the search itself happens entirely client-side
-        // as the organizer types -- see clubs/index.blade.php.
-        $players = Player::allForOrganizer(Auth::id());
-
         return view('pages.clubs.index', compact(
-            'view', 'categories', 'teams', 'clubs', 'teamsByClub', 'clubCount', 'incompleteTeamIds', 'players'
+            'view', 'categories', 'teams', 'clubs', 'teamsByClub', 'clubCount', 'incompleteTeamIds'
         ));
     }
 

@@ -11,14 +11,14 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The "Jugadores" view of Clubes (ClubController::index with
- * ?view=jugadores): every player of the organizer's own catalog is
- * preloaded once (Player::allForOrganizer()) and searched by name/document
- * entirely client-side as the organizer types (see clubs/index.blade.php).
- * These tests cover what's actually server-verifiable: which players get
- * preloaded (ownership scoping) and that both empty-state prompts exist in
- * the markup for Alpine to toggle. The live typing/filtering itself is
- * Alpine-only and was checked in the browser, not here.
+ * The "Buscar jugador" section (PlayerSearchController, players.index): every
+ * player of the organizer's own catalog is preloaded once
+ * (Player::allForOrganizer(), via PlayerProfileService::searchCatalog()) and
+ * searched entirely client-side as the organizer types. These tests cover what
+ * is server-verifiable: which players get preloaded (ownership scoping) and
+ * that both empty-state prompts exist in the markup for Alpine to toggle. The
+ * live typing/filtering itself is Alpine-only and was checked in the browser.
+ * The ficha a result opens is covered by PlayerSearchAndProfileTest.
  */
 class PlayerSearchTest extends TestCase
 {
@@ -61,40 +61,45 @@ class PlayerSearchTest extends TestCase
         $this->assertCount(0, Player::allForOrganizer($intruder->id));
     }
 
-    public function test_the_jugadores_view_preloads_every_player_for_the_client_side_search(): void
+    public function test_the_search_page_preloads_every_player_for_the_client_side_search(): void
     {
         $user = User::factory()->create();
         [, $team] = $this->makeTeam($user);
         Player::factory()->for($team)->create(['full_name' => 'Juan Pérez', 'document_number' => '111']);
         Player::factory()->for($team)->create(['full_name' => 'Carlos Gómez', 'document_number' => '222']);
 
-        // Both are present in the response markup unconditionally -- the
-        // search itself is client-side, so there's nothing server-side to
-        // filter by a query string.
-        $this->actingAs($user)->get(route('clubs.index', ['view' => 'jugadores']))
+        // Both are in the page unconditionally -- the search itself is
+        // client-side, so there's nothing server-side to filter by a query string.
+        $catalog = $this->actingAs($user)->get(route('players.index'))
             ->assertOk()
-            ->assertSee('JUAN PÉREZ')
-            ->assertSee('CARLOS GÓMEZ');
+            ->viewData('catalog');
+
+        $this->assertEqualsCanonicalizing(['CARLOS GÓMEZ', 'JUAN PÉREZ'], array_column($catalog, 'name'));
+        $this->assertEqualsCanonicalizing(['111', '222'], array_column($catalog, 'document'));
     }
 
-    public function test_the_jugadores_view_shows_which_club_and_category_each_player_belongs_to(): void
+    public function test_the_search_page_shows_which_club_and_category_each_player_belongs_to(): void
     {
         $user = User::factory()->create();
         [, $homeTeam] = $this->makeTeam($user, 'Nilmar');
         $club = Club::factory()->for($user)->create(['name' => 'Otro Club']);
-        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'uses_groups' => false]);
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Infantil', 'uses_groups' => false]);
         $secondTeam = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null]);
 
         $player = Player::factory()->for($homeTeam)->create(['full_name' => 'Ana Ruiz']);
         $player->teams()->attach($secondTeam->id);
 
-        $this->actingAs($user)->get(route('clubs.index', ['view' => 'jugadores']))
-            ->assertOk()
-            ->assertSee('NILMAR')
-            ->assertSee('OTRO CLUB');
+        $catalog = $this->actingAs($user)->get(route('players.index'))->assertOk()->viewData('catalog');
+
+        $clubs = collect($catalog[0]['teams'])->pluck('club')->all();
+        $this->assertEqualsCanonicalizing(['NILMAR', 'OTRO CLUB'], $clubs);
+        $this->assertContains('INFANTIL', collect($catalog[0]['teams'])->pluck('category')->all());
+        // Both clubs are searchable by name.
+        $this->assertStringContainsString('nilmar', $catalog[0]['haystack']);
+        $this->assertStringContainsString('otro club', $catalog[0]['haystack']);
     }
 
-    public function test_the_jugadores_view_does_not_leak_another_organizers_players(): void
+    public function test_the_search_page_does_not_leak_another_organizers_players(): void
     {
         $owner = User::factory()->create();
         [, $ownerTeam] = $this->makeTeam($owner);
@@ -102,28 +107,29 @@ class PlayerSearchTest extends TestCase
 
         $intruder = User::factory()->create();
 
-        $this->actingAs($intruder)->get(route('clubs.index', ['view' => 'jugadores']))
-            ->assertOk()
-            ->assertDontSee('JUGADOR AJENO');
+        $response = $this->actingAs($intruder)->get(route('players.index'))->assertOk();
+
+        $this->assertSame([], $response->viewData('catalog'));
+        $response->assertDontSee('JUGADOR AJENO')->assertDontSee('Jugador Ajeno');
     }
 
-    public function test_the_jugadores_view_has_both_empty_state_prompts_available_for_alpine_to_toggle(): void
+    public function test_the_search_page_has_both_empty_state_prompts_available_for_alpine_to_toggle(): void
     {
         $user = User::factory()->create();
         [, $team] = $this->makeTeam($user);
         Player::factory()->for($team)->create();
 
-        $this->actingAs($user)->get(route('clubs.index', ['view' => 'jugadores']))
+        $this->actingAs($user)->get(route('players.index'))
             ->assertOk()
-            ->assertSeeText('Escriba un nombre o número de documento')
+            ->assertSeeText('Escribe un documento, un nombre o un club para buscar.')
             ->assertSeeText('No se encontró ningún jugador');
     }
 
-    public function test_the_jugadores_tab_is_available_even_with_no_clubs_yet(): void
+    public function test_the_search_page_is_available_even_with_no_clubs_yet(): void
     {
         $user = User::factory()->create();
 
-        $this->actingAs($user)->get(route('clubs.index', ['view' => 'jugadores']))
+        $this->actingAs($user)->get(route('players.index'))
             ->assertOk()
             ->assertSeeText('Todavía no hay jugadores registrados');
     }
