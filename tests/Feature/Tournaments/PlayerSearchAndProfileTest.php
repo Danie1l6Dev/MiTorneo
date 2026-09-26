@@ -3,12 +3,15 @@
 namespace Tests\Feature\Tournaments;
 
 use App\Enums\MatchEventType;
+use App\Enums\RosterEndReason;
+use App\Enums\RosterStartReason;
 use App\Enums\SanctionType;
 use App\Models\Category;
 use App\Models\Club;
 use App\Models\CompetitionPhase;
 use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\PlayerTeamHistory;
 use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -21,8 +24,8 @@ use Tests\TestCase;
 /**
  * "Buscar jugador": the live search over the organizer's players (moved out of
  * Clubes) and the ficha a result opens -- stats per tournament, cards,
- * sanctions and the clubs/planteles timeline (deduced: nothing stores when a
- * player joined or left a plantel).
+ * sanctions and the clubs/planteles timeline (recorded history, with what it
+ * lacks deduced and flagged estimated).
  */
 class PlayerSearchAndProfileTest extends TestCase
 {
@@ -54,8 +57,8 @@ class PlayerSearchAndProfileTest extends TestCase
             'team_id' => $teamNow->id,
             'full_name' => 'Juan Pérez Gómez',
             'document_number' => '1234567',
-            'birth_date' => '2013-05-04',
             'jersey_number' => 9,
+            'birth_date' => '2013-05-04',
         ]);
 
         $match = TournamentMatch::factory()->for($phase)->create([
@@ -215,17 +218,83 @@ class PlayerSearchAndProfileTest extends TestCase
         $this->assertNull($now['last_at']);
     }
 
-    public function test_the_timeline_puts_the_current_plantel_first_and_deduces_the_past_one(): void
+    public function test_without_a_recorded_history_the_timeline_is_deduced_and_flagged_estimated(): void
     {
         $data = $this->scenario();
 
-        $profile = app(PlayerProfileService::class)->profile($data['player']);
+        $timeline = app(PlayerProfileService::class)->profile($data['player'])['timeline'];
 
-        $this->assertSame([$data['teamNow']->id, $data['teamBefore']->id], collect($profile['timeline'])->pluck('team.id')->all());
-        $this->assertTrue($profile['timeline'][0]['current']);
-        $this->assertSame(9, $profile['timeline'][0]['jersey']);
-        $this->assertFalse($profile['timeline'][1]['current']);
-        $this->assertSame(['COPA MAICAO'], $profile['timeline'][1]['tournaments']);
+        $this->assertSame(['NILMAR', 'HALCONES FC'], array_column($timeline, 'club'));
+        $this->assertSame([true, false], array_column($timeline, 'current'));
+        $this->assertSame(9, $timeline[0]['jersey']);
+        $this->assertSame(['COPA MAICAO'], $timeline[1]['tournaments']);
+        $this->assertSame([true, true], array_column($timeline, 'estimated'));
+        $this->assertSame('2026-03-01', $timeline[1]['from']->toDateString());
+    }
+
+    public function test_a_recorded_history_shows_real_dates_and_reasons_and_only_deduces_what_it_lacks(): void
+    {
+        $data = $this->scenario();
+
+        // History that only knows about the current plantel (a transfer from somewhere else on 2026-04-01).
+        PlayerTeamHistory::factory()->create([
+            'player_id' => $data['player']->id, 'team_id' => $data['teamNow']->id, 'club_id' => $data['teamNow']->club_id,
+            'club_name' => 'NILMAR', 'team_name' => 'NILMAR', 'category_name' => 'SUB-13', 'jersey_number' => 9,
+            'started_on' => '2026-04-01', 'start_reason' => RosterStartReason::Transferred, 'notes' => 'Cambio de ciudad',
+        ]);
+
+        $timeline = app(PlayerProfileService::class)->profile($data['player'])['timeline'];
+
+        // The recorded line is real...
+        $now = collect($timeline)->firstWhere('club', 'NILMAR');
+        $this->assertFalse($now['estimated']);
+        $this->assertTrue($now['current']);
+        $this->assertSame('2026-04-01', $now['from']->toDateString());
+        $this->assertSame('Transferido desde otro club', $now['start_reason']);
+        $this->assertSame('Cambio de ciudad', $now['notes']);
+        $this->assertSame(9, $now['jersey']);
+
+        // ...and Halcones, which has no line, is still deduced from the events.
+        $before = collect($timeline)->firstWhere('club', 'HALCONES FC');
+        $this->assertTrue($before['estimated']);
+        $this->assertFalse($before['current']);
+        $this->assertSame(['COPA MAICAO'], $before['tournaments']);
+        $this->assertCount(2, $timeline);
+    }
+
+    public function test_a_closed_recorded_line_carries_its_dates_reasons_and_the_tournaments_played_there(): void
+    {
+        $data = $this->scenario();
+
+        PlayerTeamHistory::factory()->ended('2026-03-05', RosterEndReason::Transferred)->create([
+            'player_id' => $data['player']->id, 'team_id' => $data['teamBefore']->id, 'club_id' => $data['teamBefore']->club_id,
+            'club_name' => 'HALCONES FC', 'team_name' => 'HALCONES FC', 'category_name' => 'SUB-13',
+            'started_on' => '2025-08-01', 'start_reason' => RosterStartReason::Registered,
+        ]);
+
+        $entry = collect(app(PlayerProfileService::class)->profile($data['player'])['timeline'])->firstWhere('club', 'HALCONES FC');
+
+        $this->assertFalse($entry['estimated']);
+        $this->assertSame('2025-08-01', $entry['from']->toDateString());
+        $this->assertSame('2026-03-05', $entry['to']->toDateString());
+        $this->assertSame('Alta', $entry['start_reason']);
+        $this->assertSame('Transferido a otro club', $entry['end_reason']);
+        // The tournaments still come from the events logged for that plantel.
+        $this->assertSame(['COPA MAICAO'], $entry['tournaments']);
+    }
+
+    public function test_the_search_finds_a_player_by_a_club_only_the_history_knows(): void
+    {
+        $data = $this->scenario();
+        // A past club the events never mention -- only the recorded history does.
+        PlayerTeamHistory::factory()->ended()->create([
+            'player_id' => $data['player']->id, 'club_name' => 'ATLÉTICO REMOTO', 'team_name' => 'ATLÉTICO REMOTO',
+        ]);
+
+        $entry = collect(app(PlayerProfileService::class)->searchCatalog($data['user']->id))->firstWhere('id', $data['player']->id);
+
+        $this->assertContains('ATLÉTICO REMOTO', $entry['past_clubs']);
+        $this->assertStringContainsString('atletico remoto', $entry['haystack']);
     }
 
     public function test_the_ficha_page_shows_the_whole_record(): void
@@ -245,13 +314,13 @@ class PlayerSearchAndProfileTest extends TestCase
             ->assertSee('Reincidente en la temporada')
             ->assertSee('2 fechas de suspensión')
             ->assertSee('Historial de clubes y planteles')
-            ->assertSee('Historial deducido')
+            ->assertSee('Estimado')
             // The current plantel is spelled out once, in the header...
             ->assertSee('NILMAR · SUB-13')
+            ->assertSee('Dorsal 9')
             // ...and the timeline tells the past one apart.
             ->assertSee('HALCONES FC')
             ->assertSee('Anterior')
-            ->assertSee('Dorsal 9')
             ->assertSee('no hay conteo de partidos jugados')
             ->assertSee(route('players.edit', $data['player']), false)
             ->assertSee('Editar ficha');

@@ -16,6 +16,7 @@ use App\Http\Controllers\PhaseChampionController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\PlayerProfileController;
 use App\Http\Controllers\PlayerSearchController;
+use App\Http\Controllers\PlayerTransferController;
 use App\Http\Controllers\RefereeController;
 use App\Http\Controllers\SanctionController;
 use App\Http\Controllers\StatisticsPdfController;
@@ -177,6 +178,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('players/{player}', [PlayerProfileController::class, 'show'])
         ->whereNumber('player')
         ->name('players.show');
+
+    // Moves a player to another club in one step, with a date and a note that go
+    // into their history -- see PlayerTransferController.
+    Route::get('players/{player}/transfer', [PlayerTransferController::class, 'create'])
+        ->whereNumber('player')
+        ->name('players.transfer.create');
+
+    Route::post('players/{player}/transfer', [PlayerTransferController::class, 'store'])
+        ->whereNumber('player')
+        ->name('players.transfer.store');
 
     Route::patch('players/{player}/toggle-active', [PlayerController::class, 'toggleActive'])
         ->name('players.toggle-active');

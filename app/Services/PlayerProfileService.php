@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\MatchEventType;
 use App\Models\MatchEvent;
 use App\Models\Player;
+use App\Models\PlayerTeamHistory;
 use App\Models\Sanction;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -16,14 +17,12 @@ use Illuminate\Support\Str;
  * What the "Buscar jugador" section shows: the catalog its live search filters,
  * and one player's whole record (ficha).
  *
- * The record is built only from what the system really stores. In particular
- * there is NO history of which planteles/clubs a player belonged to and when:
- * moving a player to another club (or removing them from a plantel) deletes the
- * old player_team links. What survives of the past are the match events and the
- * sanctions, which keep the plantel the player had at that moment -- so the
- * "clubs and planteles" timeline below is DEDUCED from them (plus the current
- * roster), and the page says so. Nor is there any record of who played each
- * match, so no matches-played figure exists.
+ * The clubs/planteles timeline comes from player_team_history (written by
+ * PlayerRosterService since it exists, with real dates and reasons). Whatever
+ * has no line there -- players whose past was never rebuilt, or a plantel that
+ * only shows up in their goals, cards and sanctions -- is DEDUCED from those
+ * records plus the current roster, and flagged "estimado". Nor is there any
+ * record of who played each match, so no matches-played figure exists.
  */
 class PlayerProfileService
 {
@@ -68,12 +67,12 @@ class PlayerProfileService
      *     totals: array{goals: int, assists: int, yellow_cards: int, red_cards: int, sanctions: int, tournaments: int},
      *     tournaments: list<array{tournament: Tournament, team: Team, current: bool, goals: int, assists: int, yellow_cards: int, red_cards: int, last_at: CarbonInterface|null}>,
      *     sanctions: Collection<int, Sanction>,
-     *     timeline: list<array{team: Team, current: bool, jersey: int|null, tournaments: list<string>, first_at: CarbonInterface|null, last_at: CarbonInterface|null}>
+     *     timeline: list<array{club: string, category: string|null, group: string|null, current: bool, jersey: int|null, tournaments: list<string>, from: CarbonInterface|null, to: CarbonInterface|null, start_reason: string|null, end_reason: string|null, estimated: bool, notes: string|null}>
      * }
      */
     public function profile(Player $player): array
     {
-        $player->load(['team.club', 'team.category', 'team.group', 'team.tournament', 'team.tournaments', 'teams.club', 'teams.category', 'teams.group', 'teams.tournaments']);
+        $player->load(['team.club', 'team.category', 'team.group', 'team.tournament', 'team.tournaments', 'teams.club', 'teams.category', 'teams.group', 'teams.tournaments', 'teamHistory']);
 
         $currentTeams = $player->allTeams();
 
@@ -152,36 +151,94 @@ class PlayerProfileService
     }
 
     /**
-     * Every plantel the player is known to have had: the current ones, and
-     * any other that shows up in their events or sanctions. Nothing else is
-     * knowable -- see the class note.
+     * The player's stays on planteles, current first: the recorded history, plus
+     * -- flagged estimated -- any plantel that only their events and sanctions
+     * reveal (or everything, deduced, for a player with no history at all).
      *
      * @param  Collection<int, Team>  $currentTeams
      * @param  Collection<int, MatchEvent>  $events
      * @param  Collection<int, Sanction>  $sanctions
-     * @return list<array{team: Team, current: bool, jersey: int|null, tournaments: list<string>, first_at: CarbonInterface|null, last_at: CarbonInterface|null}>
+     * @return list<array{club: string, category: string|null, group: string|null, current: bool, jersey: int|null, tournaments: list<string>, from: CarbonInterface|null, to: CarbonInterface|null, start_reason: string|null, end_reason: string|null, estimated: bool, notes: string|null}>
      */
     private function timeline(Player $player, Collection $currentTeams, Collection $events, Collection $sanctions): array
     {
+        $deduced = $this->deducedEntries($player, $currentTeams, $events, $sanctions);
         $entries = [];
 
-        foreach ($currentTeams as $team) {
-            $entries[$team->id] = [
-                'team' => $team,
-                'current' => true,
-                'jersey' => $team->id === $player->team_id ? $player->jersey_number : $team->pivot?->jersey_number,
-                'tournaments' => [],
-                'first_at' => null,
-                'last_at' => null,
+        foreach ($player->teamHistory as $line) {
+            $entries[] = [
+                'club' => $line->clubLabel(),
+                'category' => $line->category_name,
+                'group' => $line->group_name,
+                'current' => $line->isOpen(),
+                'jersey' => $line->jersey_number,
+                'tournaments' => $deduced[$line->team_id]['tournaments'] ?? [],
+                'from' => $line->started_on,
+                'to' => $line->ended_on,
+                'start_reason' => $line->start_reason->label(),
+                'end_reason' => $line->end_reason?->label(),
+                'estimated' => $line->is_estimated,
+                'notes' => $line->notes,
             ];
         }
 
-        $touch = function (Team $team, string $tournamentName, CarbonInterface $at) use (&$entries): void {
-            $entries[$team->id] ??= ['team' => $team, 'current' => false, 'jersey' => null, 'tournaments' => [], 'first_at' => null, 'last_at' => null];
+        $covered = $player->teamHistory->pluck('team_id')->filter();
+
+        foreach ($deduced as $teamId => $entry) {
+            if (! $covered->contains($teamId)) {
+                $entries[] = $entry;
+            }
+        }
+
+        return collect($entries)
+            ->sortBy([
+                fn (array $a, array $b): int => (int) $b['current'] <=> (int) $a['current'],
+                fn (array $a, array $b): int => ($b['to']?->timestamp ?? PHP_INT_MAX) <=> ($a['to']?->timestamp ?? PHP_INT_MAX),
+                fn (array $a, array $b): int => ($b['from']?->timestamp ?? 0) <=> ($a['from']?->timestamp ?? 0),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * What can be deduced without the history: the current planteles, and any
+     * other that shows up in the player's events or sanctions, keyed by plantel
+     * id, with the tournaments and the first/last date of those records.
+     *
+     * @param  Collection<int, Team>  $currentTeams
+     * @param  Collection<int, MatchEvent>  $events
+     * @param  Collection<int, Sanction>  $sanctions
+     * @return array<int, array{club: string, category: string|null, group: string|null, current: bool, jersey: int|null, tournaments: list<string>, from: CarbonInterface|null, to: CarbonInterface|null, start_reason: string|null, end_reason: string|null, estimated: bool, notes: string|null}>
+     */
+    private function deducedEntries(Player $player, Collection $currentTeams, Collection $events, Collection $sanctions): array
+    {
+        $entries = [];
+
+        $blank = fn (Team $team, bool $current, ?int $jersey): array => [
+            'club' => $this->clubLabel($team),
+            'category' => $team->category?->name,
+            'group' => $team->group?->name,
+            'current' => $current,
+            'jersey' => $jersey,
+            'tournaments' => [],
+            'from' => null,
+            'to' => null,
+            'start_reason' => null,
+            'end_reason' => null,
+            'estimated' => true,
+            'notes' => null,
+        ];
+
+        foreach ($currentTeams as $team) {
+            $entries[$team->id] = $blank($team, true, $team->id === $player->team_id ? $player->jersey_number : $team->pivot?->jersey_number);
+        }
+
+        $touch = function (Team $team, string $tournamentName, CarbonInterface $at) use (&$entries, $blank): void {
+            $entries[$team->id] ??= $blank($team, false, null);
 
             $entries[$team->id]['tournaments'] = collect($entries[$team->id]['tournaments'])->push($tournamentName)->unique()->values()->all();
-            $entries[$team->id]['first_at'] = $entries[$team->id]['first_at'] === null || $at->lt($entries[$team->id]['first_at']) ? $at : $entries[$team->id]['first_at'];
-            $entries[$team->id]['last_at'] = $entries[$team->id]['last_at'] === null || $at->gt($entries[$team->id]['last_at']) ? $at : $entries[$team->id]['last_at'];
+            $entries[$team->id]['from'] = $entries[$team->id]['from'] === null || $at->lt($entries[$team->id]['from']) ? $at : $entries[$team->id]['from'];
+            $entries[$team->id]['to'] = $entries[$team->id]['to'] === null || $at->gt($entries[$team->id]['to']) ? $at : $entries[$team->id]['to'];
         };
 
         foreach ($events as $event) {
@@ -192,18 +249,12 @@ class PlayerProfileService
             $touch($sanction->team, $sanction->match->tournament->name, $sanction->match->scheduled_at ?? $sanction->created_at);
         }
 
-        return collect($entries)
-            ->sortBy([
-                fn (array $a, array $b): int => (int) $b['current'] <=> (int) $a['current'],
-                fn (array $a, array $b): int => ($b['last_at']?->timestamp ?? 0) <=> ($a['last_at']?->timestamp ?? 0),
-            ])
-            ->values()
-            ->all();
+        return $entries;
     }
 
     /**
-     * Club names each player appears with in the events and sanctions --
-     * the only trace of past clubs there is.
+     * Club names each player has been at: from their recorded history and, for
+     * whatever it doesn't cover, from their events and sanctions.
      *
      * @param  list<int>  $playerIds
      * @return array<int, list<string>>
@@ -230,7 +281,14 @@ class PlayerProfileService
             ->distinct()
             ->get();
 
-        return $fromEvents->concat($fromSanctions)
+        $fromHistory = PlayerTeamHistory::query()
+            ->whereIn('player_id', $playerIds)
+            ->whereNotNull('club_name')
+            ->select('player_id', 'club_name as name')
+            ->distinct()
+            ->get();
+
+        return $fromEvents->concat($fromSanctions)->concat($fromHistory)
             ->groupBy('player_id')
             ->map(fn (Collection $rows): array => $rows->pluck('name')->unique()->values()->all())
             ->all();

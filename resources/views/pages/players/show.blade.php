@@ -32,11 +32,23 @@
             </div>
 
             <x-slot:actions>
+                <flux:button :href="route('players.transfer.create', $player)" variant="ghost" icon="arrows-right-left" wire:navigate>
+                    {{ __('Transferir') }}
+                </flux:button>
+
                 <flux:button :href="route('players.edit', $player)" variant="ghost" icon="pencil" wire:navigate>
                     {{ __('Editar ficha') }}
                 </flux:button>
             </x-slot:actions>
         </x-ui.page-header>
+
+        @if (session('status'))
+            <flux:callout variant="success" icon="check-circle" :heading="session('status')" />
+        @endif
+
+        @if (session('error'))
+            <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
+        @endif
 
         <div class="grid gap-6 lg:grid-cols-12 lg:items-start">
             {{-- Left column: the numbers and the personal data --}}
@@ -211,10 +223,14 @@
                     <div class="rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
                         <flux:heading size="sm">{{ __('Historial de clubes y planteles') }}</flux:heading>
 
-                        <flux:text class="mb-4 mt-1 text-xs text-zinc-500 dark:text-white/50">
-                            <span class="font-semibold">{{ __('Historial deducido.') }}</span>
-                            {{ __('El sistema no guarda cuándo un jugador entró o salió de un plantel: sale del plantel actual y de los que aparecen en sus goles, tarjetas y sanciones.') }}
-                        </flux:text>
+                        @if (collect($timeline)->contains('estimated', true))
+                            <flux:text class="mb-4 mt-1 text-xs text-zinc-500 dark:text-white/50">
+                                <span class="font-semibold">{{ __('Estimado.') }}</span>
+                                {{ __('Lo marcado como «Estimado» se reconstruyó a partir de sus goles, tarjetas y sanciones. Desde ahora cada cambio de plantel queda registrado con su fecha.') }}
+                            </flux:text>
+                        @else
+                            <div class="mb-4"></div>
+                        @endif
 
                         @if ($timeline === [])
                             <flux:text class="text-zinc-500 dark:text-white/60">{{ __('No hay clubes ni planteles que mostrar para este jugador.') }}</flux:text>
@@ -229,24 +245,43 @@
                                         ])></span>
 
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <span class="font-medium text-zinc-900 dark:text-white">{{ $label($entry['team']) }}</span>
+                                            <span class="font-medium text-zinc-900 dark:text-white">{{ $entry['club'] }}</span>
                                             <flux:badge size="sm" :color="$entry['current'] ? 'green' : 'zinc'">{{ $entry['current'] ? __('Actual') : __('Anterior') }}</flux:badge>
+                                            @if ($entry['estimated'])
+                                                <flux:badge size="sm" color="amber">{{ __('Estimado') }}</flux:badge>
+                                            @endif
                                         </div>
 
                                         <div class="text-sm text-zinc-500 dark:text-white/60">
-                                            {{ $entry['team']->category->name }}@if ($entry['team']->group) · {{ $entry['team']->group->name }}@endif
+                                            {{ $entry['category'] }}@if ($entry['group']) · {{ $entry['group'] }}@endif
                                             @if ($entry['jersey'] !== null)
                                                 · {{ __('Dorsal') }} {{ $entry['jersey'] }}
                                             @endif
                                         </div>
 
-                                        @if ($entry['tournaments'] !== [])
+                                        @if ($entry['from'] || $entry['to'])
                                             <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
-                                                {{ implode(' · ', $entry['tournaments']) }}
-                                                @if ($entry['first_at'])
-                                                    · {{ $entry['first_at']->format('d/m/Y') }}@if (! $entry['first_at']->isSameDay($entry['last_at'])) — {{ $entry['last_at']->format('d/m/Y') }}@endif
+                                                @if ($entry['from'])
+                                                    {{ __('Desde') }} {{ $entry['from']->format('d/m/Y') }}
+                                                @endif
+                                                @if ($entry['to'] && ! $entry['current'])
+                                                    · {{ __('hasta') }} {{ $entry['to']->format('d/m/Y') }}
                                                 @endif
                                             </div>
+                                        @endif
+
+                                        @if (! $entry['estimated'] && ($entry['start_reason'] || $entry['end_reason']))
+                                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
+                                                {{ $entry['start_reason'] }}@if ($entry['end_reason']) → {{ $entry['end_reason'] }}@endif
+                                            </div>
+                                        @endif
+
+                                        @if ($entry['notes'])
+                                            <div class="mt-1 text-xs italic text-zinc-500 dark:text-white/50">{{ $entry['notes'] }}</div>
+                                        @endif
+
+                                        @if ($entry['tournaments'] !== [])
+                                            <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">{{ implode(' · ', $entry['tournaments']) }}</div>
                                         @endif
                                     </li>
                                 @endforeach
