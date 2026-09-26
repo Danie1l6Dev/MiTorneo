@@ -31,22 +31,49 @@
     <flux:text class="text-zinc-500 dark:text-white/60">{{ $match->round_number ?? __('Sin jornada asignada') }}</flux:text>
 </div>
 
-<flux:input
-    name="scheduled_at"
-    type="datetime-local"
-    label="{{ __('Fecha y hora (opcional)') }}"
-    value="{{ old('scheduled_at', $match->scheduled_at?->format('Y-m-d\TH:i')) }}"
-    :disabled="$readonly"
-/>
+{{-- When/where it's played. Posted together with the status and referee in the
+     one "Guardar cambios" form, so every one of them is checked against the
+     calendar at once (TournamentMatchRequest). --}}
+<div class="grid gap-4 sm:grid-cols-2">
+    <flux:input
+        name="scheduled_date"
+        type="date"
+        label="{{ __('Día') }}"
+        value="{{ old('scheduled_date', $match->scheduled_at?->format('Y-m-d')) }}"
+        :disabled="$readonly"
+    />
 
-<flux:input
-    name="venue"
-    label="{{ __('Cancha / lugar (opcional)') }}"
-    placeholder="{{ __('Ej.: Cancha Parque Boscán') }}"
-    value="{{ old('venue', $match->venue) }}"
-    maxlength="120"
-    :disabled="$readonly"
-/>
+    <flux:input
+        name="kickoff_time"
+        type="time"
+        label="{{ __('Hora (opcional)') }}"
+        value="{{ old('kickoff_time', $match->hasKickoffTime() ? $match->scheduled_at->format('H:i') : '') }}"
+        :disabled="$readonly"
+    />
+</div>
+
+<flux:select name="venue_id" label="{{ __('Cancha (opcional)') }}" placeholder="{{ __('Sin cancha asignada') }}" :disabled="$readonly">
+    @php $currentVenue = old('venue_id', $match->venue_id ?? ''); @endphp
+
+    @foreach ($venues as $venue)
+        <flux:select.option value="{{ $venue->id }}" :selected="(string) $venue->id === (string) $currentVenue">
+            {{ $venue->name }}
+        </flux:select.option>
+    @endforeach
+</flux:select>
+
+@unless ($readonly)
+    @if ($venues->isEmpty())
+        <flux:text class="text-xs text-zinc-500 dark:text-white/50">
+            {{ __('Aún no tienes canchas registradas.') }}
+            <a href="{{ route('venues.create') }}" wire:navigate class="underline">{{ __('Registrar una cancha') }}</a>
+        </flux:text>
+    @endif
+
+    <flux:text class="text-xs text-zinc-500 dark:text-white/50">
+        {{ __('Si dejas el día vacío, el partido queda sin fecha (y postergado si ya tenía una).') }}
+    </flux:text>
+@endunless
 
 <flux:select name="referee_id" label="{{ __('Árbitro (opcional)') }}" placeholder="{{ __('Sin árbitro asignado') }}" :disabled="$readonly">
     @php $currentReferee = old('referee_id', $match->referee_id ?? ''); @endphp

@@ -95,7 +95,29 @@
                 </div>
             </div>
 
-            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+            {{-- When/where, always rendered (as "Sin programar" when there's no
+                 day yet) so every card in a row keeps the same height: the cancha
+                 gets its own line -- a narrow card would cut it off next to the
+                 date -- and min-h-8 reserves both lines even when there's none. --}}
+            <div class="mt-3 flex min-h-8 flex-col items-center gap-0.5 text-xs {{ $match->scheduled_at ? 'text-zinc-500 dark:text-white/55' : 'text-zinc-400 dark:text-white/35' }}">
+                <div class="flex max-w-full items-center gap-1.5">
+                    <flux:icon.calendar-days variant="micro" class="size-3.5 shrink-0" />
+                    <span class="truncate">
+                        @if ($match->scheduled_at)
+                            {{ $match->scheduled_at->locale('es')->translatedFormat('D d M') }}
+                            · {{ $match->hasKickoffTime() ? $match->scheduled_at->format('g:i A') : __('Hora por definir') }}
+                        @else
+                            {{ __('Sin programar') }}
+                        @endif
+                    </span>
+                </div>
+
+                @if ($match->venue)
+                    <div class="max-w-full truncate">{{ $match->venue->name }}</div>
+                @endif
+            </div>
+
+            <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
                 @if ($pending)
                     <flux:badge size="sm" color="zinc">{{ mb_strtoupper(__('Por definir')) }}</flux:badge>
                 @else

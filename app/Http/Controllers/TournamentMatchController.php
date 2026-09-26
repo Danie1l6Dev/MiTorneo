@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchEventType;
 use App\Enums\MatchStatus;
 use App\Http\Requests\TournamentMatchRequest;
@@ -83,6 +82,7 @@ class TournamentMatchController extends Controller
         $oldQueuedEvents = $this->reconstructQueuedEvents($match, (array) old('events', []));
 
         $referees = Auth::user()->referees()->orderBy('full_name')->get();
+        $venues = Auth::user()->venues()->orderBy('name')->get();
 
         // A player/coach still serving a sanction (from ANY earlier match,
         // any phase -- suspensions follow the person across the whole
@@ -95,7 +95,7 @@ class TournamentMatchController extends Controller
 
         return view('pages.matches.edit', compact(
             'match', 'goalCounts', 'playerYellowCounts', 'coachYellowCounts', 'redPlayerIds', 'redCoachIds',
-            'oldQueuedEvents', 'referees', 'homeUnavailableSanctions', 'awayUnavailableSanctions',
+            'oldQueuedEvents', 'referees', 'venues', 'homeUnavailableSanctions', 'awayUnavailableSanctions',
             'homeEligiblePlayers', 'awayEligiblePlayers',
             'homeIneligiblePlayers', 'awayIneligiblePlayers'
         ));
@@ -188,16 +188,41 @@ class TournamentMatchController extends Controller
             return to_route('matches.edit', $match)->with('error', $match->expulsionLockMessage());
         }
 
-        $match->update($request->validated());
+        $attributes = $request->safe()->only(['status', 'referee_id']);
+
+        if ($request->has('venue_id')) {
+            $attributes['venue_id'] = $request->venueId();
+        }
+
+        $postponed = false;
+
+        if ($request->changesSchedule()) {
+            $scheduledAt = $request->scheduledAt();
+            $attributes['scheduled_at'] = $scheduledAt;
+
+            // Only when the status select was left as it was: taking the day
+            // away from a match that HAD one is a postponement (it's waiting
+            // for a new date), and giving a postponed match a day brings it
+            // back to Scheduled. A status the user picked on purpose always wins.
+            if (MatchStatus::from($attributes['status']) === $match->status) {
+                if ($scheduledAt === null && $match->scheduled_at !== null && $match->status === MatchStatus::Scheduled) {
+                    $attributes['status'] = MatchStatus::Postponed->value;
+                    $postponed = true;
+                } elseif ($scheduledAt !== null && $match->status === MatchStatus::Postponed) {
+                    $attributes['status'] = MatchStatus::Scheduled->value;
+                }
+            }
+        }
+
+        $match->update($attributes);
 
         if ($match->home_score !== null && $match->away_score !== null) {
             $bracketService->resolveWinner($match);
         }
 
-        $isKnockoutMatch = $match->competitionPhase->type !== CompetitionPhaseType::League;
-
-        return redirect(route('phases.show', $match->competitionPhase).($isKnockoutMatch ? '#cuadro' : ''))
-            ->with('status', __('Cambios guardados correctamente.'));
+        return to_route('matches.edit', $match)->with('status', $postponed
+            ? __('Partido postergado: quedó sin fecha hasta que lo reprogrames.')
+            : __('Cambios guardados correctamente.'));
     }
 
     /**

@@ -140,6 +140,21 @@
                     {{ __('Exportar PDF') }}
                 </x-ui.pdf-export-button>
             </div>
+
+            {{-- When/where at a glance: the "Programación" card that edits it sits
+                 far down this page, below the rosters and events. --}}
+            <a href="#programacion" class="mt-1 inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:text-white/60 dark:hover:text-white">
+                <flux:icon.calendar-days variant="micro" class="size-4 shrink-0" />
+                @if ($match->scheduled_at)
+                    {{ $match->scheduled_at->locale('es')->translatedFormat('l d \d\e F') }}
+                    · {{ $match->hasKickoffTime() ? $match->scheduled_at->format('g:i A') : __('Hora por definir') }}
+                    @if ($match->venue)
+                        · {{ $match->venue->name }}
+                    @endif
+                @else
+                    {{ __('Sin programar') }}
+                @endif
+            </a>
         </x-ui.page-header>
 
         @if (session('status'))
@@ -670,7 +685,7 @@
             <div class="mx-auto w-full max-w-2xl space-y-8">
                 <flux:separator variant="subtle" />
 
-                <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
+                <div id="programacion" class="scroll-mt-6 rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
                     <flux:heading size="sm" class="mb-4">{{ __('Detalles del partido') }}</flux:heading>
 
                     @if ($locked)
@@ -685,6 +700,16 @@
                         <form method="POST" action="{{ route('matches.update', $match) }}" class="space-y-6">
                             @csrf
                             @method('PUT')
+
+                            @if ($errors->has('schedule'))
+                                <flux:callout variant="danger" icon="exclamation-triangle" :heading="__('No se puede guardar esta programación')">
+                                    <ul class="list-disc space-y-1 ps-5">
+                                        @foreach ($errors->get('schedule') as $message)
+                                            <li>{{ $message }}</li>
+                                        @endforeach
+                                    </ul>
+                                </flux:callout>
+                            @endif
 
                             @include('pages.matches._fields')
 

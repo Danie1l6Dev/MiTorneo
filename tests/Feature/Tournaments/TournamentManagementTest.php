@@ -249,7 +249,7 @@ class TournamentManagementTest extends TestCase
                 'status' => 'postponed',
                 'scheduled_at' => null,
             ])
-            ->assertRedirect(route('phases.show', $phase));
+            ->assertRedirect(route('matches.edit', $match));
 
         $match->refresh();
         $this->assertSame($group->id, $match->group_id);

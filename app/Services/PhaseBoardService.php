@@ -33,7 +33,7 @@ class PhaseBoardService
     public function scheduleViews(CompetitionPhase $phase): Collection
     {
         return $phase->leagueSchedules()
-            ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam', 'matches.goals', 'matches.redCards'])
+            ->with(['group.teams', 'matches.homeTeam', 'matches.awayTeam', 'matches.venue', 'matches.goals', 'matches.redCards'])
             ->get()
             ->map(fn (LeagueSchedule $schedule): array => $this->buildScheduleView($schedule, $phase));
     }
@@ -98,7 +98,7 @@ class PhaseBoardService
     public function bracketRounds(CompetitionPhase $phase): array
     {
         return $phase->matches()
-            ->with(['homeTeam', 'awayTeam', 'goals', 'redCards', 'firstLeg'])
+            ->with(['homeTeam', 'awayTeam', 'venue', 'goals', 'redCards', 'firstLeg'])
             // The optional 3er/4to puesto match shares its round_number with
             // the final but is never one of its crosses -- counting it here
             // would inflate that round's match count, breaking its label
@@ -174,7 +174,7 @@ class PhaseBoardService
     public function thirdPlaceMatch(CompetitionPhase $phase): ?TournamentMatch
     {
         return $phase->matches()
-            ->with(['homeTeam', 'awayTeam', 'goals', 'redCards'])
+            ->with(['homeTeam', 'awayTeam', 'venue', 'goals', 'redCards'])
             ->where('is_third_place', true)
             ->first();
     }
