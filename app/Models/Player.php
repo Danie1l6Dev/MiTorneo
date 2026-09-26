@@ -5,8 +5,10 @@ namespace App\Models;
 use App\Enums\Gender;
 use App\Enums\MatchEventType;
 use App\Models\Concerns\NormalizesToUppercase;
+use App\Services\PlayerRosterService;
 use Database\Factories\PlayerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +16,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 /**
  * A roster entry for a team (a club's plantel in one category/group).
@@ -161,6 +162,24 @@ class Player extends Model
     }
 
     /**
+     * Players belonging to $ownerId's own catalog -- reachable through a plantel
+     * of one of their clubs (team_id or the player_team pivot) or, for legacy
+     * players, through their tournament. The ownership check behind
+     * findForOrganizer()/allForOrganizer().
+     *
+     * @param  Builder<Player>  $query
+     * @return Builder<Player>
+     */
+    public function scopeOwnedBy(Builder $query, int $ownerId): Builder
+    {
+        return $query->where(function ($ownerQuery) use ($ownerId) {
+            $ownerQuery->whereHas('teams.club', fn ($q) => $q->where('user_id', $ownerId))
+                ->orWhereHas('team.club', fn ($q) => $q->where('user_id', $ownerId))
+                ->orWhereHas('team.tournament', fn ($q) => $q->where('user_id', $ownerId));
+        });
+    }
+
+    /**
      * Every player of this organizer's own catalog, across every club/
      * category -- not scoped to one team. This is what the Clubes
      * "Jugadores" view preloads for its live, client-side name/document
@@ -173,11 +192,7 @@ class Player extends Model
     public static function allForOrganizer(int $ownerId): Collection
     {
         return static::query()
-            ->where(function ($ownerQuery) use ($ownerId) {
-                $ownerQuery->whereHas('teams.club', fn ($q) => $q->where('user_id', $ownerId))
-                    ->orWhereHas('team.club', fn ($q) => $q->where('user_id', $ownerId))
-                    ->orWhereHas('team.tournament', fn ($q) => $q->where('user_id', $ownerId));
-            })
+            ->ownedBy($ownerId)
             ->with(['team.category', 'team.club', 'teams.category', 'teams.club'])
             ->orderBy('full_name')
             ->get();
@@ -253,20 +268,18 @@ class Player extends Model
      */
     public function promoteFromTeam(Team $from, Team $to): void
     {
-        if ($this->team_id === $from->id) {
-            $this->team_id = $to->id;
-            $this->save();
+        app(PlayerRosterService::class)->promote($this, $from, $to);
+    }
 
-            return;
-        }
-
-        $jerseyNumber = DB::table('player_team')
-            ->where('player_id', $this->id)
-            ->where('team_id', $from->id)
-            ->value('jersey_number');
-
-        $this->teams()->detach($from->id);
-        $this->teams()->attach($to->id, ['jersey_number' => $jerseyNumber]);
+    /**
+     * Every stay of this player on a plantel, newest first: when it started and
+     * ended and why. Written only by PlayerRosterService.
+     *
+     * @return HasMany<PlayerTeamHistory, $this>
+     */
+    public function teamHistory(): HasMany
+    {
+        return $this->hasMany(PlayerTeamHistory::class)->orderByDesc('started_on')->orderByDesc('id');
     }
 
     /**
@@ -284,7 +297,7 @@ class Player extends Model
      */
     public function teams(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class, 'player_team')->withPivot('jersey_number');
+        return $this->belongsToMany(Team::class, 'player_team')->withPivot('jersey_number')->withTimestamps();
     }
 
     /**

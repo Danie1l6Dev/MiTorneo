@@ -25,6 +25,7 @@ use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
 use App\Services\LeagueScheduleService;
+use App\Services\PlayerHistoryBackfillService;
 use App\Services\SanctionService;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -85,6 +86,10 @@ class DatabaseSeeder extends Seeder
         $this->seedReadyForScheduleTournament($user);
         $this->seedReadyForDrawTournament($user, $referees);
         $this->seedReadyForKnockoutBracketTournament($user, $referees);
+
+        // The seeded players come straight from factories: give them their
+        // planteles' history (flagged estimated) the same way production gets it.
+        app(PlayerHistoryBackfillService::class)->run(ownerId: $user->id);
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Http\Requests\TeamRequest;
 use App\Models\Category;
 use App\Models\Club;
 use App\Models\Team;
+use App\Services\PlayerRosterService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -129,8 +130,20 @@ class TeamController extends Controller
     {
         $this->authorize('delete', $team);
 
+        // Deleting a plantel deletes its players, and with them their goals,
+        // cards and sanctions -- a real record, never safe to lose just because
+        // the plantel is no longer wanted. Blocked instead of silently cascading.
+        if ($team->hasRecordsThatWouldBeLost()) {
+            return back()->with('error', __(
+                'No se puede eliminar este plantel: ya tiene goles, tarjetas o sanciones registradas (propias o de sus jugadores) y borrarlo las eliminaría.'
+            ));
+        }
+
         $category = $team->category;
         $club = $team->club;
+
+        // The players still on it keep their history: its lines close as "plantel eliminado".
+        app(PlayerRosterService::class)->closeTeam($team);
 
         $team->delete();
 

@@ -9,6 +9,7 @@ use App\Models\MatchEvent;
 use App\Models\Player;
 use App\Models\Sanction;
 use App\Models\Team;
+use App\Services\PlayerRosterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,8 @@ use Illuminate\View\View;
 
 class PlayerController extends Controller
 {
+    public function __construct(private readonly PlayerRosterService $roster) {}
+
     /**
      * Applies whatever this submission typed for full_name/birth_date/gender
      * onto an existing player found by document_number -- letting the
@@ -144,11 +147,8 @@ class PlayerController extends Controller
             // time, so moving them here means every old team link goes,
             // not just adding this one alongside it.
             if ($team->club_id !== null && $existingPlayer->currentClub()?->id !== $team->club_id) {
-                $existingPlayer->teams()->detach();
-                $existingPlayer->team_id = $team->id;
                 $existingPlayer->jersey_number = $jerseyNumber;
-                $existingPlayer->is_active = true;
-                $existingPlayer->save();
+                $this->roster->moveToClub($existingPlayer, $team);
 
                 return to_route('teams.show', $team)->with('status', __(
                     ':name se movió a este club, a este plantel.',
@@ -157,7 +157,7 @@ class PlayerController extends Controller
             }
 
             $existingPlayer->save();
-            $existingPlayer->teams()->attach($team->id, ['jersey_number' => $jerseyNumber]);
+            $this->roster->addTeam($existingPlayer, $team, jerseyNumber: $jerseyNumber);
 
             return to_route('teams.show', $team)->with('status', __(
                 ':name ya estaba registrado -- se vinculó a este plantel sin duplicar su ficha.',
@@ -169,6 +169,8 @@ class PlayerController extends Controller
         $player->jersey_number = $jerseyNumber;
         $player->team_id = $team->id;
         $player->save();
+
+        $this->roster->enrollNew($player);
 
         return to_route('teams.show', $team)->with('status', __('Jugador agregado correctamente.'));
     }
@@ -209,15 +211,13 @@ class PlayerController extends Controller
             // club at a time, so moving them here drops every old team
             // link instead of adding these alongside it.
             if ($existingPlayer->currentClub()?->id !== $club->id) {
-                $existingPlayer->teams()->detach();
                 $newPrimaryTeamId = array_shift($teamIds);
-                $existingPlayer->team_id = $newPrimaryTeamId;
-                $existingPlayer->is_active = true;
-                $existingPlayer->save();
 
-                if ($teamIds !== []) {
-                    $existingPlayer->teams()->attach($teamIds);
-                }
+                $this->roster->moveToClub(
+                    $existingPlayer,
+                    Team::query()->findOrFail($newPrimaryTeamId),
+                    Team::query()->whereIn('id', $teamIds)->get(),
+                );
 
                 return to_route('clubs.show', $club)->with('status', __(
                     ':name se movió a este club.', ['name' => $existingPlayer->full_name]
@@ -231,7 +231,7 @@ class PlayerController extends Controller
                 ->all();
 
             $newTeamIds = array_diff($teamIds, $alreadyLinkedIds);
-            $existingPlayer->teams()->attach($newTeamIds);
+            $this->roster->addTeams($existingPlayer, Team::query()->whereIn('id', $newTeamIds)->get());
 
             return to_route('clubs.show', $club)->with('status', __(
                 ':name ya estaba registrado -- se vinculó a :count plantel(es) nuevo(s) sin duplicar su ficha.',
@@ -250,9 +250,7 @@ class PlayerController extends Controller
         $player->team_id = $primaryTeamId;
         $player->save();
 
-        if ($teamIds !== []) {
-            $player->teams()->attach($teamIds);
-        }
+        $this->roster->enrollNew($player, $teamIds);
 
         return to_route('clubs.show', $club)->with('status', __('Jugador agregado correctamente.'));
     }
@@ -313,7 +311,7 @@ class PlayerController extends Controller
         );
 
         if ($linkableIds->isNotEmpty()) {
-            $player->teams()->syncWithoutDetaching($linkableIds);
+            $this->roster->addTeams($player, Team::query()->whereIn('id', $linkableIds)->get());
         }
 
         $status = $linkableIds->isNotEmpty()
@@ -342,7 +340,7 @@ class PlayerController extends Controller
     {
         $this->authorize('update', $player);
 
-        $player->teams()->detach($team->id);
+        $this->roster->removeTeam($player, $team);
 
         return to_route('players.edit', $player)->with('status', __('Jugador quitado de ese plantel.'));
     }
@@ -390,16 +388,14 @@ class PlayerController extends Controller
         $remainingTeamId = $player->teams()->whereNotIn('teams.id', $clubTeamIds)->value('teams.id');
 
         DB::transaction(function () use ($player, $clubTeamIds, $remainingTeamId): void {
-            $player->teams()->detach($clubTeamIds);
+            $this->roster->removeTeams($player, Team::query()->whereIn('id', $clubTeamIds)->get());
 
             if (! $clubTeamIds->contains($player->team_id)) {
                 return;
             }
 
             if ($remainingTeamId !== null) {
-                $player->team_id = $remainingTeamId;
-                $player->save();
-                $player->teams()->detach($remainingTeamId);
+                $this->roster->makePrimary($player, Team::query()->findOrFail($remainingTeamId));
             } else {
                 $player->delete();
             }

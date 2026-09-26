@@ -55,6 +55,27 @@ class Team extends Model
     }
 
     /**
+     * Whether deleting this plantel would wipe a real record: goals, cards or
+     * sanctions logged for it, or for any player whose primary plantel it is
+     * (deleting the plantel deletes those players, and their events and
+     * sanctions with them, whichever plantel those were logged for). What
+     * TeamController::destroy() refuses to do -- the same protection
+     * PlayerController::destroyFromClub() already gives a player.
+     */
+    public function hasRecordsThatWouldBeLost(): bool
+    {
+        if (MatchEvent::query()->where('team_id', $this->id)->exists() || Sanction::query()->where('team_id', $this->id)->exists()) {
+            return true;
+        }
+
+        $primaryPlayerIds = Player::query()->where('team_id', $this->id)->pluck('id');
+
+        return $primaryPlayerIds->isNotEmpty()
+            && (MatchEvent::query()->whereIn('player_id', $primaryPlayerIds)->exists()
+                || Sanction::query()->whereIn('player_id', $primaryPlayerIds)->exists());
+    }
+
+    /**
      * See Category::ownerId() -- delegates to the category since a global
      * Team has no $tournament of its own to fall back on.
      */
