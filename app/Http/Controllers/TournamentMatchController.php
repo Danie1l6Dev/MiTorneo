@@ -12,6 +12,7 @@ use App\Models\TournamentMatch;
 use App\Services\KnockoutBracketService;
 use App\Services\SanctionService;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -178,6 +179,17 @@ class TournamentMatchController extends Controller
 
             return $item;
         })->values()->all();
+    }
+
+    /**
+     * What the match form asks for while the fields change: it gets there only
+     * once TournamentMatchRequest has accepted the very same fields the save
+     * would take (permission, formats, clashes with the rest of the calendar),
+     * and a 422 with its messages otherwise. Nothing is written.
+     */
+    public function check(TournamentMatchRequest $request, TournamentMatch $match): JsonResponse
+    {
+        return response()->json(['ok' => true]);
     }
 
     public function update(TournamentMatchRequest $request, TournamentMatch $match, KnockoutBracketService $bracketService): RedirectResponse

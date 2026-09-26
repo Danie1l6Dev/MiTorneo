@@ -697,24 +697,85 @@
                             {{ __('Volver') }}
                         </flux:button>
                     @else
-                        <form method="POST" action="{{ route('matches.update', $match) }}" class="space-y-6">
+                        {{-- Live check: whenever a field changes (after a short pause) the form is
+                             sent to matches.check, which runs the save's own validation without
+                             saving. Its clashes appear below and hold the save button back; the
+                             save re-checks everything on the server regardless. --}}
+                        <form
+                            method="POST"
+                            action="{{ route('matches.update', $match) }}"
+                            class="space-y-6"
+                            x-data="{
+                                scheduleConflicts: [],
+                                scheduleChecked: false,
+                                scheduleRequest: null,
+                                async checkSchedule() {
+                                    this.scheduleRequest?.abort();
+                                    const request = new AbortController();
+                                    this.scheduleRequest = request;
+
+                                    try {
+                                        const response = await fetch({{ \Illuminate\Support\Js::from(route('matches.check', $match)) }}, {
+                                            method: 'POST',
+                                            body: new FormData(this.$el),
+                                            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+                                            signal: request.signal,
+                                        });
+
+                                        if (this.scheduleRequest !== request) return;
+
+                                        this.scheduleConflicts = response.status === 422
+                                            ? Object.values((await response.json()).errors ?? {}).flat()
+                                            : [];
+                                        this.scheduleChecked = true;
+                                    } catch (error) {
+                                        if (error.name !== 'AbortError') console.error(error);
+                                    }
+                                },
+                            }"
+                            x-on:input.debounce.400ms="checkSchedule()"
+                            x-on:change.debounce.400ms="checkSchedule()"
+                        >
                             @csrf
                             @method('PUT')
 
                             @if ($errors->has('schedule'))
-                                <flux:callout variant="danger" icon="exclamation-triangle" :heading="__('No se puede guardar esta programación')">
-                                    <ul class="list-disc space-y-1 ps-5">
-                                        @foreach ($errors->get('schedule') as $message)
-                                            <li>{{ $message }}</li>
-                                        @endforeach
-                                    </ul>
-                                </flux:callout>
+                                <div x-show="! scheduleChecked">
+                                    <flux:callout variant="danger" icon="exclamation-triangle" :heading="__('No se puede guardar esta programación')">
+                                        <ul class="list-disc space-y-1 ps-5">
+                                            @foreach ($errors->get('schedule') as $message)
+                                                <li>{{ $message }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </flux:callout>
+                                </div>
                             @endif
+
+                            <div x-show="scheduleConflicts.length > 0" x-cloak class="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+                                <div class="flex items-center gap-2 font-medium">
+                                    <flux:icon.exclamation-triangle variant="mini" class="size-4 shrink-0" />
+                                    {{ __('No se puede guardar esta programación') }}
+                                </div>
+
+                                <ul class="mt-2 list-disc space-y-1 ps-6">
+                                    <template x-for="message in scheduleConflicts" :key="message">
+                                        <li x-text="message"></li>
+                                    </template>
+                                </ul>
+                            </div>
 
                             @include('pages.matches._fields')
 
                             <div class="flex items-center gap-3">
-                                <flux:button type="submit" variant="primary">{{ __('Guardar cambios') }}</flux:button>
+                                {{-- Not `disabled`: bound dynamically, Flux swaps a disabled button's label for its
+                                     loading spinner. Dimmed and inert instead while there are clashes. --}}
+                                <flux:button
+                                    type="submit"
+                                    variant="primary"
+                                    x-bind:class="scheduleConflicts.length > 0 ? 'cursor-not-allowed opacity-50' : ''"
+                                    x-bind:aria-disabled="scheduleConflicts.length > 0"
+                                    x-on:click="if (scheduleConflicts.length > 0) $event.preventDefault()"
+                                >{{ __('Guardar cambios') }}</flux:button>
                                 <flux:button :href="route('phases.show', $match->competitionPhase)" variant="ghost" wire:navigate>{{ __('Cancelar') }}</flux:button>
                             </div>
                         </form>

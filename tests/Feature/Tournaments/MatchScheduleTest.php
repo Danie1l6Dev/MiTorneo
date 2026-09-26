@@ -344,6 +344,86 @@ class MatchScheduleTest extends TestCase
         $this->assertSame($referee->id, $match->fresh()->referee_id);
     }
 
+    public function test_the_live_check_answers_ok_when_the_form_has_no_clash_and_saves_nothing(): void
+    {
+        ['user' => $user, 'tournament' => $tournament] = $this->makeSchedulingTournament();
+        $category = $this->makeSchedulingCategory($tournament, 'Sub-13', 2013);
+        $match = $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Leones', 5);
+
+        $this->actingAs($user)
+            ->putJson(route('matches.check', $match), $this->form($match, ['scheduled_date' => '2026-09-12', 'kickoff_time' => '07:30']))
+            ->assertOk()
+            ->assertExactJson(['ok' => true]);
+
+        $this->assertNull($match->fresh()->scheduled_at);
+    }
+
+    public function test_the_live_check_returns_every_clash_as_a_422_with_the_saves_own_messages(): void
+    {
+        ['user' => $user, 'tournament' => $tournament] = $this->makeSchedulingTournament();
+        $venue = $this->makeSchedulingVenue($user, 'Cancha Boscán');
+        $category = $this->makeSchedulingCategory($tournament, 'Sub-13', 2013);
+        $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Leones', 4, '2026-09-12 07:30:00', $venue);
+        $match = $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Osos', 5);
+
+        $response = $this->actingAs($user)
+            ->putJson(route('matches.check', $match), $this->form($match, ['scheduled_date' => '2026-09-12', 'kickoff_time' => '07:45', 'venue_id' => $venue->id]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('schedule');
+
+        $messages = $response->json('errors.schedule');
+        $this->assertCount(2, $messages);
+        $this->assertStringContainsString('TIGRES ya juega ese día', $messages[0]);
+        $this->assertStringContainsString('está ocupada', $messages[1]);
+        $this->assertNull($match->fresh()->scheduled_at);
+    }
+
+    public function test_the_live_check_also_covers_the_referee_and_the_formats(): void
+    {
+        ['user' => $user, 'tournament' => $tournament] = $this->makeSchedulingTournament();
+        $referee = Referee::factory()->for($user)->create();
+        $category = $this->makeSchedulingCategory($tournament, 'Sub-13', 2013);
+        $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Leones', 5, '2026-09-12 07:30:00', referee: $referee);
+        $match = $this->makeSchedulingMatch($tournament, $category, 'Osos', 'Lobos', 5);
+
+        $this->actingAs($user)
+            ->putJson(route('matches.check', $match), $this->form($match, ['scheduled_date' => '2026-09-12', 'kickoff_time' => '08:00', 'referee_id' => $referee->id]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('schedule');
+
+        $this->actingAs($user)
+            ->putJson(route('matches.check', $match), $this->form($match, ['scheduled_date' => '', 'kickoff_time' => '07:30']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('scheduled_date');
+    }
+
+    public function test_the_live_check_is_forbidden_for_another_organizer(): void
+    {
+        ['tournament' => $tournament] = $this->makeSchedulingTournament();
+        $category = $this->makeSchedulingCategory($tournament, 'Sub-13', 2013);
+        $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Leones', 4, '2026-09-12 07:30:00');
+        $match = $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Osos', 5);
+
+        $this->actingAs(User::factory()->create())
+            ->putJson(route('matches.check', $match), $this->form($match, ['scheduled_date' => '2026-09-12']))
+            ->assertForbidden();
+    }
+
+    public function test_the_form_checks_itself_as_its_fields_change(): void
+    {
+        ['user' => $user, 'tournament' => $tournament] = $this->makeSchedulingTournament();
+        $category = $this->makeSchedulingCategory($tournament, 'Sub-13', 2013);
+        $match = $this->makeSchedulingMatch($tournament, $category, 'Tigres', 'Leones', 5);
+
+        $this->actingAs($user)
+            ->get(route('matches.edit', $match))
+            ->assertOk()
+            ->assertSee(str_replace('/', '\\/', route('matches.check', $match)), false)
+            ->assertSee('checkSchedule()', false)
+            ->assertSee('x-on:input.debounce', false)
+            ->assertSee('scheduleConflicts', false);
+    }
+
     public function test_calendar_cards_show_the_day_time_and_venue_or_sin_programar(): void
     {
         ['user' => $user, 'tournament' => $tournament] = $this->makeSchedulingTournament();
