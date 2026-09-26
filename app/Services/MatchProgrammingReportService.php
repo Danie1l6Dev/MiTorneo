@@ -40,6 +40,20 @@ class MatchProgrammingReportService
     }
 
     /**
+     * Every still-to-be-played league match of one fecha across the whole
+     * tournament -- what the mass programming tool assigns days and hours to.
+     * Matches locked by an expulsion walkover never take part.
+     *
+     * @return Builder<TournamentMatch>
+     */
+    public function pendingRoundMatches(Tournament $tournament, int $roundNumber): Builder
+    {
+        return $this->pendingMatches($tournament, null)
+            ->where('round_number', $roundNumber)
+            ->where('is_walkover', false);
+    }
+
+    /**
      * The pending matches of $roundNumbers (every pending fecha when null),
      * one section per fecha, split by category (youngest first), then into
      * one block per day + venue: days ascending with undated matches last,
@@ -54,7 +68,7 @@ class MatchProgrammingReportService
         $matches = $this->pendingMatches($tournament, $category)
             ->whereNotNull('round_number')
             ->when($roundNumbers !== null, fn (Builder $query) => $query->whereIn('round_number', $roundNumbers))
-            ->with(['homeTeam', 'awayTeam', 'group', 'category'])
+            ->with(['homeTeam', 'awayTeam', 'group', 'category', 'venue'])
             ->get();
 
         $categoryOrder = Category::query()
@@ -94,10 +108,10 @@ class MatchProgrammingReportService
             ->sortKeys()
             ->map(fn (Collection $blockMatches): array => [
                 'day' => $blockMatches->first()->scheduled_at?->copy()->startOfDay(),
-                'venue' => $blockMatches->first()->venue ?: null,
+                'venue' => $blockMatches->first()->venue?->name,
                 'matches' => $blockMatches
                     ->sortBy([
-                        fn (TournamentMatch $a, TournamentMatch $b): int => ($a->scheduled_at?->timestamp ?? PHP_INT_MAX) <=> ($b->scheduled_at?->timestamp ?? PHP_INT_MAX),
+                        fn (TournamentMatch $a, TournamentMatch $b): int => ($a->hasKickoffTime() ? $a->scheduled_at->timestamp : PHP_INT_MAX) <=> ($b->hasKickoffTime() ? $b->scheduled_at->timestamp : PHP_INT_MAX),
                         fn (TournamentMatch $a, TournamentMatch $b): int => ($a->group?->order ?? 0) <=> ($b->group?->order ?? 0),
                     ])
                     ->values(),
@@ -107,12 +121,12 @@ class MatchProgrammingReportService
     }
 
     /**
-     * Groups "Cancha Boscán" and "cancha boscán " together, and sorts
-     * matches with no venue after every named one ("~" sorts after letters).
+     * Sorts blocks by cancha name, with matches that have no cancha after
+     * every named one ("~" sorts after letters).
      */
     private function normalizedVenue(TournamentMatch $match): string
     {
-        $venue = mb_strtolower(trim((string) $match->venue));
+        $venue = mb_strtolower(trim((string) $match->venue?->name));
 
         return $venue === '' ? '~' : $venue;
     }

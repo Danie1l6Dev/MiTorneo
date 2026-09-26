@@ -6,6 +6,8 @@ use App\Enums\CompetitionPhaseType;
 use App\Enums\MatchEventType;
 use App\Enums\MatchParticipantSide;
 use App\Enums\MatchStatus;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Database\Factories\TournamentMatchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Table;
@@ -29,6 +31,7 @@ use Illuminate\Support\Collection;
  * @property int|null $first_leg_match_id
  * @property int|null $group_id
  * @property int|null $referee_id
+ * @property int|null $venue_id
  * @property int|null $league_schedule_id
  * @property int|null $home_team_id
  * @property int|null $away_team_id
@@ -43,13 +46,14 @@ use Illuminate\Support\Collection;
  * @property bool $is_third_place
  * @property int|null $walkover_team_id
  * @property int|null $round_number
- * @property Carbon|null $scheduled_at
- * @property string|null $venue Where it's played ("Cancha Parque Boscán"), free text, optional.
+ * @property Carbon|null $scheduled_at Day and kickoff time. A calendar generated
+ *                                     without hours (or a day assigned before its hours are) is stored at
+ *                                     00:00, which means "hora por definir" -- see hasKickoffTime().
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
 #[Table('matches')]
-#[Fillable(['group_id', 'referee_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at', 'venue'])]
+#[Fillable(['group_id', 'referee_id', 'home_team_id', 'away_team_id', 'home_score', 'away_score', 'home_extra_time_score', 'away_extra_time_score', 'home_penalty_score', 'away_penalty_score', 'status', 'round_number', 'scheduled_at', 'venue_id'])]
 class TournamentMatch extends Model
 {
     /** @use HasFactory<TournamentMatchFactory> */
@@ -70,6 +74,13 @@ class TournamentMatch extends Model
             'scheduled_at' => 'datetime',
         ];
     }
+
+    /**
+     * The time of day stored in scheduled_at when a match has a day but no
+     * kickoff time yet ("hora por definir"). No match is ever really played at
+     * midnight, so it's safe to reuse as the marker -- see hasKickoffTime().
+     */
+    public const NO_KICKOFF_TIME = '00:00';
 
     /**
      * @return BelongsTo<Tournament, $this>
@@ -101,6 +112,49 @@ class TournamentMatch extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    /**
+     * The cancha this match is played on -- optional, like the date.
+     *
+     * @return BelongsTo<Venue, $this>
+     */
+    public function venue(): BelongsTo
+    {
+        return $this->belongsTo(Venue::class);
+    }
+
+    /**
+     * Whether this match has a real kickoff time, not just a day: a
+     * scheduled_at at 00:00 is the "hora por definir" marker (see
+     * NO_KICKOFF_TIME). Scheduling conflicts on a cancha or a referee only
+     * make sense between matches that both have one.
+     */
+    public function hasKickoffTime(): bool
+    {
+        return $this->scheduled_at !== null && $this->scheduled_at->format('H:i') !== self::NO_KICKOFF_TIME;
+    }
+
+    /**
+     * When this match is expected to end -- kickoff plus its category's
+     * match duration -- or null while it has no kickoff time.
+     */
+    public function scheduledEndsAt(): ?CarbonInterface
+    {
+        if (! $this->hasKickoffTime()) {
+            return null;
+        }
+
+        return $this->scheduled_at->copy()->addMinutes($this->category->matchDurationMinutes());
+    }
+
+    /**
+     * Builds scheduled_at from a day plus an optional "H:i" kickoff time --
+     * a blank time yields the "hora por definir" marker (00:00).
+     */
+    public static function composeScheduledAt(string $date, ?string $time): CarbonInterface
+    {
+        return CarbonImmutable::parse($date.' '.(filled($time) ? $time : self::NO_KICKOFF_TIME));
     }
 
     /**

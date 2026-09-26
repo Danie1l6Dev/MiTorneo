@@ -127,7 +127,7 @@
                                 @foreach ($block['matches'] as $match)
                                     <tr>
                                         @if ($block['day'])
-                                            <td>{{ $match->scheduled_at->format('g:i A') }}</td>
+                                            <td>{{ $match->hasKickoffTime() ? $match->scheduled_at->format('g:i A') : 'Por definir' }}</td>
                                         @endif
                                         <td>{{ $match->homeTeam->name }}</td>
                                         <td>Vs</td>

@@ -37,10 +37,10 @@
         <div class="meta"><strong>Grupo:</strong> {{ $match->group->name }}</div>
     @endif
     @if ($match->scheduled_at)
-        <div class="meta"><strong>Fecha y hora:</strong> {{ $match->scheduled_at->locale('es')->translatedFormat('l d \d\e F \d\e Y, h:i A') }}</div>
+        <div class="meta"><strong>Fecha y hora:</strong> {{ $match->scheduled_at->locale('es')->translatedFormat($match->hasKickoffTime() ? 'l d \d\e F \d\e Y, h:i A' : 'l d \d\e F \d\e Y') }}</div>
     @endif
     @if ($match->venue)
-        <div class="meta"><strong>Lugar:</strong> {{ $match->venue }}</div>
+        <div class="meta"><strong>Lugar:</strong> {{ $match->venue->name }}</div>
     @endif
     @if ($match->referee)
         <div class="meta"><strong>Árbitro:</strong> {{ $match->referee->full_name }}</div>

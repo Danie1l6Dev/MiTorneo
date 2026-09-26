@@ -11,6 +11,7 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
+use App\Models\Venue;
 use App\Services\MatchProgrammingReportService;
 use App\Services\PdfLetterheadService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -59,7 +60,7 @@ class MatchProgrammingPdfTest extends TestCase
             'group_id' => $group ? Group::factory()->for($tournament)->for($category)->create(['name' => $group])->id : null,
             'round_number' => $round,
             'scheduled_at' => $at,
-            'venue' => $venue,
+            'venue_id' => $venue ? (Venue::query()->where(['user_id' => $tournament->user_id, 'name' => mb_strtoupper($venue)])->first() ?? Venue::factory()->create(['user_id' => $tournament->user_id, 'name' => $venue]))->id : null,
             'status' => $status,
         ]);
     }
@@ -100,8 +101,8 @@ class MatchProgrammingPdfTest extends TestCase
         $this->assertStringContainsString('Quinta fecha', $html);
         $this->assertStringContainsString('Categoría: SUB-13', $html);
         $this->assertStringContainsString('Categoría: SUB-15', $html);
-        $this->assertStringContainsString('Lugar: Cancha Parque Boscán', $html);
-        $this->assertStringContainsString('Lugar: Cancha Los Ídolos', $html);
+        $this->assertStringContainsString('Lugar: CANCHA PARQUE BOSCÁN', $html);
+        $this->assertStringContainsString('Lugar: CANCHA LOS ÍDOLOS', $html);
         $this->assertStringContainsString('sábado 12 de septiembre de 2026', $html);
         $this->assertStringContainsString('domingo 13 de septiembre de 2026', $html);
         $this->assertStringContainsString('7:30 AM', $html);
@@ -195,18 +196,16 @@ class MatchProgrammingPdfTest extends TestCase
             ->assertSee('Fecha 6');
     }
 
-    public function test_a_match_venue_can_be_saved_from_the_match_form(): void
+    public function test_a_day_without_a_kickoff_time_shows_hora_por_definir(): void
     {
         $data = $this->makeTournament();
-        $match = TournamentMatch::query()->where('status', MatchStatus::Scheduled)->firstOrFail();
 
-        $this->actingAs($data['user'])
-            ->put(route('matches.update', $match), [
-                'status' => MatchStatus::Scheduled->value,
-                'venue' => 'Cancha Coosdecol',
-            ])
-            ->assertSessionHasNoErrors();
+        TournamentMatch::query()->where('round_number', 5)->whereNotNull('scheduled_at')->update(['scheduled_at' => '2026-09-12 00:00:00']);
 
-        $this->assertSame('Cancha Coosdecol', $match->fresh()->venue);
+        $html = $this->render($data, [5]);
+
+        $this->assertStringContainsString('sábado 12 de septiembre de 2026', $html);
+        $this->assertStringContainsString('Por definir', $html);
+        $this->assertStringNotContainsString('12:00 AM', $html);
     }
 }

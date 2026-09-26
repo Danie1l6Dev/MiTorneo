@@ -66,8 +66,8 @@
                             @php
                                 $match = $row['match'];
                                 $info = array_filter([
-                                    $match->scheduled_at ? 'Fecha: '.$match->scheduled_at->format('d/m/Y h:i A') : null,
-                                    $match->venue ? 'Lugar: '.$match->venue : null,
+                                    $match->scheduled_at ? 'Fecha: '.$match->scheduled_at->format($match->hasKickoffTime() ? 'd/m/Y h:i A' : 'd/m/Y') : null,
+                                    $match->venue ? 'Lugar: '.$match->venue->name : null,
                                     $match->referee ? 'Árbitro: '.$match->referee->full_name : null,
                                 ]);
                             @endphp

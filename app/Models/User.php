@@ -74,6 +74,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * @return HasMany<Venue, $this>
+     */
+    public function venues(): HasMany
+    {
+        return $this->hasMany(Venue::class);
+    }
+
+    /**
      * @return HasMany<Club, $this>
      */
     public function clubs(): HasMany

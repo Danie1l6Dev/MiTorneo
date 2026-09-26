@@ -22,6 +22,7 @@ use App\Http\Controllers\TeamExpulsionController;
 use App\Http\Controllers\TournamentCategoryController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
+use App\Http\Controllers\VenueController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth'])->group(function () {
@@ -97,6 +98,11 @@ Route::middleware(['auth'])->group(function () {
     // Referees are global to the organizer, not nested under a tournament --
     // this is a standalone top-level resource, same as tournaments.
     Route::resource('referees', RefereeController::class)->except('destroy');
+
+    // Canchas are global to the organizer too (same as referees) -- the
+    // catalog matches get scheduled onto. No show page: the index already
+    // says everything a cancha has.
+    Route::resource('venues', VenueController::class)->except('show');
 
     // Categories are global to the organizer now (see
     // docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md)

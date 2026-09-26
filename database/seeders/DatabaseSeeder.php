@@ -72,6 +72,10 @@ class DatabaseSeeder extends Seeder
         // match history) to show immediately instead of an empty state.
         $referees = $this->seedReferees($user);
 
+        // A few canchas so the "Canchas" section and the "Programar fecha"
+        // tool have something to pick from right away.
+        $this->seedVenues($user);
+
         // Demo tournaments so there's always something ready to click through
         // right after logging in, covering the states that are otherwise
         // tedious to set up by hand: one waiting on "Generar calendario", one
@@ -91,6 +95,13 @@ class DatabaseSeeder extends Seeder
     private function slugFor(string $slug, User $user): string
     {
         return $user->isDemo() ? "{$slug}-demo" : $slug;
+    }
+
+    private function seedVenues(User $user): void
+    {
+        foreach (['Cancha Parque Boscán', 'Cancha Sagrado Corazón', 'Cancha Los Ídolos'] as $name) {
+            $user->venues()->create(['name' => $name]);
+        }
     }
 
     /**

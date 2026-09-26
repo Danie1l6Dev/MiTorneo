@@ -8,6 +8,7 @@ use App\Models\Club;
 use App\Models\Referee;
 use App\Models\Tournament;
 use App\Models\User;
+use App\Models\Venue;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
@@ -71,11 +72,12 @@ class DemoResetService
 
         // Bulk deletes on purpose (no model events), each one restricted to
         // the demo user's own rows. Order: tournaments first, then the
-        // global catalog rows (categories, clubs, referees) they referenced.
+        // global catalog rows (categories, clubs, referees, venues) they referenced.
         Tournament::query()->where('user_id', $demo->id)->delete();
         Category::query()->where('user_id', $demo->id)->delete();
         Club::query()->where('user_id', $demo->id)->delete();
         Referee::query()->where('user_id', $demo->id)->delete();
+        Venue::query()->where('user_id', $demo->id)->delete();
     }
 
     private function assertIsDemo(User $user): void

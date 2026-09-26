@@ -66,6 +66,10 @@
                             {{ __('Árbitros') }}
                         </flux:sidebar.item>
 
+                        <flux:sidebar.item icon="map-pin" :href="route('venues.index')" :current="request()->routeIs('venues.*')" wire:navigate>
+                            {{ __('Canchas') }}
+                        </flux:sidebar.item>
+
                         @php
                             // Cuantas sanciones de este organizador siguen "Faltan por
                             // resolver" en pages/sanctions/index.blade.php -- mismo

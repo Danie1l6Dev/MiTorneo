@@ -11,6 +11,7 @@ use App\Models\Player;
 use App\Models\Referee;
 use App\Models\Team;
 use App\Models\Tournament;
+use App\Models\Venue;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
 
@@ -25,7 +26,7 @@ class NormalizeNamesToUppercase extends Command
 {
     protected $signature = 'app:normalize-names-to-uppercase {--dry-run : Solo contar cuántos registros cambiarían, sin escribir nada}';
 
-    protected $description = 'Pasa a mayúsculas los campos de nombre ya guardados (clubes, equipos, categorías, jugadores, DTs, árbitros, torneos, grupos, fases)';
+    protected $description = 'Pasa a mayúsculas los campos de nombre ya guardados (clubes, equipos, categorías, jugadores, DTs, árbitros, canchas, torneos, grupos, fases)';
 
     /**
      * @var array<class-string<Model>, string>
@@ -37,6 +38,7 @@ class NormalizeNamesToUppercase extends Command
         Player::class => 'Jugadores',
         Coach::class => 'DTs',
         Referee::class => 'Árbitros',
+        Venue::class => 'Canchas',
         Tournament::class => 'Torneos',
         Group::class => 'Grupos',
         CompetitionPhase::class => 'Fases',
