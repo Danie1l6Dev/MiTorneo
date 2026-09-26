@@ -69,6 +69,17 @@
         max="10"
         placeholder="{{ __('Ej. 2') }}"
     />
+
+    <flux:input
+        name="match_duration_minutes"
+        type="number"
+        label="{{ __('Duración de cada partido (minutos)') }}"
+        description="{{ __('Opcional. Se usa para espaciar las horas al programar y para detectar cruces en una misma cancha. Si la dejas vacía se asumen :minutes minutos.', ['minutes' => \App\Models\Category::DEFAULT_MATCH_DURATION_MINUTES]) }}"
+        value="{{ old('match_duration_minutes', $category->match_duration_minutes ?? '') }}"
+        min="5"
+        max="240"
+        placeholder="{{ __('Ej. 30') }}"
+    />
 @endif
 
 <flux:input

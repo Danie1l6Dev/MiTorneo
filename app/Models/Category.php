@@ -34,11 +34,14 @@ use Illuminate\Support\Collection;
  *                                              some mixed categories (mostly the youngest ones) let girls play with
  *                                              boys but a few years older. Null/0 means no allowance, i.e. the plain
  *                                              $birth_year_to rule. See Player::ageEligibleForCategory().
+ * @property int|null $match_duration_minutes How long one match of this category takes
+ *                                            (kickoff spacing on the programming sheets). Null uses the default --
+ *                                            see matchDurationMinutes().
  * @property int $order
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'description', 'status', 'uses_groups', 'order', 'birth_year_from', 'birth_year_to', 'female_extra_birth_years'])]
+#[Fillable(['name', 'description', 'status', 'uses_groups', 'order', 'birth_year_from', 'birth_year_to', 'female_extra_birth_years', 'match_duration_minutes'])]
 class Category extends Model
 {
     /** @use HasFactory<CategoryFactory> */
@@ -47,12 +50,25 @@ class Category extends Model
     /** @var list<string> */
     protected array $uppercaseAttributes = ['name'];
 
+    /** Minutes one match takes when the category doesn't set its own. */
+    public const DEFAULT_MATCH_DURATION_MINUTES = 60;
+
     protected function casts(): array
     {
         return [
             'status' => CategoryStatus::class,
             'uses_groups' => 'boolean',
         ];
+    }
+
+    /**
+     * Minutes one match of this category occupies a cancha -- what the
+     * scheduler uses both to space kickoff times and to detect two matches
+     * overlapping on the same cancha.
+     */
+    public function matchDurationMinutes(): int
+    {
+        return $this->match_duration_minutes ?? self::DEFAULT_MATCH_DURATION_MINUTES;
     }
 
     /**

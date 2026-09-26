@@ -58,6 +58,7 @@ class CategoryRequest extends FormRequest
             $rules['birth_year_from'] = ['nullable', 'integer', 'digits:4'];
             $rules['birth_year_to'] = ['nullable', 'integer', 'digits:4', 'gte:birth_year_from'];
             $rules['female_extra_birth_years'] = ['nullable', 'integer', 'min:0', 'max:10'];
+            $rules['match_duration_minutes'] = ['nullable', 'integer', 'min:5', 'max:240'];
         }
 
         return $rules;
