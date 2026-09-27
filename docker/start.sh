@@ -15,4 +15,22 @@ if [ "${DEMO_ENABLED}" = "true" ]; then
     php artisan schedule:work >> storage/logs/scheduler.log 2>&1 &
 fi
 
-exec php artisan serve --host=0.0.0.0 --port="${PORT:-8080}"
+# "php artisan serve" stays internal-only (127.0.0.1:8000, never exposed
+# outside the container). Caddy is what actually listens on $PORT: it serves
+# /build and /assets directly (gzip/zstd + far-future cache headers) and
+# reverse-proxies everything else here, unchanged. See docker/Caddyfile.
+php artisan serve --host=127.0.0.1 --port=8000 &
+ARTISAN_PID=$!
+
+caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
+CADDY_PID=$!
+
+cleanup() {
+    kill "$ARTISAN_PID" "$CADDY_PID" 2>/dev/null
+    wait "$ARTISAN_PID" "$CADDY_PID" 2>/dev/null
+    exit 0
+}
+trap cleanup INT TERM
+
+wait "$CADDY_PID"
+cleanup

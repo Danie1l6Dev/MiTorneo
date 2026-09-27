@@ -13,7 +13,15 @@ COPY . .
 COPY --from=vendor /app/vendor ./vendor
 RUN npm run build
 
-# --- Stage 3: PHP application ---
+# --- Stage 3: Caddy binary (serves /build and /assets directly -- gzip +
+# long-lived cache headers -- and reverse-proxies everything else to
+# "php artisan serve", unchanged, on an internal port). Copied from the
+# official image instead of `apk add caddy` so it doesn't depend on Alpine's
+# community repo having a caddy package for whatever Alpine version the PHP
+# base image happens to ship. ---
+FROM caddy:2-alpine AS caddy
+
+# --- Stage 4: PHP application ---
 FROM php:8.4-cli-alpine AS app
 WORKDIR /var/www/html
 
@@ -36,6 +44,9 @@ RUN composer dump-autoload --optimize \
 
 RUN mkdir -p storage/framework/{cache,sessions,testing,views} storage/logs bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
+
+COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+COPY docker/Caddyfile /etc/caddy/Caddyfile
 
 COPY docker/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh

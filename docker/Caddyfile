@@ -1,0 +1,40 @@
+# Caddy sits in front of "php artisan serve" inside the same container.
+# It never touches the PHP app itself -- it only serves /build and /assets
+# straight off disk (compressed, with long-lived cache headers) and passes
+# everything else through untouched. See docker/start.sh for how both
+# processes are started, and Dockerfile for how this binary gets in.
+{
+	# No admin API needed inside a single-container deploy, and no
+	# automatic HTTPS: Render terminates TLS at its edge and forwards
+	# plain HTTP to $PORT, same as "php artisan serve" already received.
+	admin off
+}
+
+:{$PORT:8080}
+
+encode zstd gzip
+
+root * /var/www/html/public
+
+# Vite hashes every filename in /build on each `npm run build`, so a cached
+# copy is safe forever -- a changed file is a changed URL, never a stale one.
+@build path /build/*
+handle @build {
+	header Cache-Control "public, max-age=31536000, immutable"
+	file_server
+}
+
+# /assets/images (e.g. the stadium background) is hand-placed, not hashed,
+# so it gets a real but short-ish cache instead of "immutable" -- a future
+# replacement is picked up within a week, not stuck for a year.
+@assets path /assets/*
+handle @assets {
+	header Cache-Control "public, max-age=604800"
+	file_server
+}
+
+# Everything else (the actual app -- dynamic, often behind auth) is never
+# cached here; it goes straight to Laravel exactly as before.
+handle {
+	reverse_proxy 127.0.0.1:8000
+}
