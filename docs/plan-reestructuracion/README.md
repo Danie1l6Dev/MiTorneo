@@ -23,6 +23,7 @@ define su propio método de migración distinto sin que lo pidas vos.
 | 00 | [Estrategia general de migración de datos (aplica a todos los temas)](00-estrategia-migracion-datos.md) | ❓ Pendiente de revisión |
 | 01 | [Categorías, clubes/equipos y jugadores como sistemas globales](01-clubes-equipos-categorias-globales.md) | ✅ Implementado y corrido en producción — solo queda pendiente, sin fecha, el paso final de Contraer (T01-21, borrar columnas legacy) |
 | 02 | [Un solo camino: categorías de torneo siempre del catálogo](02-unificacion-categorias-torneo.md) | ✅ Implementado y corrido en producción |
+| 03 | [Historial, ficha, transferencia y búsqueda de entrenadores](03-historial-y-ficha-de-entrenadores.md) | ❓ Pendiente de revisión — esperando respuestas a sus preguntas abiertas antes de implementar |
 
 ## Convenciones de este documento
 
