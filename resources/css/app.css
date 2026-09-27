@@ -105,7 +105,7 @@ html {
     scrollbar-gutter: stable;
 }
 
-/* Capa de fondo fija con la imagen del estadio (public/assets/images/stadium-background.png).
+/* Capa de fondo fija con la imagen del estadio (public/assets/images/stadium-background.jpg).
    background-position varía por breakpoint para mantener el arco y las luces
    reconocibles incluso cuando el recorte es más agresivo en pantallas angostas.
    La URL de la foto llega vía la variable --stadium-photo (inline, en el HTML)

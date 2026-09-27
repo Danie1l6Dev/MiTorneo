@@ -4,7 +4,7 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white dark:bg-zinc-950">
-        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"></div>
+        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.jpg') }}')"></div>
 
         {{-- No sidebar, no dashboard link, no user menu -- this layout is the
              only one reachable without logging in, so it must never assume

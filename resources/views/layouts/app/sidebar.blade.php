@@ -13,7 +13,7 @@
             aria-hidden="true"
             x-data
             x-init="requestAnimationFrame(() => $el.classList.add('stadium-bg-animated'))"
-            style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"
+            style="--stadium-photo: url('{{ asset('assets/images/stadium-background.jpg') }}')"
         ></div>
 
         <flux:sidebar sticky collapsible class="border-e border-zinc-200 bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 glass-panel-strong">

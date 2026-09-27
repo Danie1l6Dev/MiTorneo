@@ -4,7 +4,7 @@
         @include('partials.head')
     </head>
     <body class="min-h-screen bg-white antialiased dark:bg-zinc-950">
-        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.png') }}')"></div>
+        <div class="stadium-bg" aria-hidden="true" style="--stadium-photo: url('{{ asset('assets/images/stadium-background.jpg') }}')"></div>
 
         <div class="flex min-h-svh flex-col">
             <header class="flex items-center justify-between gap-4 p-6 lg:px-10">
