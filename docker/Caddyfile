@@ -36,5 +36,16 @@ handle @assets {
 # Everything else (the actual app -- dynamic, often behind auth) is never
 # cached here; it goes straight to Laravel exactly as before.
 handle {
-	reverse_proxy 127.0.0.1:8000
+	reverse_proxy 127.0.0.1:8000 {
+		# Caddy itself only ever speaks plain HTTP on this side (Render's own
+		# edge is what terminates TLS, in front of Caddy) -- so left to its
+		# own defaults it forwards X-Forwarded-Proto: http, overwriting
+		# whatever Render's edge originally sent. Laravel (trustProxies('*'))
+		# believes that header, so every asset() / @vite URL it generated
+		# came out as http://, and the browser's follow-up requests for
+		# those got refused by Render, which never serves plain HTTP here.
+		# The only real entry point into this container IS Render's HTTPS
+		# edge, so this is always true, not a guess.
+		header_up X-Forwarded-Proto https
+	}
 }
