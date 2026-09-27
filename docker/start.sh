@@ -22,6 +22,16 @@ fi
 php artisan serve --host=127.0.0.1 --port=8000 &
 ARTISAN_PID=$!
 
+# Don't let Caddy (and therefore real traffic, including Render's own health
+# check) start until artisan serve is actually listening -- otherwise a
+# request landing in that split-second gap gets a 502. Gives up after ~5s
+# and starts Caddy anyway rather than hanging forever if something's wrong.
+tries=0
+until php -r 'exit(@fsockopen("127.0.0.1", 8000) ? 0 : 1);' || [ "$tries" -ge 25 ]; do
+    tries=$((tries + 1))
+    sleep 0.2
+done
+
 caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
 CADDY_PID=$!
 
