@@ -501,7 +501,7 @@ class Team extends Model
         $ownRosterIds = $this->rosterAsOfDateOrEver($asOf)->pluck('id');
 
         return static::clubRosterAsOfDateOrEver($clubTeamIds, $asOf)
-            ->load(['team.category', 'teams'])
+            ->load(['team.category', 'teams.category'])
             // Stashed for the match edit page's "Juega arriba · categoría"
             // badge (x-ui.match-roster-panel): whether THIS specific player
             // was on $this team's own roster as of $asOf, not read live off
@@ -512,10 +512,42 @@ class Team extends Model
                 $player->isOwnRosterAsOf = $ownRosterIds->contains($player->id);
             })
             ->filter(fn (Player $player): bool => $player->ageEligibleForCategory($this->category)
-                && ($player->isOwnRosterAsOf || $player->birth_date !== null))
+                && ($player->isOwnRosterAsOf
+                    || ($player->birth_date !== null && $this->isLegitimatePlayUpCandidate($player))))
             ->unique('id')
             ->sortBy('full_name')
             ->values();
+    }
+
+    /**
+     * A sibling-club player is only a legitimate "juega arriba" (plays up)
+     * candidate for $this team's category when every plantel they're
+     * ACTUALLY registered on (not $this one -- they're not on it, that's
+     * why this is being asked at all) is YOUNGER than $this category, e.g.
+     * a Sub-15 kid offered for a Sub-17 match. ageEligibleForCategory()
+     * alone can't tell that apart from the reverse: a player who's simply
+     * young enough to age-fit a YOUNGER category too, despite already
+     * being placed in an older one (a very good young player fielded up in
+     * an older category on their own team) -- that's playing DOWN into
+     * this match, never legitimate, no matter how well their birth year
+     * happens to fit. birth_year_from is the category's OLDEST birth year
+     * (see ageEligibleForCategory()'s docblock), so a strictly higher one
+     * means strictly younger. Missing age data on either side never
+     * blocks, same convention as ageEligibleForCategory() itself.
+     */
+    private function isLegitimatePlayUpCandidate(Player $player): bool
+    {
+        $registeredCategories = collect([$player->team?->category])
+            ->merge($player->teams->pluck('category'))
+            ->filter();
+
+        return $registeredCategories->every(function (Category $registeredCategory): bool {
+            if ($registeredCategory->birth_year_from === null || $this->category->birth_year_from === null) {
+                return true;
+            }
+
+            return $registeredCategory->birth_year_from > $this->category->birth_year_from;
+        });
     }
 
     /**
