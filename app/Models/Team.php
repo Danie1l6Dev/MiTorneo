@@ -484,10 +484,8 @@ class Team extends Model
      */
     public function clubPlayersEligibleForLineup(?CarbonInterface $asOf = null): Collection
     {
-        $asOf ??= now();
-
         if ($this->club_id === null) {
-            return $this->rosterAsOfDate($asOf)
+            return $this->rosterAsOfDateOrEver($asOf)
                 ->load(['team.category', 'teams'])
                 ->each(function (Player $player): void {
                     // No sibling club roster to search for a team with no
@@ -500,9 +498,9 @@ class Team extends Model
         }
 
         $clubTeamIds = static::query()->where('club_id', $this->club_id)->pluck('id');
-        $ownRosterIds = $this->rosterAsOfDate($asOf)->pluck('id');
+        $ownRosterIds = $this->rosterAsOfDateOrEver($asOf)->pluck('id');
 
-        return static::clubRosterAsOfDate($clubTeamIds, $asOf)
+        return static::clubRosterAsOfDateOrEver($clubTeamIds, $asOf)
             ->load(['team.category', 'teams'])
             // Stashed for the match edit page's "Juega arriba · categoría"
             // badge (x-ui.match-roster-panel): whether THIS specific player
@@ -518,6 +516,50 @@ class Team extends Model
             ->unique('id')
             ->sortBy('full_name')
             ->values();
+    }
+
+    /**
+     * $asOf given -> rosterAsOfDate() (that exact day). Null -> rosterEver():
+     * a FINISHED match missing its date (never set, or cleared after the
+     * fact -- "Si dejas el día vacío, el partido queda sin fecha" doesn't
+     * un-finish it) still really happened at some point, just an unknown
+     * one. "Now" would be a narrow, likely-wrong guess -- it silently
+     * empties a team's whole roster the moment everyone who actually played
+     * that match has since transferred out, which reads as far more broken
+     * than the quick-add list being a little too generous with old members.
+     */
+    private function rosterAsOfDateOrEver(?CarbonInterface $asOf): Collection
+    {
+        return $asOf ? $this->rosterAsOfDate($asOf) : $this->rosterEver();
+    }
+
+    /**
+     * Every player who has EVER had a stay on this team, any date -- see
+     * rosterAsOfDateOrEver()'s docblock for why an undated match reaches
+     * for this instead of "today". Same currentRoster() fallback as
+     * rosterAsOfDate() when there's no history at all for this team.
+     *
+     * @return Collection<int, Player>
+     */
+    public function rosterEver(): Collection
+    {
+        $stays = PlayerTeamHistory::query()
+            ->where('team_id', $this->id)
+            ->with('player')
+            ->get()
+            ->unique('player_id')
+            ->filter(fn (PlayerTeamHistory $stay): bool => $stay->player !== null);
+
+        return $stays->isEmpty() ? $this->currentRoster() : static::stayHoldersAsPlayers($stays);
+    }
+
+    /**
+     * @param  Collection<int, int>  $teamIds
+     * @return Collection<int, Player>
+     */
+    private static function clubRosterAsOfDateOrEver(Collection $teamIds, ?CarbonInterface $asOf): Collection
+    {
+        return $asOf ? static::clubRosterAsOfDate($teamIds, $asOf) : static::clubRosterEver($teamIds);
     }
 
     /**
@@ -548,6 +590,35 @@ class Team extends Model
         $hasAnyHistory = $stays->isNotEmpty() || PlayerTeamHistory::query()->whereIn('team_id', $teamIds)->exists();
 
         if ($hasAnyHistory) {
+            return static::stayHoldersAsPlayers($stays);
+        }
+
+        return Player::query()
+            ->where(function ($query) use ($teamIds) {
+                $query->whereIn('team_id', $teamIds)
+                    ->orWhereHas('teams', fn ($q) => $q->whereIn('teams.id', $teamIds));
+            })
+            ->get();
+    }
+
+    /**
+     * clubRosterAsOfDate(), but with no date filter at all -- every player
+     * who has ever had a stay on any of $teamIds (see rosterEver()'s
+     * docblock for why an undated match reaches for this).
+     *
+     * @param  Collection<int, int>  $teamIds
+     * @return Collection<int, Player>
+     */
+    private static function clubRosterEver(Collection $teamIds): Collection
+    {
+        $stays = PlayerTeamHistory::query()
+            ->whereIn('team_id', $teamIds)
+            ->with('player')
+            ->get()
+            ->unique('player_id')
+            ->filter(fn (PlayerTeamHistory $stay): bool => $stay->player !== null);
+
+        if ($stays->isNotEmpty()) {
             return static::stayHoldersAsPlayers($stays);
         }
 
