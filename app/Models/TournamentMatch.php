@@ -532,8 +532,8 @@ class TournamentMatch extends Model
      */
     public function eligibleTeamIdForPlayer(Player $player): ?int
     {
-        $this->homeEligiblePlayerIds ??= $this->homeTeam?->clubPlayersEligibleForLineup()->pluck('id') ?? new Collection;
-        $this->awayEligiblePlayerIds ??= $this->awayTeam?->clubPlayersEligibleForLineup()->pluck('id') ?? new Collection;
+        $this->homeEligiblePlayerIds ??= $this->homeTeam?->clubPlayersEligibleForLineup($this->scheduled_at)->pluck('id') ?? new Collection;
+        $this->awayEligiblePlayerIds ??= $this->awayTeam?->clubPlayersEligibleForLineup($this->scheduled_at)->pluck('id') ?? new Collection;
 
         if ($this->homeEligiblePlayerIds->contains($player->id)) {
             return $this->home_team_id;

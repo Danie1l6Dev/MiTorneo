@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\NormalizesToUppercase;
+use Carbon\CarbonInterface;
 use Database\Factories\TeamFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -333,13 +334,19 @@ class Team extends Model
      * back with jersey_number overridden to what it was during THAT stay
      * (never today's).
      *
-     * Falls back to currentRoster() when there's no history at all for this
-     * team -- a player linked directly (tests, or real data from before
-     * PlayerHistoryBackfillService's one-time backfill ran in production)
-     * has no stay to reconstruct from, and an empty roster would be a worse
-     * wrong answer than today's. Unsorted and unfiltered either way -- same
-     * as currentRoster(), each caller sorts/filters (is_active, etc.) as it
-     * already did.
+     * Falls back to currentRoster() only when this team has NO history rows
+     * AT ALL, ever -- never merely because none happen to overlap $tournament
+     * (that's a real, meaningful "nobody from today's roster was here yet"
+     * answer, not a sign of missing data, once player_team_history actually
+     * covers this team -- see hasRosterHistory()). Getting this wrong reads
+     * as a genuinely empty team suddenly showing today's whole roster, or a
+     * team a player joined only afterwards wrongly showing them for a
+     * tournament before they arrived. The no-history case is for a player
+     * linked directly (tests, or real data from before
+     * PlayerHistoryBackfillService's one-time backfill ran in production),
+     * where an empty roster would be a worse wrong answer than today's.
+     * Unsorted and unfiltered either way -- same as currentRoster(), each
+     * caller sorts/filters (is_active, etc.) as it already did.
      *
      * @return Collection<int, Player>
      */
@@ -356,14 +363,68 @@ class Team extends Model
             ->unique('player_id')
             ->filter(fn (PlayerTeamHistory $stay): bool => $stay->player !== null);
 
-        if ($stays->isEmpty()) {
-            return $this->currentRoster();
+        if ($stays->isNotEmpty() || $this->hasRosterHistory()) {
+            return static::stayHoldersAsPlayers($stays);
         }
 
+        return $this->currentRoster();
+    }
+
+    /**
+     * The roster on one exact date, e.g. a specific match's scheduled_at --
+     * narrower than rosterAsOf()'s whole-tournament window. A player counts
+     * as in it only if their stay covers that single day, so a match played
+     * before a since-happened transfer still shows them on the team they
+     * were actually on THAT day, never wherever they play today. Same
+     * currentRoster() fallback as rosterAsOf() (see its docblock) only when
+     * this team has no history at all -- an empty result for a team that
+     * genuinely had no one yet on $date is correct, not a fallback trigger.
+     *
+     * @return Collection<int, Player>
+     */
+    public function rosterAsOfDate(CarbonInterface $date): Collection
+    {
+        $stays = PlayerTeamHistory::query()
+            ->where('team_id', $this->id)
+            ->where('started_on', '<=', $date)
+            ->where(fn ($query) => $query->whereNull('ended_on')->orWhere('ended_on', '>=', $date))
+            ->with('player')
+            ->get()
+            ->unique('player_id')
+            ->filter(fn (PlayerTeamHistory $stay): bool => $stay->player !== null);
+
+        if ($stays->isNotEmpty() || $this->hasRosterHistory()) {
+            return static::stayHoldersAsPlayers($stays);
+        }
+
+        return $this->currentRoster();
+    }
+
+    /**
+     * Whether player_team_history has ANY row for this team, regardless of
+     * date -- the signal rosterAsOf()/rosterAsOfDate() use to tell "this
+     * team genuinely had no one on that date" (don't fall back) apart from
+     * "this team's history was never recorded at all" (do fall back).
+     */
+    private function hasRosterHistory(): bool
+    {
+        return PlayerTeamHistory::query()->where('team_id', $this->id)->exists();
+    }
+
+    /**
+     * @param  Collection<int, PlayerTeamHistory>  $stays
+     * @return Collection<int, Player>
+     */
+    private static function stayHoldersAsPlayers(Collection $stays): Collection
+    {
         return $stays
             ->map(function (PlayerTeamHistory $stay): Player {
                 $player = $stay->player;
                 $player->jersey_number = $stay->jersey_number;
+                // Stashed for clubPlayersEligibleForLineup()'s "Juega
+                // arriba · categoría" badge -- the category of the plantel
+                // they were actually on for THIS stay, never today's.
+                $player->historicalCategoryName = $stay->category_name;
 
                 return $player;
             })
@@ -411,35 +472,91 @@ class Team extends Model
      * (still a legacy per-tournament team) only ever offers its own
      * roster: there's no sibling club roster to search across.
      *
+     * $asOf (a specific match's scheduled_at, normally -- see the two
+     * callers above) reconstructs every roster involved as it was on THAT
+     * day instead of today's, via rosterAsOfDate() -- a player who has
+     * since transferred elsewhere still shows on the side they actually
+     * played for in an old match, and one who joined afterwards doesn't
+     * show on a match that predates them. Defaults to now() (today's
+     * roster, i.e. the original, pre-history behavior) when omitted.
+     *
      * @return Collection<int, Player>
      */
-    public function clubPlayersEligibleForLineup(): Collection
+    public function clubPlayersEligibleForLineup(?CarbonInterface $asOf = null): Collection
     {
+        $asOf ??= now();
+
         if ($this->club_id === null) {
-            return $this->players()->with(['team.category', 'teams'])->get()
-                ->merge($this->globalPlayers()->with(['team.category', 'teams'])->get())
-                ->unique('id')
+            return $this->rosterAsOfDate($asOf)
+                ->load(['team.category', 'teams'])
+                ->each(function (Player $player): void {
+                    // No sibling club roster to search for a team with no
+                    // club at all -- everything returned here is its own.
+                    $player->isOwnRosterAsOf = true;
+                })
                 ->filter(fn (Player $player): bool => $player->ageEligibleForCategory($this->category))
                 ->sortBy('full_name')
                 ->values();
         }
 
         $clubTeamIds = static::query()->where('club_id', $this->club_id)->pluck('id');
+        $ownRosterIds = $this->rosterAsOfDate($asOf)->pluck('id');
 
-        return Player::query()
-            ->where(function ($query) use ($clubTeamIds) {
-                $query->whereIn('team_id', $clubTeamIds)
-                    ->orWhereHas('teams', fn ($q) => $q->whereIn('teams.id', $clubTeamIds));
+        return static::clubRosterAsOfDate($clubTeamIds, $asOf)
+            ->load(['team.category', 'teams'])
+            // Stashed for the match edit page's "Juega arriba · categoría"
+            // badge (x-ui.match-roster-panel): whether THIS specific player
+            // was on $this team's own roster as of $asOf, not read live off
+            // player_id/team_id -- those only ever say where they play
+            // TODAY, which is exactly the bug this whole method exists to
+            // avoid for an old match.
+            ->each(function (Player $player) use ($ownRosterIds): void {
+                $player->isOwnRosterAsOf = $ownRosterIds->contains($player->id);
             })
-            ->with(['team.category', 'teams'])
-            ->get()
             ->filter(fn (Player $player): bool => $player->ageEligibleForCategory($this->category)
-                && ($player->team_id === $this->id
-                    || $player->teams->contains('id', $this->id)
-                    || $player->birth_date !== null))
+                && ($player->isOwnRosterAsOf || $player->birth_date !== null))
             ->unique('id')
             ->sortBy('full_name')
             ->values();
+    }
+
+    /**
+     * Every player rostered on any of $teamIds on $asOf, reconstructed from
+     * player_team_history the same way rosterAsOfDate() does for one team.
+     * Falls back to today's roster across the whole club (the original,
+     * pre-history query) only when NONE of those teams has ANY history row
+     * at all, ever -- not merely because none happen to cover $asOf, which
+     * is a real "nobody from any of them was here yet" answer once history
+     * actually covers these teams (see rosterAsOf()'s docblock for why that
+     * distinction matters -- a brand new team with no players yet on
+     * $asOf must come back empty, not showing today's whole club).
+     *
+     * @param  Collection<int, int>  $teamIds
+     * @return Collection<int, Player>
+     */
+    private static function clubRosterAsOfDate(Collection $teamIds, CarbonInterface $asOf): Collection
+    {
+        $stays = PlayerTeamHistory::query()
+            ->whereIn('team_id', $teamIds)
+            ->where('started_on', '<=', $asOf)
+            ->where(fn ($query) => $query->whereNull('ended_on')->orWhere('ended_on', '>=', $asOf))
+            ->with('player')
+            ->get()
+            ->unique('player_id')
+            ->filter(fn (PlayerTeamHistory $stay): bool => $stay->player !== null);
+
+        $hasAnyHistory = $stays->isNotEmpty() || PlayerTeamHistory::query()->whereIn('team_id', $teamIds)->exists();
+
+        if ($hasAnyHistory) {
+            return static::stayHoldersAsPlayers($stays);
+        }
+
+        return Player::query()
+            ->where(function ($query) use ($teamIds) {
+                $query->whereIn('team_id', $teamIds)
+                    ->orWhereHas('teams', fn ($q) => $q->whereIn('teams.id', $teamIds));
+            })
+            ->get();
     }
 
     /**
@@ -456,13 +573,7 @@ class Team extends Model
      */
     public function ineligibleRosterPlayers(): Collection
     {
-        $roster = $this->players()->get();
-
-        if (! $this->tournament_id) {
-            $roster = $roster->merge($this->globalPlayers()->get())->unique('id');
-        }
-
-        return $roster
+        return $this->currentRoster()
             ->filter(fn (Player $player): bool => ! $player->ageEligibleForCategory($this->category))
             ->sortBy('full_name')
             ->values();

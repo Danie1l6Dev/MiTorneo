@@ -44,8 +44,8 @@ class TournamentMatchController extends Controller
         // the view, alongside the same $home/awayUnavailablePlayerIds the
         // roster panel itself uses, since both lists are only known once
         // unavailableSanctions() below has run.
-        $homeEligiblePlayers = $match->homeTeam?->clubPlayersEligibleForLineup() ?? collect();
-        $awayEligiblePlayers = $match->awayTeam?->clubPlayersEligibleForLineup() ?? collect();
+        $homeEligiblePlayers = $match->homeTeam?->clubPlayersEligibleForLineup($match->scheduled_at) ?? collect();
+        $awayEligiblePlayers = $match->awayTeam?->clubPlayersEligibleForLineup($match->scheduled_at) ?? collect();
 
         // Own-roster players clubPlayersEligibleForLineup() just excluded
         // above because they no longer fit this category's age rule (most
@@ -143,8 +143,8 @@ class TournamentMatchController extends Controller
         // teamId below can't just be $subject->team_id: a play-up player
         // has that pointing at their own (younger) team, not this match's
         // side.
-        $players = ($match->homeTeam?->clubPlayersEligibleForLineup() ?? collect())
-            ->merge($match->awayTeam?->clubPlayersEligibleForLineup() ?? collect())
+        $players = ($match->homeTeam?->clubPlayersEligibleForLineup($match->scheduled_at) ?? collect())
+            ->merge($match->awayTeam?->clubPlayersEligibleForLineup($match->scheduled_at) ?? collect())
             ->keyBy('id');
         $coaches = collect([$match->homeTeam?->coach, $match->awayTeam?->coach])->filter()->keyBy('id');
         $validTypes = array_column(MatchEventType::cases(), 'value');

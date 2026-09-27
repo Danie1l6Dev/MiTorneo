@@ -95,8 +95,14 @@
                         // here as a play-up candidate from a younger category
                         // of the same club (Team::clubPlayersEligibleForLineup()
                         // mixes both into $players without distinguishing them).
-                        $isOwnRoster = $player->team_id === $team->id || $player->teams->contains('id', $team->id);
-                        $originCategory = $player->team?->category?->name;
+                        // Read off what that method already stashed for THIS
+                        // match's date -- never player_id/team_id directly,
+                        // which only ever say where they play TODAY (wrong
+                        // for an old match after a since-happened transfer).
+                        // The ?? fallback is only for a $players list built
+                        // some other way.
+                        $isOwnRoster = $player->isOwnRosterAsOf ?? ($player->team_id === $team->id || $player->teams->contains('id', $team->id));
+                        $originCategory = $player->historicalCategoryName ?? $player->team?->category?->name;
                     @endphp
 
                     <div
