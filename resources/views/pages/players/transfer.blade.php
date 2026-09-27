@@ -134,7 +134,6 @@
                                 <label class="flex items-center gap-2.5 rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-white/10" :class="team.eligible ? 'cursor-pointer' : 'opacity-50'">
                                     <input type="checkbox" name="team_ids[]" :value="team.id" :disabled="! team.eligible" x-model="selected" class="rounded border-zinc-300">
                                     <span class="font-medium text-zinc-800 dark:text-white" x-text="team.category"></span>
-                                    <span x-show="team.group" class="text-xs text-zinc-500 dark:text-white/50" x-text="team.group"></span>
                                     <span x-show="! team.eligible" class="ms-auto text-xs text-amber-600 dark:text-amber-400">{{ __('No cumple la edad') }}</span>
                                 </label>
                             </template>

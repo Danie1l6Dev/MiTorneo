@@ -90,7 +90,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $player, MatchEventType::Goal);
         $this->recordEvent($match, $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame($player->id, $rows[0]['player']->id);
@@ -113,7 +113,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($matchOne, $player, MatchEventType::Goal);
         $this->recordEvent($matchTwo, $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertSame(3, $rows[0]['count']);
     }
@@ -132,7 +132,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $homePlayer, MatchEventType::Goal);
         $this->recordEvent($match, $awayPlayer, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(2, $rows);
     }
@@ -151,7 +151,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $playerOne, MatchEventType::Goal);
         $this->recordEvent($match, $playerTwo, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(2, $rows);
         $this->assertSame($playerOne->id, $rows[0]['player']->id);
@@ -174,7 +174,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $topScorer, MatchEventType::Goal);
         $this->recordEvent($match, $topScorer, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertSame($topScorer->id, $rows[0]['player']->id);
         $this->assertSame($secondScorer->id, $rows[1]['player']->id);
@@ -193,7 +193,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $zed, MatchEventType::Goal);
         $this->recordEvent($match, $ana, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertSame($ana->id, $rows[0]['player']->id);
         $this->assertSame($zed->id, $rows[1]['player']->id);
@@ -214,7 +214,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $player, MatchEventType::Assist);
         $this->recordEvent($match, $player, MatchEventType::Assist);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Assist, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Assist, null, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame(2, $rows[0]['count']);
@@ -234,7 +234,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $topAssister, MatchEventType::Assist);
         $this->recordEvent($match, $topAssister, MatchEventType::Assist);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Assist, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Assist, null, StatisticsPhaseScope::All);
 
         $this->assertSame($topAssister->id, $rows[0]['player']->id);
     }
@@ -253,7 +253,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $player, MatchEventType::YellowCard);
         $this->recordEvent($match, $player, MatchEventType::YellowCard);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All);
 
         $this->assertSame(2, $rows[0]['count']);
     }
@@ -272,7 +272,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $mostCarded, MatchEventType::YellowCard);
         $this->recordEvent($match, $mostCarded, MatchEventType::YellowCard);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All);
 
         $this->assertSame($mostCarded->id, $rows[0]['player']->id);
     }
@@ -290,7 +290,7 @@ class CompetitionStatisticsServiceTest extends TestCase
 
         $this->recordEvent($match, $player, MatchEventType::RedCard);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::RedCard, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::RedCard, null, StatisticsPhaseScope::All);
 
         $this->assertSame(1, $rows[0]['count']);
     }
@@ -310,7 +310,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($matchOne, $mostExpelled, MatchEventType::RedCard);
         $this->recordEvent($matchTwo, $mostExpelled, MatchEventType::RedCard);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::RedCard, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::RedCard, null, StatisticsPhaseScope::All);
 
         $this->assertSame($mostExpelled->id, $rows[0]['player']->id);
     }
@@ -333,7 +333,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $playerA, MatchEventType::Goal);
         $this->recordEvent($match, $playerB, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame($playerA->id, $rows[0]['player']->id);
@@ -355,7 +355,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $playerA, MatchEventType::Goal);
         $this->recordEvent($match, $playerB, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, $groupB, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, $groupB, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame($playerB->id, $rows[0]['player']->id);
@@ -377,7 +377,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $playerA, MatchEventType::Goal);
         $this->recordEvent($match, $playerB, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(2, $rows);
     }
@@ -393,7 +393,7 @@ class CompetitionStatisticsServiceTest extends TestCase
 
         $this->recordEvent($match, $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
     }
@@ -419,7 +419,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $match = $this->makeFinishedMatch($knockoutPhase, $teamA, $teamB);
         $this->recordEvent($match, $playerA, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame($playerA->id, $rows[0]['player']->id);
@@ -444,7 +444,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($leagueMatch, $player, MatchEventType::Goal);
         $this->recordEvent($semifinalMatch, $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::League);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::League);
 
         $this->assertSame(2, $rows[0]['count']);
     }
@@ -465,7 +465,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($this->makeFinishedMatch($semifinalPhase, $home, $away), $player, MatchEventType::Goal);
         $this->recordEvent($this->makeFinishedMatch($finalPhase, $home, $away), $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertSame(4, $rows[0]['count']);
     }
@@ -484,7 +484,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($this->makeFinishedMatch($leaguePhase, $teamA, $away), $player, MatchEventType::Goal);
         $this->recordEvent($this->makeFinishedMatch($semifinalPhase, $teamA, $away), $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::League);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::League);
 
         $this->assertSame(1, $rows[0]['count']);
     }
@@ -503,7 +503,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($this->makeFinishedMatch($leaguePhase, $teamA, $away), $player, MatchEventType::Goal);
         $this->recordEvent($this->makeFinishedMatch($semifinalPhase, $teamA, $away), $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, $groupA, StatisticsPhaseScope::All);
 
         $this->assertSame(2, $rows[0]['count']);
     }
@@ -522,7 +522,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($scheduledMatch, $player, MatchEventType::Goal);
         $this->recordEvent($cancelledMatch, $player, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(0, $rows);
     }
@@ -549,7 +549,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $player->is_active = false;
         $player->save();
 
-        $rows = $this->service->leaderboard($category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($category->tournament, $category, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame($player->id, $rows[0]['player']->id);
@@ -570,9 +570,9 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($match, $player, MatchEventType::YellowCard);
         $this->recordEvent($match, $player, MatchEventType::RedCard);
 
-        $this->assertSame(1, $this->service->leaderboard($category, MatchEventType::Assist, null, StatisticsPhaseScope::All)[0]['count']);
-        $this->assertSame(1, $this->service->leaderboard($category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All)[0]['count']);
-        $this->assertSame(1, $this->service->leaderboard($category, MatchEventType::RedCard, null, StatisticsPhaseScope::All)[0]['count']);
+        $this->assertSame(1, $this->service->leaderboard($category->tournament, $category, MatchEventType::Assist, null, StatisticsPhaseScope::All)[0]['count']);
+        $this->assertSame(1, $this->service->leaderboard($category->tournament, $category, MatchEventType::YellowCard, null, StatisticsPhaseScope::All)[0]['count']);
+        $this->assertSame(1, $this->service->leaderboard($category->tournament, $category, MatchEventType::RedCard, null, StatisticsPhaseScope::All)[0]['count']);
     }
 
     public function test_events_from_another_categorys_matches_are_never_included(): void
@@ -594,7 +594,7 @@ class CompetitionStatisticsServiceTest extends TestCase
         $this->recordEvent($this->makeFinishedMatch($phaseOne, $homeOne, $awayOne), $playerOne, MatchEventType::Goal);
         $this->recordEvent($this->makeFinishedMatch($phaseTwo, $homeTwo, $awayTwo), $playerTwo, MatchEventType::Goal);
 
-        $rows = $this->service->leaderboard($categoryOne, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $rows = $this->service->leaderboard($categoryOne->tournament, $categoryOne, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $rows);
         $this->assertSame($playerOne->id, $rows[0]['player']->id);
@@ -655,8 +655,8 @@ class CompetitionStatisticsServiceTest extends TestCase
             'type' => MatchEventType::Goal,
         ]);
 
-        $youngerRows = $this->service->leaderboard($youngerCategory, MatchEventType::Goal, null, StatisticsPhaseScope::All);
-        $olderRows = $this->service->leaderboard($olderCategory, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $youngerRows = $this->service->leaderboard($tournament, $youngerCategory, MatchEventType::Goal, null, StatisticsPhaseScope::All);
+        $olderRows = $this->service->leaderboard($tournament, $olderCategory, MatchEventType::Goal, null, StatisticsPhaseScope::All);
 
         $this->assertCount(1, $youngerRows);
         $this->assertSame(1, $youngerRows[0]['count']);

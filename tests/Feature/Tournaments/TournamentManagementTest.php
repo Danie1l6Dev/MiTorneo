@@ -4,6 +4,7 @@ namespace Tests\Feature\Tournaments;
 
 use App\Enums\MatchStatus;
 use App\Models\Category;
+use App\Models\Club;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\Team;
@@ -74,23 +75,19 @@ class TournamentManagementTest extends TestCase
 
         $group = $category->groups()->firstWhere('name', 'GRUPO A');
         $this->assertNotNull($group);
-        $this->assertNull($group->tournament_id);
+        $this->assertSame($tournament->id, $group->tournament_id);
 
-        $this->post(route('categories.teams.store', $category), [
-            'name' => 'Equipo 1',
-            'group_id' => $group->id,
-        ])->assertRedirect();
-        $this->post(route('categories.teams.store', $category), [
-            'name' => 'Equipo 2',
-            'group_id' => $group->id,
-        ])->assertRedirect();
+        // Planteles belong to clubs; the tournament enrolls them and each one gets its group here.
+        $club = Club::factory()->for($user)->create();
+        $teamOne = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Equipo 1']);
+        $teamTwo = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Equipo 2']);
+        $tournament->globalTeams()->attach([$teamOne->id, $teamTwo->id]);
 
-        $teamOne = $category->teams()->firstWhere('name', 'EQUIPO 1');
-        $teamTwo = $category->teams()->firstWhere('name', 'EQUIPO 2');
-        $this->assertNotNull($teamOne);
-        $this->assertNotNull($teamTwo);
-        $this->assertSame($group->id, $teamOne->group_id);
-        $this->assertSame($group->id, $teamTwo->group_id);
+        $this->post(route('groups.teams.attach', $group), ['team_id' => $teamOne->id])->assertRedirect();
+        $this->post(route('groups.teams.attach', $group), ['team_id' => $teamTwo->id])->assertRedirect();
+
+        $this->assertSame($group->id, $teamOne->groupIn($tournament)?->id);
+        $this->assertSame($group->id, $teamTwo->groupIn($tournament)?->id);
     }
 
     public function test_all_pages_in_the_hierarchy_render_successfully_for_their_owner(): void

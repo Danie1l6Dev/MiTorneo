@@ -37,7 +37,7 @@ class StandingsService
         }
 
         if ($category->uses_groups) {
-            return $category->groups->map(fn (Group $group): array => [
+            return $category->groupsFor($tournament)->get()->map(fn (Group $group): array => [
                 'label' => $group->name,
                 'rows' => $this->calculate($group->teams, $matches->where('group_id', $group->id), $tournament),
             ])->values()->all();

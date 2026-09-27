@@ -15,6 +15,7 @@ use App\Models\Player;
 use App\Models\Team;
 use App\Models\Tournament;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class CompetitionStatisticsService
 {
@@ -24,19 +25,24 @@ class CompetitionStatisticsService
      * from a stored total. Every row is a single player at a single team, so
      * two players sharing a name still appear as separate rows.
      *
-     * $group scopes to that group's teams only, by each team's own group_id
-     * (its category-group membership), never a phase's temporary roster --
-     * a team keeps counting toward its own group here even in a later phase
-     * that mixes groups. Leave $group null for every team in the category.
+     * Only this tournament's matches count: the same catalog category can be
+     * played in more than one tournament.
+     *
+     * $group scopes to that group's teams only, by each team's group in this
+     * tournament (tournament_team), never a phase's temporary roster -- a team
+     * keeps counting toward its own group here even in a later phase that
+     * mixes groups. Leave $group null for every team in the category. Every
+     * row carries that group too (null for a team without one).
      *
      * Only Finished matches contribute (the same rule StandingsService uses),
      * so a scheduled/postponed/cancelled match's events -- which shouldn't
      * exist yet in practice, since events are only ever registered from the
      * match edit screen's result form -- can never inflate a count.
      *
-     * @return array<int, array{rank: int, player: Player, count: int}>
+     * @return array<int, array{rank: int, player: Player, count: int, group: Group|null}>
      */
     public function leaderboard(
+        Tournament $tournament,
         Category $category,
         MatchEventType $type,
         ?Group $group,
@@ -48,8 +54,9 @@ class CompetitionStatisticsService
             ->selectRaw('count(*) as aggregate_count')
             ->where('type', $type)
             ->whereNotNull('player_id')
-            ->whereHas('match', function ($query) use ($category, $phaseScope) {
-                $query->where('category_id', $category->id)
+            ->whereHas('match', function ($query) use ($tournament, $category, $phaseScope) {
+                $query->where('tournament_id', $tournament->id)
+                    ->where('category_id', $category->id)
                     ->where('status', MatchStatus::Finished);
 
                 if ($phaseScope === StatisticsPhaseScope::League) {
@@ -61,7 +68,7 @@ class CompetitionStatisticsService
             })
             ->when(
                 $group !== null,
-                fn ($query) => $query->whereHas('team', fn ($teamQuery) => $teamQuery->where('group_id', $group->id))
+                fn ($query) => $query->whereIn('team_id', $group->teams()->pluck('teams.id'))
             )
             ->groupBy('player_id')
             ->pluck('aggregate_count', 'player_id');
@@ -71,14 +78,16 @@ class CompetitionStatisticsService
         }
 
         $players = Player::query()
-            ->with(['team.group'])
             ->whereIn('id', $counts->keys())
             ->get()
             ->keyBy('id');
 
+        $groupByTeam = $this->groupsByTeam($tournament, $players->pluck('team_id')->unique());
+
         $rows = $counts->map(fn (int $count, int $playerId): array => [
             'player' => $players[$playerId],
             'count' => $count,
+            'group' => $groupByTeam->get($players[$playerId]->team_id),
         ])->values();
 
         // Stable, non-invented tiebreak: count descending, then player name
@@ -92,7 +101,28 @@ class CompetitionStatisticsService
             'rank' => $index + 1,
             'player' => $row['player'],
             'count' => $row['count'],
+            'group' => $row['group'],
         ])->all();
+    }
+
+    /**
+     * The group each of $teamIds plays in within $tournament, keyed by team id
+     * (teams with no group are left out).
+     *
+     * @param  Collection<int, int>  $teamIds
+     * @return Collection<int, Group>
+     */
+    private function groupsByTeam(Tournament $tournament, Collection $teamIds): Collection
+    {
+        $groupIdByTeam = DB::table('tournament_team')
+            ->where('tournament_id', $tournament->id)
+            ->whereIn('team_id', $teamIds)
+            ->whereNotNull('group_id')
+            ->pluck('group_id', 'team_id');
+
+        $groups = Group::query()->whereIn('id', $groupIdByTeam->unique())->get()->keyBy('id');
+
+        return $groupIdByTeam->map(fn (int $groupId): Group => $groups[$groupId]);
     }
 
     /**
@@ -105,7 +135,7 @@ class CompetitionStatisticsService
      * Only Finished matches count, same as leaderboard(). Sorted by total
      * descending, then name.
      *
-     * @return array{phases: Collection<int, CompetitionPhase>, rows: list<array{rank: int, name: string, team: Team, counts: array<int, int>, total: int}>}
+     * @return array{phases: Collection<int, CompetitionPhase>, rows: list<array{rank: int, name: string, team: Team, group: Group|null, counts: array<int, int>, total: int}>}
      */
     public function phaseBreakdown(Tournament $tournament, Category $category, MatchEventType $type): array
     {
@@ -138,11 +168,12 @@ class CompetitionStatisticsService
 
         $players = Player::query()->whereIn('id', $counts->pluck('player_id')->filter()->unique())->get()->keyBy('id');
         $coaches = Coach::query()->whereIn('id', $counts->pluck('coach_id')->filter()->unique())->get()->keyBy('id');
-        $teams = Team::query()->with('group')->whereIn('id', $counts->pluck('team_id')->unique())->get()->keyBy('id');
+        $teams = Team::query()->whereIn('id', $counts->pluck('team_id')->unique())->get()->keyBy('id');
+        $groupByTeam = $this->groupsByTeam($tournament, $teams->keys());
 
         $rows = $counts
             ->groupBy(fn (object $row): string => ($row->player_id !== null ? "player:{$row->player_id}" : "coach:{$row->coach_id}").":{$row->team_id}")
-            ->map(function (Collection $subjectRows) use ($players, $coaches, $teams): array {
+            ->map(function (Collection $subjectRows) use ($players, $coaches, $teams, $groupByTeam): array {
                 $first = $subjectRows->first();
                 $counts = $subjectRows->mapWithKeys(fn (object $row): array => [(int) $row->competition_phase_id => (int) $row->aggregate_count])->all();
 
@@ -151,6 +182,7 @@ class CompetitionStatisticsService
                         ? $players[$first->player_id]->full_name
                         : __('DT').': '.$coaches[$first->coach_id]->full_name,
                     'team' => $teams[$first->team_id],
+                    'group' => $groupByTeam->get($first->team_id),
                     'counts' => $counts,
                     'total' => array_sum($counts),
                 ];

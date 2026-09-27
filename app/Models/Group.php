@@ -8,12 +8,14 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property int $tournament_id
+ * @property int|null $tournament_id The tournament this group belongs to: every tournament has its own groups
+ *                                   for a category. Null only for a group that could not be attributed.
  * @property int $category_id
  * @property string $name
  * @property int $order
@@ -55,11 +57,15 @@ class Group extends Model
     }
 
     /**
-     * @return HasMany<Team, $this>
+     * The planteles in this group: the ones whose tournament_team row (in this
+     * group's tournament) points at it. A plantel can be in "Grupo A" of one
+     * tournament and "Grupo B" of another.
+     *
+     * @return BelongsToMany<Team, $this>
      */
-    public function teams(): HasMany
+    public function teams(): BelongsToMany
     {
-        return $this->hasMany(Team::class);
+        return $this->belongsToMany(Team::class, 'tournament_team', 'group_id', 'team_id');
     }
 
     /**

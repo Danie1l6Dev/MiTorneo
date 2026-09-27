@@ -28,11 +28,11 @@ class PublicTournamentController extends Controller
         $isLegacy = $tournament->categories()->exists();
 
         if ($isLegacy) {
-            $tournament->load(['categories' => fn ($query) => $query->withCount(['teams', 'groups'])]);
+            $tournament->load(['categories' => fn ($query) => $query->withCount(['teams', 'groups' => fn ($groups) => $groups->where('tournament_id', $tournament->id)])]);
             $tournament->loadCount(['categories', 'teams', 'matches']);
             $globalTeamCounts = collect();
         } else {
-            $tournament->load(['globalCategories' => fn ($query) => $query->withCount('groups')]);
+            $tournament->load(['globalCategories' => fn ($query) => $query->withCount(['groups' => fn ($groups) => $groups->where('tournament_id', $tournament->id)])]);
             $tournament->loadCount(['globalCategories', 'globalTeams', 'matches']);
 
             $globalTeamCounts = DB::table('tournament_team')

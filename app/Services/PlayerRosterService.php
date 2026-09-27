@@ -195,7 +195,7 @@ class PlayerRosterService
             return $existing;
         }
 
-        $team->loadMissing(['club', 'category', 'group']);
+        $team->loadMissing(['club', 'category']);
 
         return $player->teamHistory()->create([
             'team_id' => $team->id,
@@ -203,7 +203,6 @@ class PlayerRosterService
             'club_name' => $team->club?->name,
             'team_name' => $team->name,
             'category_name' => $team->category?->name,
-            'group_name' => $team->group?->name,
             'jersey_number' => $jerseyNumber,
             'started_on' => ($on ?? now())->toDateString(),
             'start_reason' => $reason,

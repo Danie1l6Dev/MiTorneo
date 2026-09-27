@@ -43,9 +43,7 @@ class ClubController extends Controller
         };
 
         // Already ordered youngest-to-oldest -- see User::categories().
-        $categories = Auth::user()->categories()
-            ->with(['groups' => fn ($query) => $query->orderBy('order')])
-            ->get();
+        $categories = Auth::user()->categories()->get();
 
         $clubs = Auth::user()->clubs()->orderBy('name')->get();
         $clubCount = $clubs->count();
@@ -53,7 +51,7 @@ class ClubController extends Controller
         $allTeams = Team::query()
             ->whereIn('category_id', $categories->pluck('id'))
             ->whereNull('tournament_id')
-            ->with(['club', 'category', 'group'])
+            ->with(['club', 'category'])
             ->withCount(['players', 'globalPlayers'])
             ->get();
 
@@ -65,7 +63,7 @@ class ClubController extends Controller
         $allTeams = Team::sortedByCategoryAge($allTeams);
 
         $incompleteTeamIds = Team::idsWithIncompletePlayers($allTeams->pluck('id'));
-        $teams = $allTeams->groupBy(['category_id', 'group_id']);
+        $teams = $allTeams->groupBy('category_id');
         $teamsByClub = $allTeams->groupBy('club_id');
 
         return view('pages.clubs.index', compact(
@@ -77,15 +75,14 @@ class ClubController extends Controller
     {
         $this->authorize('create', Club::class);
 
-        $categories = Auth::user()->categories()->with('groups')->get();
+        $categories = Auth::user()->categories()->get();
 
         return view('pages.clubs.create', compact('categories'));
     }
 
     /**
      * Creates the club and, optionally in the same step, one plantel per
-     * category (or per group, for a category that uses them) checked in
-     * the form -- so a club doesn't have to be created bare and then
+     * category checked in the form -- so a club doesn't have to be created bare and then
      * visited again just to add its first squads. Each plantel's name
      * defaults to the club's own name; nothing here can collide since
      * this club has no existing teams yet.
@@ -99,24 +96,17 @@ class ClubController extends Controller
         $club = Auth::user()->clubs()->create(['name' => $validated['name']]);
 
         foreach ($validated['category_ids'] ?? [] as $categoryId) {
-            $this->makeInitialTeam($club, (int) $categoryId, null);
-        }
-
-        foreach ($validated['group_selections'] ?? [] as $categoryId => $groupIds) {
-            foreach ($groupIds as $groupId) {
-                $this->makeInitialTeam($club, (int) $categoryId, (int) $groupId);
-            }
+            $this->makeInitialTeam($club, (int) $categoryId);
         }
 
         return to_route('clubs.show', $club)->with('status', __('Club creado correctamente.'));
     }
 
-    private function makeInitialTeam(Club $club, int $categoryId, ?int $groupId): void
+    private function makeInitialTeam(Club $club, int $categoryId): void
     {
         $team = new Team(['name' => $club->name]);
         $team->club_id = $club->id;
         $team->category_id = $categoryId;
-        $team->group_id = $groupId;
         $team->save();
     }
 
@@ -124,7 +114,7 @@ class ClubController extends Controller
     {
         $this->authorize('view', $club);
 
-        $club->load(['teams' => fn ($query) => $query->with(['category', 'group'])->withCount(['players', 'globalPlayers'])->orderBy('name')]);
+        $club->load(['teams' => fn ($query) => $query->with('category')->withCount(['players', 'globalPlayers'])->orderBy('name')]);
         $club->setRelation('teams', Team::sortedByCategoryAge($club->teams));
 
         $incompleteTeamIds = Team::idsWithIncompletePlayers($club->teams->pluck('id'));

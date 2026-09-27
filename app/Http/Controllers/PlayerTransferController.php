@@ -33,7 +33,7 @@ class PlayerTransferController extends Controller
         // fits its category -- the page shows a club's planteles instantly from this.
         $clubs = Auth::user()->clubs()
             ->whereNotIn('id', $currentClubIds)
-            ->with(['teams' => fn ($query) => $query->whereNull('tournament_id')->with(['category', 'group'])])
+            ->with(['teams' => fn ($query) => $query->whereNull('tournament_id')->with('category')])
             ->orderBy('name')
             ->get()
             ->map(fn (Club $club): array => [
@@ -42,7 +42,6 @@ class PlayerTransferController extends Controller
                 'teams' => Team::sortedByCategoryAge($club->teams)->map(fn (Team $team): array => [
                     'id' => $team->id,
                     'category' => $team->category->name,
-                    'group' => $team->group?->name,
                     'eligible' => $player->ageEligibleForCategory($team->category),
                 ])->values()->all(),
             ])

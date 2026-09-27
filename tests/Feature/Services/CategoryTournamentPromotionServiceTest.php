@@ -148,9 +148,25 @@ class CategoryTournamentPromotionServiceTest extends TestCase
 
         $this->service->run(execute: true);
 
+        // A group always belongs to one tournament: promoting the category
+        // leaves it where it is.
         $group->refresh();
-        $this->assertNull($group->tournament_id);
+        $this->assertSame($tournament->id, $group->tournament_id);
         $this->assertSame($category->id, $group->category_id);
+    }
+
+    public function test_a_promoted_team_keeps_its_group_in_its_tournament_row(): void
+    {
+        $tournament = Tournament::factory()->create();
+        $category = Category::factory()->for($tournament)->usingGroups()->create();
+        $group = Group::factory()->for($category)->for($tournament)->create();
+        $team = Team::factory()->for($category)->for($tournament)->create(['group_id' => $group->id]);
+
+        $this->service->run(execute: true);
+
+        $this->assertNull($team->fresh()->tournament_id);
+        $this->assertSame($group->id, $team->fresh()->groupIn($tournament)?->id);
+        $this->assertSame([$team->id], $group->teams()->pluck('teams.id')->all());
     }
 
     public function test_it_resolves_a_club_for_each_team_and_promotes_it_in_place(): void

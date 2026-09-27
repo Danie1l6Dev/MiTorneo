@@ -1,5 +1,5 @@
 @php
-    $subtitle = collect([$team->short_name, $team->category->name, $team->group?->name])
+    $subtitle = collect([$team->short_name, $team->category->name, $team->tournament_id ? $team->group?->name : null])
         ->filter()
         ->implode(' · ');
 
@@ -20,7 +20,6 @@
                     ['label' => __('Clubes'), 'href' => route('clubs.index')],
                     ['label' => $team->club->name, 'href' => route('clubs.show', $team->club)],
                     ['label' => $team->category->name, 'href' => route('categories.show', $team->category)],
-                    ...($team->group ? [['label' => $team->group->name, 'href' => route('groups.show', $team->group)]] : []),
                     ['label' => $team->name],
                 ]" />
             </x-slot:breadcrumbs>

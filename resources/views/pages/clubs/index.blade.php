@@ -1,7 +1,7 @@
 @php
-    // $teams is grouped ['category_id' => ['group_id|null' => Collection<Team>]] --
-    // organized by category (and group within it) on purpose: a club that
-    // fields several categories/groups shows up once per section instead
+    // $teams is grouped ['category_id' => Collection<Team>] --
+    // organized by category on purpose: a club that
+    // fields several categories shows up once per section instead
     // of being buried in one flat club list. $teamsByClub is the same
     // underlying $allTeams collection grouped the other way, for the "por
     // club" view -- see ClubController::index().
@@ -89,7 +89,7 @@
                         $hasIncompleteInClub = $clubTeams->contains(fn ($team) => in_array($team->id, $incompleteTeamIds));
                         $teamsByCategory = $clubTeams
                             ->groupBy('category.name')
-                            ->map(fn ($teams) => $teams->groupBy(fn ($team) => $team->group->name ?? __('Sin grupo')));
+                            ->map(fn ($teams) => collect([$teams]));
                     @endphp
 
                     <div
@@ -195,8 +195,8 @@
                 @foreach ($categories as $category)
                     @php
                         $categoryTeams = $teams->get($category->id, collect());
-                        $totalInCategory = $categoryTeams->flatten(1)->count();
-                        $hasIncompleteInCategory = $categoryTeams->flatten(1)->contains(fn ($team) => in_array($team->id, $incompleteTeamIds));
+                        $totalInCategory = $categoryTeams->count();
+                        $hasIncompleteInCategory = $categoryTeams->contains(fn ($team) => in_array($team->id, $incompleteTeamIds));
                     @endphp
 
                     <div
@@ -228,69 +228,8 @@
                             <div class="space-y-3 border-t border-zinc-200 px-7 py-5 dark:border-white/10">
                                 @if ($totalInCategory === 0)
                                     <x-ui.empty-state icon="shield-check" :message="__('Todavía ningún club tiene plantel en esta categoría.')" />
-                                @elseif ($category->uses_groups)
-                                    @foreach ($category->groups as $group)
-                                        @php
-                                            $groupTeams = $categoryTeams->get($group->id, collect())->sortBy(fn ($team) => $team->club->name);
-                                            $hasIncompleteInGroup = $groupTeams->contains(fn ($team) => in_array($team->id, $incompleteTeamIds));
-                                        @endphp
-
-                                        <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10" x-data="{ open: false }">
-                                            <button type="button" @click="open = !open" class="flex w-full cursor-pointer items-center justify-between gap-2 px-6 py-5 text-left transition-colors hover:bg-zinc-100 dark:hover:bg-white/5">
-                                                <div class="flex items-center gap-2.5">
-                                                    <flux:icon.squares-2x2 variant="micro" class="size-4 text-zinc-400" />
-                                                    <flux:heading size="lg">{{ $group->name }}</flux:heading>
-                                                    <flux:badge size="sm" color="zinc">{{ trans_choice(':count plantel|:count planteles', $groupTeams->count(), ['count' => $groupTeams->count()]) }}</flux:badge>
-
-                                                    @if ($hasIncompleteInGroup)
-                                                        <flux:tooltip :content="__('Hay planteles con jugadores sin fecha de nacimiento')">
-                                                            <flux:icon.exclamation-triangle variant="micro" class="size-4 shrink-0 text-amber-500" />
-                                                        </flux:tooltip>
-                                                    @endif
-                                                </div>
-
-                                                <flux:icon.chevron-down variant="micro" class="size-4 shrink-0 text-zinc-400 transition-transform duration-200" x-bind:class="open && 'rotate-180'" />
-                                            </button>
-
-                                            <div x-show="open" x-collapse.duration.200ms>
-                                                <div class="border-t border-zinc-200 dark:border-white/10">
-                                                    <x-ui.clubs-table :teams="$groupTeams" :incomplete-team-ids="$incompleteTeamIds" class="rounded-none! border-0!" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endforeach
-
-                                    @php
-                                        $ungrouped = $categoryTeams->get(null, collect());
-                                        $hasIncompleteInUngrouped = $ungrouped->contains(fn ($team) => in_array($team->id, $incompleteTeamIds));
-                                    @endphp
-                                    @if ($ungrouped->isNotEmpty())
-                                        <div class="overflow-hidden rounded-xl border border-amber-500/30" x-data="{ open: false }">
-                                            <button type="button" @click="open = !open" class="flex w-full cursor-pointer items-center justify-between gap-2 px-6 py-5 text-left transition-colors hover:bg-amber-500/5">
-                                                <div class="flex items-center gap-2.5">
-                                                    <flux:icon.exclamation-triangle variant="micro" class="size-4 text-amber-500" />
-                                                    <flux:heading size="lg">{{ __('Sin grupo') }}</flux:heading>
-                                                    <flux:badge size="sm" color="amber">{{ trans_choice(':count plantel|:count planteles', $ungrouped->count(), ['count' => $ungrouped->count()]) }}</flux:badge>
-
-                                                    @if ($hasIncompleteInUngrouped)
-                                                        <flux:tooltip :content="__('Hay planteles con jugadores sin fecha de nacimiento')">
-                                                            <flux:icon.exclamation-triangle variant="micro" class="size-4 shrink-0 text-amber-500" />
-                                                        </flux:tooltip>
-                                                    @endif
-                                                </div>
-
-                                                <flux:icon.chevron-down variant="micro" class="size-4 shrink-0 text-zinc-400 transition-transform duration-200" x-bind:class="open && 'rotate-180'" />
-                                            </button>
-
-                                            <div x-show="open" x-collapse.duration.200ms>
-                                                <div class="border-t border-amber-500/30">
-                                                    <x-ui.clubs-table :teams="$ungrouped->sortBy(fn ($team) => $team->club->name)" :incomplete-team-ids="$incompleteTeamIds" amber class="rounded-none! border-0!" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    @endif
                                 @else
-                                    <x-ui.clubs-table :teams="$categoryTeams->get(null, collect())->sortBy(fn ($team) => $team->club->name)" :incomplete-team-ids="$incompleteTeamIds" />
+                                    <x-ui.clubs-table :teams="$categoryTeams->sortBy(fn ($team) => $team->club->name)" :incomplete-team-ids="$incompleteTeamIds" />
                                 @endif
                             </div>
                         </div>

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Category;
 use App\Models\CompetitionPhase;
-use App\Models\Group;
 use App\Models\Team;
 use App\Models\Tournament;
 use Illuminate\Http\RedirectResponse;
@@ -98,6 +97,9 @@ class TournamentCategoryController extends Controller
         $tournament->globalTeams()->detach($teamIds);
         $tournament->globalCategories()->detach($category->id);
 
+        // Its groups were this tournament's own and, with no phase started, have no matches.
+        $category->groupsFor($tournament)->delete();
+
         return back()->with('status', __('Categoría quitada del torneo.'));
     }
 
@@ -120,14 +122,20 @@ class TournamentCategoryController extends Controller
 
         abort_unless($belongsToTournament, 404);
 
-        $groups = Group::query()
-            ->where('category_id', $category->id)
-            ->where(fn ($query) => $query->whereNull('tournament_id')->orWhere('tournament_id', $tournament->id))
-            ->withCount('teams')
-            ->orderBy('order')
-            ->get();
+        $groups = $category->groupsFor($tournament)->withCount('teams')->get();
 
         $teams = $category->teamsForTournament($tournament);
+
+        // Other tournaments of this organizer where the category already has groups: a
+        // new edition can copy them instead of recreating them.
+        $copyableTournaments = $groups->isEmpty() && $category->uses_groups
+            ? Tournament::query()
+                ->where('user_id', $tournament->user_id)
+                ->whereKeyNot($tournament->id)
+                ->whereHas('groups', fn ($query) => $query->where('category_id', $category->id))
+                ->orderByDesc('id')
+                ->get()
+            : collect();
 
         $phases = CompetitionPhase::query()
             ->where('tournament_id', $tournament->id)
@@ -138,7 +146,7 @@ class TournamentCategoryController extends Controller
 
         $locked = $this->hasStartedPhase($tournament, $category);
 
-        return view('pages.tournaments.categories.show', compact('tournament', 'category', 'groups', 'teams', 'phases', 'locked'));
+        return view('pages.tournaments.categories.show', compact('tournament', 'category', 'groups', 'teams', 'phases', 'locked', 'copyableTournaments'));
     }
 
     public function editTeams(Tournament $tournament, Category $category): View
@@ -149,14 +157,20 @@ class TournamentCategoryController extends Controller
 
         $teams = Team::query()
             ->where('category_id', $category->id)
-            ->with(['club', 'group'])
+            ->with('club')
             ->get()
             ->sortBy(fn (Team $team) => $team->club->name);
 
-        $selectedIds = $tournament->globalTeams()->where('teams.category_id', $category->id)->pluck('teams.id')->all();
+        // Which planteles are enrolled here, and the group each one plays in
+        // (a group belongs to this tournament: the same plantel can be in
+        // another group of another tournament).
+        $enrolled = $tournament->globalTeams()->where('teams.category_id', $category->id)->get();
+        $selectedIds = $enrolled->pluck('id')->all();
+        $groupByTeam = $enrolled->mapWithKeys(fn (Team $team): array => [$team->id => $team->pivot->group_id])->all();
+        $groups = $category->uses_groups ? $category->groupsFor($tournament)->get() : collect();
         $locked = $this->hasStartedPhase($tournament, $category);
 
-        return view('pages.tournaments.categories.teams', compact('tournament', 'category', 'teams', 'selectedIds', 'locked'));
+        return view('pages.tournaments.categories.teams', compact('tournament', 'category', 'teams', 'selectedIds', 'groupByTeam', 'groups', 'locked'));
     }
 
     /**
@@ -183,11 +197,34 @@ class TournamentCategoryController extends Controller
                 'integer',
                 Rule::exists('teams', 'id')->where('category_id', $category->id),
             ],
+            // team id => group id, one entry per plantel that was given a group.
+            'groups' => ['nullable', 'array'],
+            'groups.*' => [
+                'nullable',
+                'integer',
+                Rule::exists('groups', 'id')->where('category_id', $category->id)->where('tournament_id', $tournament->id),
+            ],
         ]);
 
+        $selectedIds = collect($validated['team_ids'] ?? [])->map(fn ($id): int => (int) $id)->unique();
+        $groupsByTeam = $category->uses_groups ? ($validated['groups'] ?? []) : [];
+
         $categoryTeamIds = Team::query()->where('category_id', $category->id)->pluck('id');
-        $tournament->globalTeams()->detach($categoryTeamIds);
-        $tournament->globalTeams()->attach($validated['team_ids'] ?? []);
+        $alreadyEnrolled = $tournament->globalTeams()->whereIn('teams.id', $categoryTeamIds)->pluck('teams.id');
+
+        // Only what changes is touched: a plantel that stays enrolled keeps its
+        // row (and with it an expulsion recorded there).
+        $tournament->globalTeams()->detach($alreadyEnrolled->diff($selectedIds)->all());
+
+        foreach ($selectedIds as $teamId) {
+            $groupId = ($groupsByTeam[$teamId] ?? null) ?: null;
+
+            if ($alreadyEnrolled->contains($teamId)) {
+                $tournament->globalTeams()->updateExistingPivot($teamId, ['group_id' => $groupId]);
+            } else {
+                $tournament->globalTeams()->attach($teamId, ['group_id' => $groupId]);
+            }
+        }
 
         return to_route('tournaments.categories.show', [$tournament, $category])->with('status', __('Planteles actualizados para :category.', ['category' => $category->name]));
     }

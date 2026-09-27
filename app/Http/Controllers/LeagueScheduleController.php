@@ -24,7 +24,7 @@ class LeagueScheduleController extends Controller
         $format = ScheduleFormat::from($request->validated('format'));
 
         $roster = $phase->teams;
-        $scopes = $roster->isEmpty() && $category->uses_groups ? $category->groups : collect([null]);
+        $scopes = $roster->isEmpty() && $category->uses_groups ? $category->groupsFor($phase->tournament)->get() : collect([null]);
 
         DB::transaction(function () use ($scopes, $category, $phase, $format, $service, $roster): void {
             foreach ($scopes as $group) {

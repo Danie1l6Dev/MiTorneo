@@ -19,7 +19,7 @@
     maxlength="10"
 />
 
-@if ($category?->uses_groups)
+@if ($category?->uses_groups && $category->tournament_id)
     @if ($lockedGroup)
         <div data-flux-field>
             <flux:label>{{ __('Grupo') }}</flux:label>

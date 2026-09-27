@@ -142,7 +142,7 @@ class Team extends Model
 
     /**
      * The club this roster belongs to -- a club has one Team per
-     * category(+group) it fields, this is that link.
+     * category it fields, this is that link.
      *
      * @return BelongsTo<Club, $this>
      */
@@ -171,11 +171,95 @@ class Team extends Model
     }
 
     /**
+     * The group stored on the plantel itself (teams.group_id). Only a legacy
+     * per-tournament Team still has a meaningful one (and factories/migration
+     * tools that build one): for everything else the group a plantel plays in
+     * is a fact about the plantel IN A TOURNAMENT -- see groupIn() and
+     * tournamentGroupId(). Never read this to know where a plantel plays:
+     * TeamGroupIsPerTournamentGuardTest fails if app/ or the views do.
+     *
      * @return BelongsTo<Group, $this>
      */
     public function group(): BelongsTo
     {
-        return $this->belongsTo(Group::class);
+        return $this->belongsTo(Group::class, 'group_id');
+    }
+
+    /**
+     * The group this plantel plays in within $tournament (tournament_team.group_id),
+     * or null when it has none there.
+     */
+    public function groupIn(Tournament $tournament): ?Group
+    {
+        $groupId = DB::table('tournament_team')
+            ->where('tournament_id', $tournament->id)
+            ->where('team_id', $this->id)
+            ->value('group_id');
+
+        return $groupId ? Group::query()->find($groupId) : null;
+    }
+
+    /**
+     * Puts this plantel in $group (or takes it out of any, with null) within
+     * $tournament: its tournament_team row, or -- for a legacy Team, whose row
+     * follows its own column -- the column.
+     */
+    public function assignGroupIn(Tournament $tournament, ?Group $group): void
+    {
+        if ($this->tournament_id !== null) {
+            $this->group_id = $group?->id;
+            $this->save();
+
+            return;
+        }
+
+        $tournament->globalTeams()->updateExistingPivot($this->id, ['group_id' => $group?->id]);
+    }
+
+    /**
+     * The group id of this plantel in the tournament it was loaded through
+     * (Tournament::globalTeams() carries tournament_team on ->pivot) -- no query.
+     * A legacy Team, which never comes through that relation, has it on its own
+     * column. Null for a plantel loaded any other way: ask groupIn() then.
+     */
+    public function tournamentGroupId(): ?int
+    {
+        if ($this->pivot !== null && $this->pivot->getTable() === 'tournament_team') {
+            return $this->pivot->group_id;
+        }
+
+        return $this->tournament_id !== null ? $this->group_id : null;
+    }
+
+    /**
+     * A legacy Team (one that still carries its own tournament_id) is entered
+     * in that tournament by definition: keep its tournament_team row, and the
+     * group on it, in step with the columns, so everything that reads a
+     * plantel's group from tournament_team sees legacy planteles too.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (Team $team): void {
+            if ($team->tournament_id === null || ! ($team->wasRecentlyCreated || $team->wasChanged(['tournament_id', 'group_id']))) {
+                return;
+            }
+
+            $row = DB::table('tournament_team')->where('tournament_id', $team->tournament_id)->where('team_id', $team->id);
+
+            if ($row->exists()) {
+                $row->update(['group_id' => $team->group_id, 'updated_at' => now()]);
+
+                return;
+            }
+
+            DB::table('tournament_team')->insert([
+                'tournament_id' => $team->tournament_id,
+                'team_id' => $team->id,
+                'group_id' => $team->group_id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
     }
 
     /**

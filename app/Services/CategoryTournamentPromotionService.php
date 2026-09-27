@@ -124,12 +124,9 @@ class CategoryTournamentPromotionService
     {
         $legacy = Group::query()->whereNotNull('tournament_id')->with('category')->orderBy('id')->get();
 
+        // A group keeps its tournament (every tournament has its own groups); what
+        // gets promoted is only its category, so there is nothing to change here.
         foreach ($legacy as $group) {
-            if ($execute) {
-                $group->tournament_id = null;
-                $group->save();
-            }
-
             $report['groups']->push([
                 'id' => $group->id,
                 'category' => $group->category->name,
@@ -183,7 +180,7 @@ class CategoryTournamentPromotionService
                 $team->tournament_id = null;
                 $team->save();
 
-                $tournament->globalTeams()->syncWithoutDetaching([$team->id]);
+                $tournament->globalTeams()->syncWithoutDetaching([$team->id => ['group_id' => $team->group_id]]);
             }
 
             $report['teams']->push([

@@ -33,7 +33,8 @@ class PublicTeamController extends Controller
             abort(404);
         }
 
-        $team->load(['category', 'group', 'coach']);
+        $team->load(['category', 'coach']);
+        $group = $team->groupIn($tournament);
 
         $roster = $team->players()->where('is_active', true)->get();
 
@@ -61,7 +62,7 @@ class PublicTeamController extends Controller
         $expelledAt = $team->expelledAtFor($tournament);
 
         return view('pages.public.teams.show', compact(
-            'tournament', 'team', 'roster', 'activeSanctionsBySubject', 'isExpelled', 'expulsionReason', 'expulsionResolutionPdfUrl', 'expelledAt'
+            'tournament', 'team', 'group', 'roster', 'activeSanctionsBySubject', 'isExpelled', 'expulsionReason', 'expulsionResolutionPdfUrl', 'expelledAt'
         ));
     }
 }

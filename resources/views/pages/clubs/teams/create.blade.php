@@ -1,9 +1,5 @@
-@php
-    $categoriesWithGroups = $categories->filter->uses_groups->keyBy('id');
-@endphp
-
 <x-layouts::app :title="__('Nuevo plantel')">
-    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ categoryId: '{{ old('category_id') }}', categories: {{ $categoriesWithGroups->map->only(['id', 'name'])->values()->toJson() }} }">
+    <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up" x-data="{ categoryId: '{{ old('category_id') }}' }">
         <x-ui.page-header :title="__('Nuevo plantel')" :subtitle="$club->name" />
 
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
@@ -18,31 +14,6 @@
                         </flux:select.option>
                     @endforeach
                 </flux:select>
-
-                {{--
-                    One <select name="group_id"> per group-using category,
-                    shown/hidden by x-show as the category changes -- but
-                    x-show only toggles visibility, it doesn't remove a
-                    hidden one from the form. Without :disabled, every
-                    hidden select would still submit its own value under
-                    the same "group_id" name, and the browser would just
-                    pick whichever happens to come last in the DOM instead
-                    of the one actually chosen. A disabled field is
-                    excluded from submission entirely, so only the one
-                    matching the selected category ever sends its value.
-                --}}
-                @foreach ($categoriesWithGroups as $category)
-                    <div x-show="categoryId == '{{ $category->id }}'" x-cloak>
-                        <flux:select name="group_id" label="{{ __('Grupo') }}" x-bind:disabled="categoryId != '{{ $category->id }}'">
-                            <flux:select.option value="">{{ __('Sin grupo específico') }}</flux:select.option>
-                            @foreach ($category->groups as $group)
-                                <flux:select.option value="{{ $group->id }}" :selected="old('group_id') == $group->id">
-                                    {{ $group->name }}
-                                </flux:select.option>
-                            @endforeach
-                        </flux:select>
-                    </div>
-                @endforeach
 
                 <flux:input
                     name="name"

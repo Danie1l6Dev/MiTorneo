@@ -46,7 +46,7 @@ class GenerateLeagueScheduleRequest extends FormRequest
 
             $category = $phase->category;
 
-            if ($category->uses_groups && $category->groups()->doesntExist()) {
+            if ($category->uses_groups && $category->groupsFor($phase->tournament)->doesntExist()) {
                 $validator->errors()->add('format', __('La categoría todavía no tiene grupos configurados.'));
 
                 return;
@@ -54,7 +54,7 @@ class GenerateLeagueScheduleRequest extends FormRequest
 
             /** @var Collection<int, Group|null> $scopes */
             $scopes = $category->uses_groups
-                ? $category->groups
+                ? $category->groupsFor($phase->tournament)->get()
                 : collect([null]);
 
             foreach ($scopes as $group) {

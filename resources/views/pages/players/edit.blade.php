@@ -8,7 +8,7 @@
     // PlayerController::edit().
     $teamsByCategory = $clubTeams
         ->groupBy('category.name')
-        ->map(fn ($teams) => $teams->groupBy(fn ($team) => $team->group->name ?? __('Sin grupo')));
+        ->map(fn ($teams) => collect([$teams]));
 @endphp
 
 <x-layouts::app :title="__('Editar jugador')">
@@ -63,9 +63,6 @@
                                                 ? '!birthDate'
                                                 : "!birthDate || parseInt(birthDate.split('-')[0]) < ({$cutoff} - (gender === 'female' ? {$femaleExtra} : 0))";
                                             $label = $team->name;
-                                            if ($groupTeams->count() > 1 || $teamsByGroup->count() > 1) {
-                                                $label .= ' — '.$groupName;
-                                            }
                                             if ($isCurrent) {
                                                 $label .= ' ('.__('ya está').')';
                                             }

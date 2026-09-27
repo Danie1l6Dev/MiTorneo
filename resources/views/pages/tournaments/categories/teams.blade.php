@@ -1,7 +1,3 @@
-@php
-    $teamsByGroup = $teams->groupBy(fn ($team) => $team->group?->name ?? __('Sin grupo'));
-@endphp
-
 <x-layouts::app :title="__('Planteles de :category', ['category' => $category->name])">
     <div class="mx-auto w-full max-w-2xl space-y-6 animate-fade-in-up">
         <x-ui.page-header :title="__('Planteles de :category', ['category' => $category->name])" :subtitle="$tournament->name" />
@@ -33,27 +29,63 @@
                     <div class="space-y-4">
                         <flux:label>{{ __('Elige qué planteles participan en este torneo') }}</flux:label>
 
-                        @foreach ($teamsByGroup as $groupName => $groupTeams)
-                            <div class="space-y-1 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
-                                @if ($teamsByGroup->count() > 1)
-                                    <div class="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
-                                        {{ $groupName }}
-                                    </div>
-                                @endif
+                        @if ($category->uses_groups)
+                            @if ($groups->isEmpty())
+                                <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Este torneo todavía no tiene grupos en esta categoría')">
+                                    {{ __('Crea primero los grupos del torneo para poder asignar cada plantel a uno. Puedes inscribirlos ahora y asignarles el grupo después.') }}
+                                    <a href="{{ route('tournaments.categories.groups.create', [$tournament, $category]) }}" wire:navigate class="underline">{{ __('Crear un grupo') }}</a>
+                                </flux:callout>
+                            @else
+                                <flux:text class="text-sm text-zinc-500 dark:text-white/60">
+                                    {{ __('El grupo se elige aquí, para este torneo: el mismo plantel puede estar en otro grupo en otro torneo.') }}
+                                </flux:text>
+                            @endif
+                        @endif
 
-                                @foreach ($groupTeams as $team)
-                                    <flux:checkbox
-                                        name="team_ids[]"
-                                        value="{{ $team->id }}"
-                                        label="{{ $team->club->name }}{{ $team->club->name !== $team->name ? ' — '.$team->name : '' }}"
-                                        :checked="in_array($team->id, old('team_ids', $selectedIds))"
-                                        :disabled="$locked"
-                                    />
-                                @endforeach
-                            </div>
-                        @endforeach
+                        <div class="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-white/5 dark:border-white/10">
+                            @foreach ($teams as $team)
+                                @php
+                                    $isSelected = in_array($team->id, old('team_ids', $selectedIds));
+                                    $currentGroup = old('groups.'.$team->id, $groupByTeam[$team->id] ?? '');
+                                @endphp
+
+                                <div class="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5" x-data="{ on: {{ $isSelected ? 'true' : 'false' }} }">
+                                    <label class="flex min-w-0 items-center gap-2.5 text-sm text-zinc-800 dark:text-white" :class="{{ $locked ? 'true' : 'false' }} ? 'opacity-60' : 'cursor-pointer'">
+                                        <input
+                                            type="checkbox"
+                                            name="team_ids[]"
+                                            value="{{ $team->id }}"
+                                            x-model="on"
+                                            @checked($isSelected)
+                                            @disabled($locked)
+                                            class="rounded border-zinc-300"
+                                        >
+                                        <span class="truncate">{{ $team->club->name }}{{ $team->club->name !== $team->name ? ' — '.$team->name : '' }}</span>
+                                    </label>
+
+                                    @if ($category->uses_groups && $groups->isNotEmpty())
+                                        <select
+                                            name="groups[{{ $team->id }}]"
+                                            x-show="on"
+                                            x-cloak
+                                            @disabled($locked)
+                                            class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-800 dark:border-white/10 dark:bg-zinc-800 dark:text-white"
+                                        >
+                                            <option value="">{{ __('Sin grupo') }}</option>
+                                            @foreach ($groups as $group)
+                                                <option value="{{ $group->id }}" @selected((string) $currentGroup === (string) $group->id)>{{ $group->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
 
                         @error('team_ids')
+                            <flux:text class="text-sm text-red-500">{{ $message }}</flux:text>
+                        @enderror
+
+                        @error('groups.*')
                             <flux:text class="text-sm text-red-500">{{ $message }}</flux:text>
                         @enderror
                     </div>

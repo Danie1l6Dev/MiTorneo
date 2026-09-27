@@ -35,16 +35,6 @@
         <div class="space-y-4">
             <div class="flex items-center justify-between">
                 <flux:heading size="lg">{{ __('Equipos del grupo') }}</flux:heading>
-
-                <flux:button
-                    :href="route('categories.teams.create', ['category' => $group->category, 'group' => $group->id])"
-                    variant="primary"
-                    size="sm"
-                    icon="plus"
-                    wire:navigate
-                >
-                    {{ __('Nuevo equipo') }}
-                </flux:button>
             </div>
 
             @if ($group->teams->isEmpty())
@@ -76,7 +66,7 @@
 
             <div class="space-y-4">
                 <flux:heading size="lg">{{ __('Agregar equipo existente') }}</flux:heading>
-                <flux:text class="text-sm">{{ __('Solo se muestran los equipos de la categoría que todavía no están en ningún grupo.') }}</flux:text>
+                <flux:text class="text-sm">{{ __('Solo se muestran los equipos inscritos en este torneo, en esta categoría, que todavía no están en ningún grupo.') }}</flux:text>
 
                 <form method="POST" action="{{ route('groups.teams.attach', $group) }}" class="flex flex-wrap items-end gap-3">
                     @csrf

@@ -33,17 +33,11 @@ class ClubTeamRequest extends FormRequest
         $team = $this->route('team');
 
         $categoryId = $team instanceof Team ? $team->category_id : $this->integer('category_id');
-        $category = $categoryId ? Category::find($categoryId) : null;
-        $usesGroups = $category?->uses_groups ?? false;
 
         return [
             'category_id' => [
                 'required',
                 Rule::exists('categories', 'id')->where('user_id', Auth::id())->whereNull('tournament_id'),
-            ],
-            'group_id' => [
-                $usesGroups ? 'required' : 'prohibited',
-                Rule::exists('groups', 'id')->where('category_id', $categoryId),
             ],
             'name' => [
                 'required',
@@ -52,7 +46,6 @@ class ClubTeamRequest extends FormRequest
                 Rule::unique('teams')
                     ->where('club_id', $club instanceof Club ? $club->id : $team?->club_id)
                     ->where('category_id', $categoryId)
-                    ->where('group_id', $this->input('group_id') ?: null)
                     ->ignore($team),
             ],
             'short_name' => ['nullable', 'string', 'max:10'],

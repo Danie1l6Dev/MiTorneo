@@ -36,7 +36,7 @@ class PlayerHistoryBackfillService
 
         Player::query()
             ->when($ownerId !== null, fn ($query) => $query->ownedBy($ownerId))
-            ->with(['team.club', 'team.category', 'team.group', 'teams.club', 'teams.category', 'teams.group', 'teamHistory'])
+            ->with(['team.club', 'team.category', 'teams.club', 'teams.category', 'teamHistory'])
             ->chunkById(200, function (Collection $players) use ($dryRun, &$report): void {
                 $activity = $this->activityByPlayerAndTeam($players->pluck('id')->all());
 
@@ -128,7 +128,7 @@ class PlayerHistoryBackfillService
 
         $pastTeamIds = collect(array_keys($activity))->diff($currentTeams->pluck('id'))->diff($hasAnyLine);
 
-        foreach (Team::query()->with(['club', 'category', 'group'])->whereIn('id', $pastTeamIds)->get() as $team) {
+        foreach (Team::query()->with(['club', 'category'])->whereIn('id', $pastTeamIds)->get() as $team) {
             $lines[] = [
                 'kind' => 'past',
                 'team' => $team,
@@ -188,7 +188,7 @@ class PlayerHistoryBackfillService
             'club_name' => $team->club?->name,
             'team_name' => $team->name,
             'category_name' => $team->category?->name,
-            'group_name' => $team->group?->name,
+            'group_name' => null,
         ];
     }
 }

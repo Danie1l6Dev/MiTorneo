@@ -72,13 +72,13 @@ class PlayerProfileService
      */
     public function profile(Player $player): array
     {
-        $player->load(['team.club', 'team.category', 'team.group', 'team.tournament', 'team.tournaments', 'teams.club', 'teams.category', 'teams.group', 'teams.tournaments', 'teamHistory']);
+        $player->load(['team.club', 'team.category', 'team.tournament', 'team.tournaments', 'teams.club', 'teams.category', 'teams.tournaments', 'teamHistory']);
 
         $currentTeams = $player->allTeams();
 
         $events = MatchEvent::query()
             ->where('player_id', $player->id)
-            ->with(['match.tournament', 'match.category', 'team.club', 'team.category', 'team.group'])
+            ->with(['match.tournament', 'match.category', 'team.club', 'team.category'])
             ->get();
 
         $sanctions = Sanction::query()
@@ -217,7 +217,7 @@ class PlayerProfileService
         $blank = fn (Team $team, bool $current, ?int $jersey): array => [
             'club' => $this->clubLabel($team),
             'category' => $team->category?->name,
-            'group' => $team->group?->name,
+            'group' => null,
             'current' => $current,
             'jersey' => $jersey,
             'tournaments' => [],

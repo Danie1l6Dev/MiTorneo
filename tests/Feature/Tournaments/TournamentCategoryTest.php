@@ -195,33 +195,113 @@ class TournamentCategoryTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_teams_are_grouped_and_shown_with_club_and_plantel_name(): void
+    public function test_the_picker_shows_each_plantel_with_the_group_it_has_in_this_tournament(): void
     {
         $user = User::factory()->create();
         $tournament = Tournament::factory()->for($user)->create();
         $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
         $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'uses_groups' => true]);
-        $groupA = Group::factory()->for($category)->create(['name' => 'Grupo A', 'tournament_id' => null]);
-        $groupB = Group::factory()->for($category)->create(['name' => 'Grupo B', 'tournament_id' => null]);
-        Team::factory()->create([
-            'club_id' => $club->id,
-            'category_id' => $category->id,
-            'tournament_id' => null,
-            'group_id' => $groupA->id,
-            'name' => 'Nilmar (A)',
-        ]);
-        Team::factory()->create([
-            'club_id' => $club->id,
-            'category_id' => $category->id,
-            'tournament_id' => null,
-            'group_id' => $groupB->id,
-            'name' => 'Nilmar (B)',
-        ]);
         $tournament->globalCategories()->attach($category->id);
+        $groupA = Group::factory()->for($category)->for($tournament)->create(['name' => 'Grupo A']);
+        Group::factory()->for($category)->for($tournament)->create(['name' => 'Grupo B']);
+        $teamA = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Nilmar (A)']);
+        Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null, 'name' => 'Nilmar (B)']);
+        $tournament->globalTeams()->attach($teamA->id, ['group_id' => $groupA->id]);
 
-        $response = $this->actingAs($user)->get(route('tournaments.global-categories.teams.edit', [$tournament, $category]));
+        $this->actingAs($user)
+            ->get(route('tournaments.global-categories.teams.edit', [$tournament, $category]))
+            ->assertOk()
+            ->assertSee('NILMAR (A)')
+            ->assertSee('NILMAR (B)')
+            ->assertSee('GRUPO A')
+            ->assertSee('GRUPO B');
+    }
 
-        $response->assertOk()->assertSee('GRUPO A')->assertSee('NILMAR (A)')->assertSee('NILMAR (B)');
+    public function test_the_same_plantel_can_be_in_a_different_group_in_each_tournament(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'uses_groups' => true]);
+        $team = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null]);
+
+        $first = Tournament::factory()->for($user)->create();
+        $second = Tournament::factory()->for($user)->create();
+        $first->globalCategories()->attach($category->id);
+        $second->globalCategories()->attach($category->id);
+        $firstA = Group::factory()->for($category)->for($first)->create(['name' => 'Grupo A']);
+        $secondB = Group::factory()->for($category)->for($second)->create(['name' => 'Grupo B']);
+
+        $this->actingAs($user)
+            ->put(route('tournaments.global-categories.teams.update', [$first, $category]), ['team_ids' => [$team->id], 'groups' => [$team->id => $firstA->id]])
+            ->assertRedirect();
+        $this->actingAs($user)
+            ->put(route('tournaments.global-categories.teams.update', [$second, $category]), ['team_ids' => [$team->id], 'groups' => [$team->id => $secondB->id]])
+            ->assertRedirect();
+
+        $this->assertSame($firstA->id, $team->groupIn($first)?->id);
+        $this->assertSame($secondB->id, $team->groupIn($second)?->id);
+        $this->assertSame([$team->id], $firstA->teams()->pluck('teams.id')->all());
+        $this->assertSame([$team->id], $secondB->teams()->pluck('teams.id')->all());
+    }
+
+    public function test_a_group_from_another_tournament_is_rejected_when_enrolling(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'uses_groups' => true]);
+        $team = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null]);
+        $mine = Tournament::factory()->for($user)->create();
+        $other = Tournament::factory()->for($user)->create();
+        $mine->globalCategories()->attach($category->id);
+        $other->globalCategories()->attach($category->id);
+        $othersGroup = Group::factory()->for($category)->for($other)->create();
+
+        $this->actingAs($user)
+            ->put(route('tournaments.global-categories.teams.update', [$mine, $category]), ['team_ids' => [$team->id], 'groups' => [$team->id => $othersGroup->id]])
+            ->assertSessionHasErrors('groups.'.$team->id);
+
+        $this->assertFalse($mine->globalTeams()->whereKey($team->id)->exists());
+    }
+
+    public function test_saving_the_picker_again_keeps_an_expulsion_already_recorded(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create();
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id]);
+        $team = Team::factory()->create(['club_id' => $club->id, 'category_id' => $category->id, 'tournament_id' => null, 'group_id' => null]);
+        $tournament = Tournament::factory()->for($user)->create();
+        $tournament->globalCategories()->attach($category->id);
+        $tournament->globalTeams()->attach($team->id, ['expelled_at' => now(), 'expulsion_reason' => 'Se retiró']);
+
+        $this->actingAs($user)
+            ->put(route('tournaments.global-categories.teams.update', [$tournament, $category]), ['team_ids' => [$team->id]])
+            ->assertRedirect();
+
+        $this->assertTrue($team->isExpelledFrom($tournament));
+    }
+
+    public function test_groups_are_created_per_tournament_and_each_tournament_can_reuse_the_name(): void
+    {
+        $user = User::factory()->create();
+        $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'uses_groups' => true]);
+        $first = Tournament::factory()->for($user)->create();
+        $second = Tournament::factory()->for($user)->create();
+        $first->globalCategories()->attach($category->id);
+        $second->globalCategories()->attach($category->id);
+
+        $this->actingAs($user)
+            ->post(route('tournaments.categories.groups.store', [$first, $category]), ['name' => 'Grupo A'])
+            ->assertRedirect();
+        $this->actingAs($user)
+            ->post(route('tournaments.categories.groups.store', [$second, $category]), ['name' => 'Grupo A'])
+            ->assertRedirect();
+        // ...but not twice in the same tournament.
+        $this->actingAs($user)
+            ->post(route('tournaments.categories.groups.store', [$first, $category]), ['name' => 'GRUPO A'])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame(1, $category->groupsFor($first)->count());
+        $this->assertSame(1, $category->groupsFor($second)->count());
     }
 
     public function test_a_user_cannot_manage_another_organizers_tournament_categories(): void

@@ -20,7 +20,7 @@
             <div class="mt-2 flex flex-wrap items-center gap-2">
                 @forelse ($currentTeams as $team)
                     <flux:badge size="sm" color="green" icon="shield-check">
-                        {{ $label($team) }} · {{ $team->category->name }}@if ($team->group) · {{ $team->group->name }}@endif
+                        {{ $label($team) }} · {{ $team->category->name }}
                     </flux:badge>
                 @empty
                     <flux:badge size="sm" color="zinc">{{ __('Sin plantel') }}</flux:badge>

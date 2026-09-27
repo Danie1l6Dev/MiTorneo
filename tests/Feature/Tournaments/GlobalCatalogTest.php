@@ -121,24 +121,19 @@ class GlobalCatalogTest extends TestCase
         $this->assertSame('NILMAR', $team->name);
     }
 
-    public function test_creating_a_club_with_group_selections_creates_one_team_per_selected_group(): void
+    public function test_creating_a_club_for_a_category_that_uses_groups_makes_one_plantel_without_a_group(): void
     {
         $user = User::factory()->create();
         $category = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'uses_groups' => true]);
-        $groupA = Group::factory()->for($category)->create(['name' => 'Grupo A', 'tournament_id' => null]);
-        $groupB = Group::factory()->for($category)->create(['name' => 'Grupo B', 'tournament_id' => null]);
 
         $this->actingAs($user)
-            ->post(route('clubs.store'), [
-                'name' => 'Nilmar',
-                'group_selections' => [$category->id => [$groupA->id, $groupB->id]],
-            ])
+            ->post(route('clubs.store'), ['name' => 'Nilmar', 'category_ids' => [$category->id]])
             ->assertRedirect();
 
         $club = Club::query()->where('name', 'NILMAR')->firstOrFail();
-        $this->assertSame(2, Team::query()->where('club_id', $club->id)->count());
-        $this->assertTrue(Team::query()->where('club_id', $club->id)->where('group_id', $groupA->id)->exists());
-        $this->assertTrue(Team::query()->where('club_id', $club->id)->where('group_id', $groupB->id)->exists());
+        $team = Team::query()->where('club_id', $club->id)->sole();
+        $this->assertSame($category->id, $team->category_id);
+        $this->assertNull($team->group_id);
     }
 
     public function test_cannot_select_a_category_belonging_to_another_organizer_when_creating_a_club(): void
@@ -199,7 +194,7 @@ class GlobalCatalogTest extends TestCase
         $this->assertSame(0, Team::query()->where('club_id', $club->id)->count());
     }
 
-    public function test_a_plantel_requires_a_group_when_its_category_uses_groups(): void
+    public function test_a_plantel_of_a_category_that_uses_groups_is_created_without_a_group(): void
     {
         $user = User::factory()->create();
         $club = Club::factory()->for($user)->create();
@@ -210,7 +205,10 @@ class GlobalCatalogTest extends TestCase
                 'category_id' => $category->id,
                 'name' => 'Plantel A',
             ])
-            ->assertSessionHasErrors('group_id');
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('clubs.show', $club));
+
+        $this->assertNull(Team::query()->where('club_id', $club->id)->sole()->group_id);
     }
 
     /**

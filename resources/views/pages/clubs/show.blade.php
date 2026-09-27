@@ -4,7 +4,7 @@
     // pages, applied here per-club.
     $teamsByCategory = $club->teams
         ->groupBy('category.name')
-        ->map(fn ($teams) => $teams->groupBy(fn ($team) => $team->group->name ?? __('Sin grupo')));
+        ->map(fn ($teams) => collect([$teams]));
 @endphp
 
 <x-layouts::app :title="$club->name">

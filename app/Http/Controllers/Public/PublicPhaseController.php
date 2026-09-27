@@ -43,7 +43,7 @@ class PublicPhaseController extends Controller
         }
 
         $category = $phase->category;
-        $category->load('groups');
+        $category->setRelation('groups', $category->groupsFor($tournament)->get());
 
         $schedules = $boardService->scheduleViews($phase);
 
@@ -68,7 +68,7 @@ class PublicPhaseController extends Controller
             : $boardService->championFromBracket($bracketRounds);
 
         $statistics = $phase->type === CompetitionPhaseType::League
-            ? $boardService->statisticsPanels($request, $category, $statisticsService)
+            ? $boardService->statisticsPanels($request, $tournament, $category, $statisticsService)
             : null;
 
         return view('pages.public.phases.show', compact(

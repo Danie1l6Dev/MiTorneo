@@ -144,6 +144,17 @@ class Category extends Model
     }
 
     /**
+     * This category's groups in one tournament -- every tournament that
+     * includes a category has its own "Grupo A", "Grupo B"...
+     *
+     * @return HasMany<Group, $this>
+     */
+    public function groupsFor(Tournament $tournament): HasMany
+    {
+        return $this->groups()->where('tournament_id', $tournament->id)->orderBy('order');
+    }
+
+    /**
      * @return HasMany<Team, $this>
      */
     public function teams(): HasMany

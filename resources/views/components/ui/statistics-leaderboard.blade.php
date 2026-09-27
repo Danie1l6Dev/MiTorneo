@@ -49,9 +49,9 @@
                         <div class="flex flex-wrap items-center gap-x-1.5 truncate text-xs text-zinc-500 dark:text-white/50">
                             <span class="truncate">{{ $row['player']->team->name }}</span>
 
-                            @if ($showGroup && $row['player']->team->group)
+                            @if ($showGroup && $row['group'])
                                 <span aria-hidden="true">&middot;</span>
-                                <span class="truncate">{{ $row['player']->team->group->name }}</span>
+                                <span class="truncate">{{ $row['group']->name }}</span>
                             @endif
                         </div>
                     </div>

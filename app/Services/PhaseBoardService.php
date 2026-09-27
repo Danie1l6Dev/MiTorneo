@@ -12,6 +12,7 @@ use App\Models\Group;
 use App\Models\LeagueSchedule;
 use App\Models\Player;
 use App\Models\Team;
+use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -340,7 +341,7 @@ class PhaseBoardService
      *
      * Only ONE query per (type, phase-scope) pair actually hits the
      * database -- the unfiltered ("todos los grupos") leaderboard, which
-     * already carries each row's `team.group` (eager-loaded by
+     * already carries each row's `group` (looked up by
      * CompetitionStatisticsService::leaderboard() itself). Every
      * per-group panel is sliced out of that same result in PHP
      * (re-ranked, since a group's own #1 isn't necessarily the category's
@@ -350,15 +351,15 @@ class PhaseBoardService
      *
      * @return array{groupOptions: Collection<int, Group>, group: Group|null, phaseScope: StatisticsPhaseScope, panels: array<string, array<string, array<string, array<int, array{rank: int, player: Player, count: int}>>>>}
      */
-    public function statisticsPanels(Request $request, Category $category, CompetitionStatisticsService $statisticsService): array
+    public function statisticsPanels(Request $request, Tournament $tournament, Category $category, CompetitionStatisticsService $statisticsService): array
     {
-        $groupOptions = $category->uses_groups ? $category->groups->sortBy('order')->values() : new Collection;
+        $groupOptions = $category->uses_groups ? $category->groupsFor($tournament)->get() : new Collection;
 
         // Never a raw Group::find() -- resolving through the category's own
         // relation makes a group id from another category simply not match
         // anything, instead of needing a separate ownership check.
         $activeGroup = $category->uses_groups
-            ? $category->groups->firstWhere('id', $request->integer('group'))
+            ? $groupOptions->firstWhere('id', $request->integer('group'))
             : null;
 
         $activePhaseScope = StatisticsPhaseScope::tryFrom((string) $request->query('phase'))
@@ -368,7 +369,7 @@ class PhaseBoardService
 
         foreach (MatchEventType::cases() as $type) {
             foreach (StatisticsPhaseScope::cases() as $scope) {
-                $allRows = $statisticsService->leaderboard($category, $type, null, $scope);
+                $allRows = $statisticsService->leaderboard($tournament, $category, $type, null, $scope);
 
                 $panels[$type->value][$scope->value]['all'] = $allRows;
 
@@ -376,7 +377,7 @@ class PhaseBoardService
                     $panels[$type->value][$scope->value][(string) $group->id] = $this->reRank(
                         array_values(array_filter(
                             $allRows,
-                            fn (array $row): bool => $row['player']->team->group_id === $group->id
+                            fn (array $row): bool => $row['group']?->id === $group->id
                         ))
                     );
                 }

@@ -171,7 +171,7 @@ class CompetitionPhaseController extends Controller
         $this->authorize('view', $phase);
 
         $category = $phase->category;
-        $category->load('groups');
+        $category->setRelation('groups', $category->groupsFor($phase->tournament)->get());
 
         $schedules = $boardService->scheduleViews($phase);
 
@@ -240,7 +240,7 @@ class CompetitionPhaseController extends Controller
         // league-type phase's page, matching where the tab bar itself
         // already lives.
         $statistics = $phase->type === CompetitionPhaseType::League
-            ? $boardService->statisticsPanels($request, $category, $statisticsService)
+            ? $boardService->statisticsPanels($request, $phase->tournament, $category, $statisticsService)
             : null;
 
         // Fechas of this category (in this tournament) with matches still to

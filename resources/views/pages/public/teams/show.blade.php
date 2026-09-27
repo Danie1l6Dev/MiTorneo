@@ -1,5 +1,5 @@
 @php
-    $subtitle = collect([$team->short_name, $team->category->name, $team->group?->name])
+    $subtitle = collect([$team->short_name, $team->category->name, $group?->name])
         ->filter()
         ->implode(' · ');
 

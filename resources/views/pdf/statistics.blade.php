@@ -76,7 +76,7 @@
 
     @foreach ($tables as $table)
         @php
-            $showGroup = collect($table['rows'])->contains(fn ($row) => $row['team']->group !== null);
+            $showGroup = collect($table['rows'])->contains(fn ($row) => $row['group'] !== null);
         @endphp
 
         <div class="stat-section">
@@ -111,7 +111,7 @@
                                 <td>{{ $row['name'] }}</td>
                                 <td>{{ $row['team']->name }}</td>
                                 @if ($showGroup)
-                                    <td class="num">{{ $row['team']->group?->name ?? 'Único' }}</td>
+                                    <td class="num">{{ $row['group']?->name ?? 'Único' }}</td>
                                 @endif
                                 @foreach ($table['phases'] as $phase)
                                     <td class="num">{{ $row['counts'][$phase->id] ?? 0 }}</td>

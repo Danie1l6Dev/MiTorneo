@@ -1,9 +1,8 @@
 @php
-    // Category name => group name (or "Sin grupo") => teams -- same
-    // organizing principle used everywhere else in the catalog.
+    // Category name => teams -- same organizing principle used everywhere else in the catalog.
     $teamsByCategory = $teams
         ->groupBy('category.name')
-        ->map(fn ($teams) => $teams->groupBy(fn ($team) => $team->group->name ?? __('Sin grupo')));
+        ->map(fn ($teams) => collect([$teams]));
 @endphp
 
 <x-layouts::app :title="__('Agregar jugador')">
@@ -190,9 +189,6 @@
                                         $wasChecked = in_array($team->id, (array) old('team_ids', [])) ? 'true' : 'false';
                                         $checkedExpr = "{$wasChecked} || foundTeamIds.includes({$team->id})";
                                         $label = $team->name;
-                                        if ($groupTeams->count() > 1 || $teamsByGroup->count() > 1) {
-                                            $label .= ' — '.$groupName;
-                                        }
                                     @endphp
 
                                     <div class="flex items-center gap-2">

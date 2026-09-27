@@ -30,7 +30,7 @@ class PublicCategoryController extends Controller
             abort(404);
         }
 
-        $category->load(['groups' => fn ($query) => $query->withCount('teams')]);
+        $category->setRelation('groups', $category->groupsFor($tournament)->withCount('teams')->get());
 
         // A PROMOTED catalog category's own teams()/competitionPhases()
         // relations are NOT scoped to one tournament (it can be inscribed
@@ -45,14 +45,14 @@ class PublicCategoryController extends Controller
         if (! $category->tournament_id) {
             $category->setRelation(
                 'teams',
-                $tournament->globalTeams()->where('teams.category_id', $category->id)->with('group')->get()
+                $tournament->globalTeams()->where('teams.category_id', $category->id)->get()
             );
             $category->setRelation(
                 'competitionPhases',
                 $category->competitionPhases()->where('tournament_id', $tournament->id)->withCount('matches')->get()
             );
         } else {
-            $category->load(['teams.group', 'competitionPhases' => fn ($query) => $query->withCount('matches')]);
+            $category->load(['teams', 'competitionPhases' => fn ($query) => $query->withCount('matches')]);
         }
 
         return view('pages.public.categories.show', compact('tournament', 'category'));

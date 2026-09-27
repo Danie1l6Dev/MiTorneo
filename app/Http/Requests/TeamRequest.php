@@ -29,7 +29,7 @@ class TeamRequest extends FormRequest
         };
 
         $categoryId = $category?->id;
-        $usesGroups = $category instanceof Category && $category->uses_groups;
+        $usesGroups = $category instanceof Category && $category->uses_groups && $category->tournament_id !== null;
 
         // A global team (created under a Club -- see ClubTeamRequest) is
         // told apart from another squad of the SAME club by name, but two

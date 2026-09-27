@@ -20,7 +20,7 @@ class TeamController extends Controller
     {
         $this->authorize('create', [Team::class, $category]);
 
-        $lockedGroup = $category->uses_groups
+        $lockedGroup = $category->uses_groups && $category->tournament_id
             ? $category->groups()->find($request->integer('group'))
             : null;
 
@@ -36,7 +36,7 @@ class TeamController extends Controller
     {
         $this->authorize('create', [Team::class, $club]);
 
-        $categories = Auth::user()->categories()->with('groups')->get();
+        $categories = Auth::user()->categories()->get();
 
         return view('pages.clubs.teams.create', compact('club', 'categories'));
     }
@@ -47,12 +47,10 @@ class TeamController extends Controller
 
         $validated = $request->validated();
         $categoryId = Arr::pull($validated, 'category_id');
-        $groupId = Arr::pull($validated, 'group_id');
 
         $team = new Team($validated);
         $team->club_id = $club->id;
         $team->category_id = $categoryId;
-        $team->group_id = $groupId ?: null;
         $team->tournament_id = null;
         $team->save();
 
@@ -63,7 +61,7 @@ class TeamController extends Controller
     {
         $this->authorize('view', $team);
 
-        $team->load(['category', 'group', 'coach']);
+        $team->load(['category', 'coach']);
 
         // A global Team's roster can have players from two sources: ones
         // linked the "old" way (players.team_id, still how PlayerController
@@ -97,7 +95,7 @@ class TeamController extends Controller
 
         $team = $category->teams()->make($validated);
         $team->tournament_id = $category->tournament_id;
-        $team->group_id = $groupId;
+        $team->group_id = $category->tournament_id ? $groupId : null;
         $team->save();
 
         return $groupId
@@ -120,7 +118,7 @@ class TeamController extends Controller
         $groupId = Arr::pull($validated, 'group_id');
 
         $team->fill($validated);
-        $team->group_id = $groupId;
+        $team->group_id = $team->tournament_id ? $groupId : $team->group_id;
         $team->save();
 
         return to_route('categories.show', $team->category);

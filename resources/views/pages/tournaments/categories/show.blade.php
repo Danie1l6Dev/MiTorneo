@@ -47,13 +47,30 @@
                 <div class="flex items-center justify-between">
                     <flux:heading size="lg">{{ __('Grupos') }}</flux:heading>
 
-                    <flux:button :href="route('categories.groups.create', $category)" variant="primary" size="sm" icon="plus" wire:navigate>
+                    <flux:button :href="route('tournaments.categories.groups.create', [$tournament, $category])" variant="primary" size="sm" icon="plus" wire:navigate>
                         {{ __('Nuevo grupo') }}
                     </flux:button>
                 </div>
 
                 @if ($groups->isEmpty())
                     <x-ui.empty-state icon="squares-2x2" :message="__('Todavía no hay grupos definidos.')" />
+
+                    @if ($copyableTournaments->isNotEmpty())
+                        <form method="POST" action="{{ route('tournaments.categories.groups.copy', [$tournament, $category]) }}" class="flex flex-wrap items-end justify-center gap-3">
+                            @csrf
+
+                            <flux:field>
+                                <flux:label>{{ __('O copia los grupos de otro torneo') }}</flux:label>
+                                <select name="from_tournament_id" class="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 dark:border-white/10 dark:bg-zinc-800 dark:text-white">
+                                    @foreach ($copyableTournaments as $source)
+                                        <option value="{{ $source->id }}">{{ $source->name }}</option>
+                                    @endforeach
+                                </select>
+                            </flux:field>
+
+                            <flux:button type="submit" variant="ghost" size="sm" icon="document-duplicate">{{ __('Copiar grupos') }}</flux:button>
+                        </form>
+                    @endif
                 @else
                     <div class="flex flex-wrap justify-center gap-4">
                         @foreach ($groups as $group)
@@ -85,7 +102,7 @@
             @if ($teams->isEmpty())
                 <x-ui.empty-state icon="user-group" :message="__('Todavía no inscribiste ningún plantel para esta categoría en este torneo.')" />
             @elseif ($category->uses_groups)
-                @php $teamsByGroup = $teams->groupBy('group_id'); @endphp
+                @php $teamsByGroup = $teams->groupBy(fn ($team) => $team->tournamentGroupId()); @endphp
 
                 <div class="space-y-5">
                     @foreach ($groups as $group)

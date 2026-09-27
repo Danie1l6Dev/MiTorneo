@@ -155,6 +155,18 @@ Route::middleware(['auth'])->group(function () {
         ->shallow()
         ->except('index');
 
+    // Same as categories.groups.create/store, but with the tournament given in
+    // the URL -- groups belong to one tournament each, and a category can be
+    // enrolled in several.
+    Route::get('tournaments/{tournament}/categories/{category}/groups/create', [GroupController::class, 'createForTournament'])
+        ->name('tournaments.categories.groups.create');
+
+    Route::post('tournaments/{tournament}/categories/{category}/groups', [GroupController::class, 'storeForTournament'])
+        ->name('tournaments.categories.groups.store');
+
+    Route::post('tournaments/{tournament}/categories/{category}/groups/copy', [GroupController::class, 'copyFromTournament'])
+        ->name('tournaments.categories.groups.copy');
+
     Route::resource('categories.teams', TeamController::class)
         ->shallow()
         ->except(['index']);

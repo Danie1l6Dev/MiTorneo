@@ -26,7 +26,7 @@
                 @if ($category->groups->isEmpty())
                     <x-ui.empty-state icon="squares-2x2" :message="__('Todavía no hay grupos definidos.')" />
                 @else
-                    @php $teamsByGroup = $category->teams->groupBy('group_id'); @endphp
+                    @php $teamsByGroup = $category->teams->groupBy(fn ($team) => $team->tournamentGroupId()); @endphp
 
                     <div class="space-y-5">
                         @foreach ($category->groups->sortBy('order') as $group)

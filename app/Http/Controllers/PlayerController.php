@@ -187,7 +187,7 @@ class PlayerController extends Controller
     {
         $this->authorize('create', [Player::class, $club]);
 
-        $teams = Team::sortedByCategoryAge($club->teams()->with(['category', 'group'])->orderBy('name')->get());
+        $teams = Team::sortedByCategoryAge($club->teams()->with('category')->orderBy('name')->get());
 
         return view('pages.clubs.players.create', compact('club', 'teams'));
     }

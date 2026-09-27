@@ -219,7 +219,7 @@ class Player extends Model
         $teams = Team::query()
             ->whereIn('club_id', $clubIds)
             ->whereNotIn('id', $alreadyLinked)
-            ->with(['category', 'group'])
+            ->with('category')
             ->orderBy('name')
             ->get();
 

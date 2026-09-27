@@ -137,7 +137,7 @@ class Tournament extends Model
      */
     public function globalTeams(): BelongsToMany
     {
-        return $this->belongsToMany(Team::class, 'tournament_team')->withPivot(['expelled_at', 'expulsion_reason', 'expulsion_resolution_pdf_path']);
+        return $this->belongsToMany(Team::class, 'tournament_team')->withPivot(['group_id', 'expelled_at', 'expulsion_reason', 'expulsion_resolution_pdf_path']);
     }
 
     /**
