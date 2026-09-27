@@ -9,8 +9,19 @@
     $ageIneligible = $category && ! $player->ageEligibleForCategory($category);
 @endphp
 
-<div {{ $attributes->class('flex items-center justify-between gap-3 px-4 py-3' . ($player->is_active ? '' : ' opacity-60')) }}>
-    <div class="flex min-w-0 items-center gap-3">
+{{--
+    The whole row links to the player's ficha (stats, history, everything)
+    via a "stretched link" -- an invisible <a> covering the row (absolute
+    inset-0) instead of wrapping the row's content in one, so it never nests
+    inside the action buttons/forms on the right (invalid HTML, unreliable
+    clicks). Those keep working normally: `relative` raises them above the
+    stretched link in stacking order, which is what lets clicks land on the
+    button instead of falling through to the row's link underneath it.
+--}}
+<div {{ $attributes->class('relative flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-white/5' . ($player->is_active ? '' : ' opacity-60')) }}>
+    <a href="{{ route('players.show', $player) }}" wire:navigate class="absolute inset-0" aria-label="{{ __('Ver ficha de :name', ['name' => $player->full_name]) }}"></a>
+
+    <div class="pointer-events-none flex min-w-0 items-center gap-3">
         <div class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent-content/15 font-display text-base font-bold tabular-nums text-accent-content">
             {{ $player->jersey_number ?? '–' }}
         </div>
@@ -21,7 +32,7 @@
         </div>
     </div>
 
-    <div class="flex shrink-0 items-center gap-1.5">
+    <div class="relative flex shrink-0 items-center gap-1.5">
         @unless ($player->birth_date)
             <flux:tooltip :content="__('Falta la fecha de nacimiento -- necesaria para sumarlo a otra categoría')">
                 <flux:icon.exclamation-triangle variant="micro" class="size-4 text-amber-500" />
