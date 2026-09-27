@@ -1,6 +1,7 @@
 @props([
     'player',
     'team' => null,
+    'readOnly' => false,
 ])
 
 @php
@@ -33,7 +34,7 @@
             </flux:tooltip>
         @endunless
 
-        @if ($ageIneligible)
+        @if ($ageIneligible && ! $readOnly)
             <flux:tooltip :content="__('Ya no es permitido en esta categoría este jugador -- click para promoverlo')">
                 <flux:button :href="route('teams.players.promote.create', [$team, $player])" variant="ghost" size="sm" icon="arrow-up-circle" class="text-red-500" wire:navigate />
             </flux:tooltip>
@@ -41,16 +42,18 @@
 
         <x-ui.person-status-badge :active="$player->is_active" />
 
-        <flux:tooltip :content="__('Editar')">
-            <flux:button :href="route('players.edit', $player)" variant="ghost" size="sm" icon="pencil" wire:navigate />
-        </flux:tooltip>
-
-        <form method="POST" action="{{ route('players.toggle-active', $player) }}" onsubmit="return confirm('{{ $player->is_active ? __('¿Desactivar a :name?', ['name' => $player->full_name]) : __('¿Activar a :name?', ['name' => $player->full_name]) }}')">
-            @csrf
-            @method('PATCH')
-            <flux:tooltip :content="$player->is_active ? __('Desactivar') : __('Activar')">
-                <flux:button type="submit" variant="ghost" size="sm" :icon="$player->is_active ? 'x-circle' : 'check-circle'" />
+        @unless ($readOnly)
+            <flux:tooltip :content="__('Editar')">
+                <flux:button :href="route('players.edit', $player)" variant="ghost" size="sm" icon="pencil" wire:navigate />
             </flux:tooltip>
-        </form>
+
+            <form method="POST" action="{{ route('players.toggle-active', $player) }}" onsubmit="return confirm('{{ $player->is_active ? __('¿Desactivar a :name?', ['name' => $player->full_name]) : __('¿Activar a :name?', ['name' => $player->full_name]) }}')">
+                @csrf
+                @method('PATCH')
+                <flux:tooltip :content="$player->is_active ? __('Desactivar') : __('Activar')">
+                    <flux:button type="submit" variant="ghost" size="sm" :icon="$player->is_active ? 'x-circle' : 'check-circle'" />
+                </flux:tooltip>
+            </form>
+        @endunless
     </div>
 </div>

@@ -171,4 +171,32 @@ class Tournament extends Model
     {
         return $this->hasMany(TournamentMatch::class);
     }
+
+    /**
+     * The [start, end] window this tournament actually ran in -- there's no
+     * start_date/end_date column on the tournament itself, so it's derived
+     * from its matches' scheduled_at. Used to reconstruct a plantel's roster
+     * AS OF this tournament (see Team::rosterAsOf()) instead of its current
+     * one, once the tournament is no longer live.
+     *
+     * A Finished tournament's end is its last scheduled match (or its own
+     * updated_at if none had a date). A Draft/Active one is still open to
+     * change, so it ends "now" -- open-ended -- which is also exactly what
+     * makes rosterAsOf() equal today's actual roster while the tournament is
+     * still going, with no special-casing needed on that end.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    public function rosterWindow(): array
+    {
+        $scheduledDates = $this->matches()->whereNotNull('scheduled_at')->pluck('scheduled_at');
+
+        $start = $scheduledDates->min() ?? $this->created_at;
+
+        $end = $this->status === TournamentStatus::Finished
+            ? ($scheduledDates->max() ?? $this->updated_at ?? $start)
+            : now();
+
+        return [$start, $end];
+    }
 }

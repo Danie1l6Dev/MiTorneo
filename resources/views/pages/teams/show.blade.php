@@ -39,6 +39,29 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
+        @if ($tournamentOptions->isNotEmpty())
+            <form method="GET" action="{{ route('teams.show', $team) }}" class="flex flex-wrap items-end gap-2">
+                <flux:select name="tournament" label="{{ __('Ver plantel de') }}" class="max-w-xs" onchange="this.form.submit()">
+                    <flux:select.option value="" :selected="! $selectedTournament">{{ __('Plantel actual') }}</flux:select.option>
+                    @foreach ($tournamentOptions as $option)
+                        <flux:select.option value="{{ $option->id }}" :selected="$selectedTournament?->id === $option->id">
+                            {{ $option->name }}
+                        </flux:select.option>
+                    @endforeach
+                </flux:select>
+
+                @if ($selectedTournament)
+                    <flux:badge size="sm" color="amber" icon="clock">{{ __('Roster histórico, solo lectura') }}</flux:badge>
+                @endif
+            </form>
+
+            @if ($selectedTournament)
+                <flux:callout variant="warning" icon="clock" :heading="__('Viendo el plantel como estaba en :tournament', ['tournament' => $selectedTournament->name])">
+                    {{ __('Puede diferir del plantel actual si hubo transferencias después. Para editar jugadores, vuelve a "Plantel actual".') }}
+                </flux:callout>
+            @endif
+        @endif
+
         @foreach ($expulsions as $expulsionTournament)
             <flux:callout variant="danger" icon="no-symbol" :heading="__('Expulsado de :tournament', ['tournament' => $expulsionTournament->name])">
                 <flux:link :href="route('tournaments.categories.teams.expulsion.show', [$expulsionTournament, $team->category, $team])" wire:navigate>
@@ -77,27 +100,29 @@
                     </flux:text>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
-                    @if ($ineligibleCount > 0)
-                        <x-ui.confirm-delete-form
-                            :action="route('teams.players.promote-eligible', $team)"
-                            method="POST"
-                            variant="warning"
-                            icon="arrow-up-circle"
-                            :heading="__('¿Promover a los jugadores mayores?')"
-                            :description="__('Cada jugador que ya no cumple el rango de :category se mueve automáticamente a la categoría más vieja siguiente de este club donde sí entra por edad. Los que todavía no tienen ninguna categoría más vieja disponible en el club quedan para promover manualmente desde su fila.', ['category' => $team->category->name])"
-                            :confirm-label="__('Promover')"
-                        >
-                            <flux:button variant="ghost" size="sm" icon="arrow-up-circle">
-                                {{ __('Promover a los mayores (:count)', ['count' => $ineligibleCount]) }}
-                            </flux:button>
-                        </x-ui.confirm-delete-form>
-                    @endif
+                @unless ($selectedTournament)
+                    <div class="flex flex-wrap items-center gap-2">
+                        @if ($ineligibleCount > 0)
+                            <x-ui.confirm-delete-form
+                                :action="route('teams.players.promote-eligible', $team)"
+                                method="POST"
+                                variant="warning"
+                                icon="arrow-up-circle"
+                                :heading="__('¿Promover a los jugadores mayores?')"
+                                :description="__('Cada jugador que ya no cumple el rango de :category se mueve automáticamente a la categoría más vieja siguiente de este club donde sí entra por edad. Los que todavía no tienen ninguna categoría más vieja disponible en el club quedan para promover manualmente desde su fila.', ['category' => $team->category->name])"
+                                :confirm-label="__('Promover')"
+                            >
+                                <flux:button variant="ghost" size="sm" icon="arrow-up-circle">
+                                    {{ __('Promover a los mayores (:count)', ['count' => $ineligibleCount]) }}
+                                </flux:button>
+                            </x-ui.confirm-delete-form>
+                        @endif
 
-                    <flux:button :href="$team->club_id ? route('clubs.players.create', $team->club) : route('teams.players.create', $team)" variant="primary" size="sm" icon="plus" wire:navigate>
-                        {{ __('Agregar jugador') }}
-                    </flux:button>
-                </div>
+                        <flux:button :href="$team->club_id ? route('clubs.players.create', $team->club) : route('teams.players.create', $team)" variant="primary" size="sm" icon="plus" wire:navigate>
+                            {{ __('Agregar jugador') }}
+                        </flux:button>
+                    </div>
+                @endunless
             </div>
 
             @if ($roster->isEmpty())
@@ -105,7 +130,7 @@
             @else
                 <div class="divide-y divide-zinc-100 overflow-hidden rounded-2xl border border-zinc-200 dark:divide-white/5 dark:border-white/10 glass-panel">
                     @foreach ($roster as $player)
-                        <x-ui.player-row :player="$player" :team="$team" />
+                        <x-ui.player-row :player="$player" :team="$team" :read-only="(bool) $selectedTournament" />
                     @endforeach
                 </div>
             @endif

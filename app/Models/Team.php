@@ -320,6 +320,75 @@ class Team extends Model
     }
 
     /**
+     * The roster as it actually was during $tournament, reconstructed from
+     * player_team_history instead of read live off players()/globalPlayers()
+     * -- a player who has since transferred out (or one who joined only
+     * afterwards) must not appear or disappear from a tournament that
+     * already happened just because the plantel's roster kept moving on.
+     *
+     * A player counts as "in" this window when their stay overlaps it at
+     * all (started before the window ends, and either still open or ended
+     * after the window starts) -- so a mid-tournament transfer still shows
+     * them for the tournament they actually played in. Each Player comes
+     * back with jersey_number overridden to what it was during THAT stay
+     * (never today's).
+     *
+     * Falls back to currentRoster() when there's no history at all for this
+     * team -- a player linked directly (tests, or real data from before
+     * PlayerHistoryBackfillService's one-time backfill ran in production)
+     * has no stay to reconstruct from, and an empty roster would be a worse
+     * wrong answer than today's. Unsorted and unfiltered either way -- same
+     * as currentRoster(), each caller sorts/filters (is_active, etc.) as it
+     * already did.
+     *
+     * @return Collection<int, Player>
+     */
+    public function rosterAsOf(Tournament $tournament): Collection
+    {
+        [$start, $end] = $tournament->rosterWindow();
+
+        $stays = PlayerTeamHistory::query()
+            ->where('team_id', $this->id)
+            ->where('started_on', '<=', $end)
+            ->where(fn ($query) => $query->whereNull('ended_on')->orWhere('ended_on', '>=', $start))
+            ->with('player')
+            ->get()
+            ->unique('player_id')
+            ->filter(fn (PlayerTeamHistory $stay): bool => $stay->player !== null);
+
+        if ($stays->isEmpty()) {
+            return $this->currentRoster();
+        }
+
+        return $stays
+            ->map(function (PlayerTeamHistory $stay): Player {
+                $player = $stay->player;
+                $player->jersey_number = $stay->jersey_number;
+
+                return $player;
+            })
+            ->values();
+    }
+
+    /**
+     * Today's roster, both link kinds merged (see globalPlayers()'s
+     * docblock) -- the shared base rosterAsOf() falls back to, and what the
+     * "current" view (no tournament selected) uses too.
+     *
+     * @return Collection<int, Player>
+     */
+    public function currentRoster(): Collection
+    {
+        $roster = $this->players()->get();
+
+        if (! $this->tournament_id) {
+            $roster = $roster->merge($this->globalPlayers()->get())->unique('id');
+        }
+
+        return $roster->values();
+    }
+
+    /**
      * Every player who could be called up to play a match for this team:
      * this team's own roster (legacy team_id + player_team pivot) that
      * STILL fits this team's category's age rule, plus, for a global team,

@@ -6,6 +6,7 @@ use App\Http\Requests\ClubTeamRequest;
 use App\Http\Requests\TeamRequest;
 use App\Models\Category;
 use App\Models\Club;
+use App\Models\Player;
 use App\Models\Team;
 use App\Services\PlayerRosterService;
 use Illuminate\Http\RedirectResponse;
@@ -57,11 +58,24 @@ class TeamController extends Controller
         return to_route('clubs.show', $club)->with('status', __('Plantel creado correctamente.'));
     }
 
-    public function show(Team $team): View
+    public function show(Team $team, Request $request): View
     {
         $this->authorize('view', $team);
 
         $team->load(['category', 'coach']);
+
+        // Every tournament this global team has actually played in, offered
+        // as a selector on the ficha so the organizer can look at the
+        // roster as it was back then instead of today's. Empty (so no
+        // selector shows) for a legacy per-tournament team, which only
+        // ever had the one tournament to begin with.
+        $tournamentOptions = $team->tournament_id
+            ? collect()
+            : $team->tournaments()->orderByDesc('tournaments.created_at')->get();
+
+        $selectedTournament = $request->filled('tournament')
+            ? $tournamentOptions->firstWhere('id', $request->integer('tournament'))
+            : null;
 
         // A global Team's roster can have players from two sources: ones
         // linked the "old" way (players.team_id, still how PlayerController
@@ -70,11 +84,17 @@ class TeamController extends Controller
         // rosters, or a player deliberately added to more than one
         // plantel). A legacy per-tournament Team only ever has the first
         // kind. See docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md.
-        $roster = $team->players()->orderByDesc('is_active')->orderBy('jersey_number')->get();
-
-        if (! $team->tournament_id) {
-            $roster = $roster->merge($team->globalPlayers()->get())->unique('id')->values();
-        }
+        //
+        // Read-only when $selectedTournament is set -- Team::rosterAsOf()
+        // reconstructs it from that tournament's dates instead of today's;
+        // the ficha's edit actions don't make sense against a frozen
+        // snapshot (see the view).
+        $roster = ($selectedTournament ? $team->rosterAsOf($selectedTournament) : $team->currentRoster())
+            ->sort(function (Player $a, Player $b): int {
+                return ($b->is_active <=> $a->is_active)
+                    ?: (($a->jersey_number ?? PHP_INT_MAX) <=> ($b->jersey_number ?? PHP_INT_MAX));
+            })
+            ->values();
 
         $activePlayersCount = $roster->where('is_active', true)->count();
 
@@ -83,7 +103,9 @@ class TeamController extends Controller
         // which is never linked through the tournament_team pivot at all.
         $expulsions = $team->tournaments()->wherePivotNotNull('expelled_at')->get();
 
-        return view('pages.teams.show', compact('team', 'roster', 'activePlayersCount', 'expulsions'));
+        return view('pages.teams.show', compact(
+            'team', 'roster', 'activePlayersCount', 'expulsions', 'tournamentOptions', 'selectedTournament'
+        ));
     }
 
     public function store(TeamRequest $request, Category $category): RedirectResponse

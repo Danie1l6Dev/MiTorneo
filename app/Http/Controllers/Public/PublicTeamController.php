@@ -36,13 +36,14 @@ class PublicTeamController extends Controller
         $team->load(['category', 'coach']);
         $group = $team->groupIn($tournament);
 
-        $roster = $team->players()->where('is_active', true)->get();
-
-        if (! $team->tournament_id) {
-            $roster = $roster->merge($team->globalPlayers()->where('is_active', true)->get())->unique('id');
-        }
-
-        $roster = $roster->sortBy(fn (Player $player): array => [$player->jersey_number ?? PHP_INT_MAX, $player->full_name])->values();
+        // The roster as it actually was during $tournament (see
+        // Team::rosterAsOf()), not today's -- a visitor browsing a past
+        // tournament must see who played it then, even if the plantel's
+        // roster has since moved on.
+        $roster = $team->rosterAsOf($tournament)
+            ->where('is_active', true)
+            ->sortBy(fn (Player $player): array => [$player->jersey_number ?? PHP_INT_MAX, $player->full_name])
+            ->values();
 
         // Every sanction still owed by a player/coach of this plantel --
         // pending or actively being served, same "suspended right now"
