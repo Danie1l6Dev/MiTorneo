@@ -302,13 +302,15 @@
                                     value="{{ $config['date'] ?? '' }}"
                                 />
 
-                                <flux:select name="config[venue_id]" label="{{ __('Cancha') }}" placeholder="{{ __('Sin cancha') }}">
-                                    @foreach ($venues as $venue)
-                                        <flux:select.option value="{{ $venue->id }}" :selected="(string) $venue->id === (string) ($config['venue_id'] ?? '')">
-                                            {{ $venue->name }}
-                                        </flux:select.option>
-                                    @endforeach
-                                </flux:select>
+                                <x-ui.searchable-select
+                                    name="config[venue_id]"
+                                    :options="$venues->map(fn ($venue) => ['id' => $venue->id, 'label' => $venue->name])"
+                                    :selected="($config['venue_id'] ?? '') ?: null"
+                                    :label="__('Cancha')"
+                                    :placeholder="__('Sin cancha')"
+                                    :search-placeholder="__('Buscar cancha...')"
+                                    :empty-message="__('Ninguna cancha coincide con la búsqueda.')"
+                                />
 
                                 <flux:input
                                     name="config[start]"

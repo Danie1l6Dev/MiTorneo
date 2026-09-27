@@ -64,18 +64,20 @@
                                     </label>
 
                                     @if ($category->uses_groups && $groups->isNotEmpty())
-                                        <select
-                                            name="groups[{{ $team->id }}]"
-                                            x-show="on"
-                                            x-cloak
-                                            @disabled($locked)
-                                            class="rounded-lg border border-zinc-200 bg-white px-2 py-1 text-sm text-zinc-800 dark:border-white/10 dark:bg-zinc-800 dark:text-white"
-                                        >
-                                            <option value="">{{ __('Sin grupo') }}</option>
-                                            @foreach ($groups as $group)
-                                                <option value="{{ $group->id }}" @selected((string) $currentGroup === (string) $group->id)>{{ $group->name }}</option>
-                                            @endforeach
-                                        </select>
+                                        <div x-show="on" x-cloak class="w-40">
+                                            <flux:select
+                                                name="groups[{{ $team->id }}]"
+                                                size="sm"
+                                                placeholder="{{ __('Sin grupo') }}"
+                                                :disabled="$locked"
+                                            >
+                                                @foreach ($groups as $group)
+                                                    <flux:select.option value="{{ $group->id }}" :selected="(string) $currentGroup === (string) $group->id">
+                                                        {{ $group->name }}
+                                                    </flux:select.option>
+                                                @endforeach
+                                            </flux:select>
+                                        </div>
                                     @endif
                                 </div>
                             @endforeach

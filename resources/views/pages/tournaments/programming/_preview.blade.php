@@ -3,8 +3,10 @@
     in play order, each with the day / time / cancha the fields above produce
     (still editable one by one) and whatever clashes that slot has. Rendered
     with the page and re-rendered on its own by
-    TournamentProgrammingController::preview() -- so it only uses plain HTML
-    controls, which behave the same when swapped in as a fragment.
+    TournamentProgrammingController::preview(), swapped in as a raw HTML
+    fragment (this.$refs.preview.innerHTML = ...) -- Alpine's own mutation
+    observer picks up any x-data in it same as on first render, so
+    x-ui.searchable-select (below) works here unchanged.
 --}}
 @php
     $control = 'w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-800 shadow-xs focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/30 dark:border-white/10 dark:bg-white/5 dark:text-white';
@@ -72,12 +74,14 @@
                         class="{{ $control }}"
                     >
 
-                    <select name="matches[{{ $match->id }}][venue_id]" aria-label="{{ __('Cancha') }}" class="{{ $control }}">
-                        <option value="">{{ __('Sin cancha') }}</option>
-                        @foreach ($venues as $venue)
-                            <option value="{{ $venue->id }}" @selected((string) $venue->id === (string) $item['venue_id'])>{{ $venue->name }}</option>
-                        @endforeach
-                    </select>
+                    <x-ui.searchable-select
+                        name="matches[{{ $match->id }}][venue_id]"
+                        :options="$venues->map(fn ($venue) => ['id' => $venue->id, 'label' => $venue->name])"
+                        :selected="$item['venue_id'] ?: null"
+                        :placeholder="__('Sin cancha')"
+                        :search-placeholder="__('Buscar cancha...')"
+                        :empty-message="__('Ninguna cancha coincide con la búsqueda.')"
+                    />
                 </div>
 
                 @foreach ($item['conflicts'] as $conflict)

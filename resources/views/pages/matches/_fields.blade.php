@@ -52,15 +52,18 @@
     />
 </div>
 
-<flux:select name="venue_id" label="{{ __('Cancha (opcional)') }}" placeholder="{{ __('Sin cancha asignada') }}" :disabled="$readonly">
-    @php $currentVenue = old('venue_id', $match->venue_id ?? ''); @endphp
+@php $currentVenue = old('venue_id', $match->venue_id ?? ''); @endphp
 
-    @foreach ($venues as $venue)
-        <flux:select.option value="{{ $venue->id }}" :selected="(string) $venue->id === (string) $currentVenue">
-            {{ $venue->name }}
-        </flux:select.option>
-    @endforeach
-</flux:select>
+<x-ui.searchable-select
+    name="venue_id"
+    :options="$venues->map(fn ($venue) => ['id' => $venue->id, 'label' => $venue->name])"
+    :selected="$currentVenue ?: null"
+    :label="__('Cancha (opcional)')"
+    :placeholder="__('Sin cancha asignada')"
+    :search-placeholder="__('Buscar cancha...')"
+    :empty-message="__('Ninguna cancha coincide con la búsqueda.')"
+    :disabled="$readonly"
+/>
 
 @unless ($readonly)
     @if ($venues->isEmpty())
@@ -75,12 +78,15 @@
     </flux:text>
 @endunless
 
-<flux:select name="referee_id" label="{{ __('Árbitro (opcional)') }}" placeholder="{{ __('Sin árbitro asignado') }}" :disabled="$readonly">
-    @php $currentReferee = old('referee_id', $match->referee_id ?? ''); @endphp
+@php $currentReferee = old('referee_id', $match->referee_id ?? ''); @endphp
 
-    @foreach ($referees as $referee)
-        <flux:select.option value="{{ $referee->id }}" :selected="(string) $referee->id === (string) $currentReferee">
-            {{ $referee->full_name }}
-        </flux:select.option>
-    @endforeach
-</flux:select>
+<x-ui.searchable-select
+    name="referee_id"
+    :options="$referees->map(fn ($referee) => ['id' => $referee->id, 'label' => $referee->full_name])"
+    :selected="$currentReferee ?: null"
+    :label="__('Árbitro (opcional)')"
+    :placeholder="__('Sin árbitro asignado')"
+    :search-placeholder="__('Buscar árbitro...')"
+    :empty-message="__('Ningún árbitro coincide con la búsqueda.')"
+    :disabled="$readonly"
+/>
