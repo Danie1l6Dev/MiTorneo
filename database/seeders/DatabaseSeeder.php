@@ -158,13 +158,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $groupA = $teterito->groups()->forceCreate([
-            'tournament_id' => null,
+            'tournament_id' => $tournament->id,
             'name' => 'Grupo A',
             'order' => 0,
         ]);
 
         $groupB = $teterito->groups()->forceCreate([
-            'tournament_id' => null,
+            'tournament_id' => $tournament->id,
             'name' => 'Grupo B',
             'order' => 1,
         ]);
@@ -210,13 +210,13 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $groupA = $subquince->groups()->forceCreate([
-            'tournament_id' => null,
+            'tournament_id' => $tournament->id,
             'name' => 'Grupo A',
             'order' => 0,
         ]);
 
         $groupB = $subquince->groups()->forceCreate([
-            'tournament_id' => null,
+            'tournament_id' => $tournament->id,
             'name' => 'Grupo B',
             'order' => 1,
         ]);
@@ -322,11 +322,14 @@ class DatabaseSeeder extends Seeder
         $team = $category->teams()->forceCreate([
             'tournament_id' => null,
             'club_id' => $club->id,
-            'group_id' => $group?->id,
             'name' => $name,
         ]);
 
+        // A plantel's group is a fact about it IN a tournament (tournament_team.
+        // group_id), never about the plantel itself -- teams.group_id is legacy
+        // and nothing app-facing reads it for a global team like this one.
         $tournament->globalTeams()->attach($team->id);
+        $team->assignGroupIn($tournament, $group);
 
         $this->seedPlayersForTeam($team);
         $this->seedCoachForTeam($team);
