@@ -45,7 +45,18 @@ RUN composer dump-autoload --optimize \
 RUN mkdir -p storage/framework/{cache,sessions,testing,views} storage/logs bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
-COPY --from=caddy /usr/bin/caddy /usr/bin/caddy
+# The official Caddy image sets a Linux file capability (cap_net_bind_service)
+# on this binary so it can bind :80/:443 as non-root. `COPY --from` carries
+# that capability bit over -- and Render's runtime (gVisor-based, like Cloud
+# Run) refuses to exec a binary that has one at all, failing with "Operation
+# not permitted" even though we only ever bind an unprivileged $PORT. `cp`
+# (unlike `COPY`) does not preserve xattrs/capabilities by default, so
+# round-tripping the binary through one strips it.
+COPY --from=caddy /usr/bin/caddy /usr/bin/caddy-with-capability
+RUN cp /usr/bin/caddy-with-capability /usr/bin/caddy \
+    && rm /usr/bin/caddy-with-capability \
+    && chmod +x /usr/bin/caddy
+
 COPY docker/Caddyfile /etc/caddy/Caddyfile
 
 COPY docker/start.sh /usr/local/bin/start.sh
