@@ -77,7 +77,11 @@ table.results td.score {
     text-align: center;
     font-weight: bold;
     font-size: 13px;
-    white-space: nowrap;
+    /* No nowrap here on purpose: with table-layout: fixed above, a long
+       detail line (e.g. "Perdido por W (Equipo Tal)") must be free to
+       wrap onto a second line instead of forcing this column wider --
+       the short score itself ("2 - 1") never needs to wrap regardless. */
+    word-wrap: break-word;
 }
 
 table.results .small {
@@ -103,6 +107,17 @@ table.results td.events-away {
 table.results.match-table {
     margin-bottom: 28px;
     page-break-inside: avoid;
+    /* Without this, a long line in the score cell (e.g. "Perdido por W
+       (Equipo Tal)", kept on one line by nothing wrapping it) makes the
+       browser/DomPDF ignore the home/score/away width percentages set on
+       this table's own <td>s and grow that column at the other two's
+       expense -- fixed makes those percentages strict regardless of
+       content length. Scoped to .match-table only (not every
+       table.results): the stats/events/sanctions tables elsewhere in
+       these PDFs have a different column count and want their normal
+       content-based sizing, not this table's 43/14/43 split.
+    */
+    table-layout: fixed;
 }
 
 table.results td.info-row {

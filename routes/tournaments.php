@@ -320,6 +320,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('tournaments/{tournament}/categories/{category}/results/pdf', [MatchResultsPdfController::class, 'exportCategory'])
         ->name('tournaments.categories.results.pdf');
 
+    // Every category's played matches, split by the chosen fecha(s) -- see
+    // MatchResultsPdfController::exportTournament() and x-ui.results-export.
+    Route::get('tournaments/{tournament}/results/pdf', [MatchResultsPdfController::class, 'exportTournament'])
+        ->name('tournaments.results.pdf');
+
     // Player statistics tables (?type=goal|assist|yellow_card|red_card|all),
     // one column per phase -- see StatisticsPdfController.
     Route::get('tournaments/{tournament}/categories/{category}/statistics/pdf', [StatisticsPdfController::class, 'export'])

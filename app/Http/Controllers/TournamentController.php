@@ -6,6 +6,7 @@ use App\Http\Requests\TournamentRequest;
 use App\Models\CompetitionPhase;
 use App\Models\Tournament;
 use App\Services\MatchProgrammingReportService;
+use App\Services\MatchResultsReportService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +32,7 @@ class TournamentController extends Controller
         return to_route('tournaments.show', $tournament);
     }
 
-    public function show(Tournament $tournament, MatchProgrammingReportService $programming): View
+    public function show(Tournament $tournament, MatchProgrammingReportService $programming, MatchResultsReportService $results): View
     {
         $this->authorize('view', $tournament);
 
@@ -61,7 +62,11 @@ class TournamentController extends Controller
         // each in the "Exportar programación" menu.
         $programmingRounds = $programming->pendingRounds($tournament);
 
-        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds'));
+        // Fechas with at least one match already played -- one entry each
+        // in the "Exportar resultados" menu.
+        $resultRounds = $results->playedRounds($tournament);
+
+        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds', 'resultRounds'));
     }
 
     public function edit(Tournament $tournament): View

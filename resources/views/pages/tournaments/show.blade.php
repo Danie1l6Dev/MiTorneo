@@ -23,35 +23,146 @@
             </div>
 
             <x-slot:actions>
-                {{-- Letterhead (generic vs. Faudis' municipal one) is picked
-                     server-side, see MunicipalStandingsPdfController. --}}
-                @if ($tournament->competitionPhases()->where('type', \App\Enums\CompetitionPhaseType::League)->exists())
-                    <x-ui.pdf-export-button :href="route('tournaments.standings.pdf', $tournament)" :filename="'tabla-posiciones-'.str($tournament->name)->slug().'.pdf'" variant="ghost" icon="arrow-down-tray">
-                        {{ __('Exportar tabla de posiciones') }}
-                    </x-ui.pdf-export-button>
+                @php
+                    $hasStandingsExport = $tournament->competitionPhases()->where('type', \App\Enums\CompetitionPhaseType::League)->exists();
+                @endphp
+
+                {{-- Single "Exportaciones" dropdown (flux:dropdown/flux:menu) for
+                     the three PDF exports -- "Programar fecha" stays outside since
+                     it navigates to a tool, it doesn't export anything.
+
+                     Posiciones downloads directly (its own x-data fetch+blob,
+                     same pattern as x-ui.pdf-export-button). Programación/
+                     Resultados each need a fecha-picker modal, but that modal is
+                     NOT nested inside the menu item -- a flux:modal.trigger
+                     directly inside a flux:menu.item confirmed live to break
+                     click handling app-wide (two Flux-controlled popovers
+                     reacting to the same click: the menu's own close-on-select,
+                     and the modal trying to open). Instead each menu item
+                     manually dispatches the same 'modal-show' event
+                     flux:modal.trigger would, delayed one tick via $nextTick()
+                     so the menu finishes closing first, targeting
+                     x-ui.programming-export/results-export rendered separately
+                     below with showTrigger=false (only their modal, no
+                     trigger of their own) under the same deterministic modal
+                     name those components compute from the tournament id.
+
+                     Each of these two menu items also needs its own bare
+                     x-data -- without it Alpine never initializes directives
+                     on a flux:menu.item at all (confirmed live: the item's
+                     x-on:click sat there unbound, no error, simply never
+                     ran -- flux:modal.trigger's own wrapper div carries the
+                     same bare x-data for the same reason, which is easy to
+                     miss when copying just the dispatch expression).
+
+                     The dispatch targets `document` directly (not Alpine's
+                     $dispatch(), which fires from $el and relies on it still
+                     being connected to the DOM as the event bubbles up --
+                     fragile right as the menu closes and removes/hides this
+                     item) since the modal's own listener is registered with
+                     Alpine's .document modifier (x-on:modal-show.document). --}}
+                @if ($hasStandingsExport || $programmingRounds !== [] || $resultRounds !== [])
+                    <flux:dropdown>
+                        <flux:button icon="arrow-down-tray" icon-trailing="chevron-down" variant="ghost">
+                            {{ __('Exportaciones') }}
+                        </flux:button>
+
+                        <flux:menu>
+                            @if ($hasStandingsExport)
+                                {{-- Letterhead (generic vs. Faudis' municipal one) is
+                                     picked server-side, see MunicipalStandingsPdfController. --}}
+                                <flux:menu.item
+                                    icon="chart-bar"
+                                    x-data="{
+                                        exporting: false,
+                                        async download() {
+                                            this.exporting = true
+
+                                            try {
+                                                const response = await fetch({{ \Illuminate\Support\Js::from(route('tournaments.standings.pdf', $tournament)) }})
+
+                                                if (! response.ok) {
+                                                    throw new Error('export failed')
+                                                }
+
+                                                const blob = await response.blob()
+                                                const url = URL.createObjectURL(blob)
+
+                                                const link = document.createElement('a')
+                                                link.href = url
+                                                link.download = {{ \Illuminate\Support\Js::from('tabla-posiciones-'.str($tournament->name)->slug().'.pdf') }};
+                                                link.click()
+
+                                                URL.revokeObjectURL(url)
+                                            } catch (error) {
+                                                alert({{ \Illuminate\Support\Js::from(__('No se pudo generar el PDF. Intenta de nuevo.')) }})
+                                            } finally {
+                                                this.exporting = false
+                                            }
+                                        },
+                                    }"
+                                    x-on:click="download()"
+                                >
+                                    {{ __('Posiciones') }}
+                                </flux:menu.item>
+                            @endif
+
+                            {{-- Official programming sheet (pending matches) of the
+                                 chosen fechas, every category -- see
+                                 MatchProgrammingPdfController. --}}
+                            @if ($programmingRounds !== [])
+                                <flux:menu.item
+                                    icon="clock"
+                                    x-data
+                                    x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('programming-export-'.$tournament->id) }} } })))"
+                                >
+                                    {{ __('Programación') }}
+                                </flux:menu.item>
+                            @endif
+
+                            {{-- Results of the chosen fechas, every category together --
+                                 see MatchResultsPdfController::exportTournament(). --}}
+                            @if ($resultRounds !== [])
+                                <flux:menu.item
+                                    icon="document-text"
+                                    x-data
+                                    x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('results-export-'.$tournament->id) }} } })))"
+                                >
+                                    {{ __('Resultados') }}
+                                </flux:menu.item>
+                            @endif
+                        </flux:menu>
+                    </flux:dropdown>
+
+                    {{-- Fecha-picker modals for Programación/Resultados, triggered
+                         from the menu items above -- see the dropdown's docblock. --}}
+                    @if ($programmingRounds !== [])
+                        <x-ui.programming-export :tournament="$tournament" :rounds="$programmingRounds" :show-trigger="false" />
+                    @endif
+                    @if ($resultRounds !== [])
+                        <x-ui.results-export :tournament="$tournament" :rounds="$resultRounds" :show-trigger="false" />
+                    @endif
                 @endif
 
-                {{-- Official programming sheet (pending matches) of the chosen
-                     fechas, every category -- see MatchProgrammingPdfController. --}}
                 @if ($programmingRounds !== [])
                     <flux:button :href="route('tournaments.programming.edit', $tournament)" variant="ghost" icon="calendar-days" wire:navigate>
                         {{ __('Programar fecha') }}
                     </flux:button>
-
-                    <x-ui.programming-export :tournament="$tournament" :rounds="$programmingRounds" variant="ghost" />
                 @endif
 
-                <flux:button :href="route('tournaments.edit', $tournament)" variant="ghost" icon="pencil" wire:navigate>
-                    {{ __('Editar') }}
-                </flux:button>
+                <flux:button.group>
+                    <flux:button :href="route('tournaments.edit', $tournament)" variant="ghost" icon="pencil" wire:navigate>
+                        {{ __('Editar') }}
+                    </flux:button>
 
-                <x-ui.confirm-delete-form
-                    :action="route('tournaments.destroy', $tournament)"
-                    :heading="__('¿Eliminar este torneo?')"
-                    :description="__('Se eliminarán también sus categorías, equipos y partidos. Esta acción no se puede deshacer.')"
-                >
-                    <flux:button variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
-                </x-ui.confirm-delete-form>
+                    <x-ui.confirm-delete-form
+                        :action="route('tournaments.destroy', $tournament)"
+                        :heading="__('¿Eliminar este torneo?')"
+                        :description="__('Se eliminarán también sus categorías, equipos y partidos. Esta acción no se puede deshacer.')"
+                    >
+                        <flux:button variant="danger" icon="trash">{{ __('Eliminar') }}</flux:button>
+                    </x-ui.confirm-delete-form>
+                </flux:button.group>
             </x-slot:actions>
         </x-ui.page-header>
 

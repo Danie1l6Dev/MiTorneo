@@ -3,6 +3,10 @@
     ['heading' => ?string, 'sections' => MatchResultsReportService::phaseSections()]),
     plus the letterhead vars (PdfLetterheadService).
 
+    $entry['heading'] prints as-is (e.g. "Fase: Liga" for one category
+    across its phases, or "Fecha 3" for the whole tournament by fecha) --
+    the caller composes the full label, this view doesn't prefix it.
+
     Each match is its own small table; its date and referee go on a
     centered line underneath, only the parts that match actually has.
 --}}
@@ -43,7 +47,7 @@
     @foreach ($phases as $entry)
         <div class="phase-section">
             @if ($entry['heading'])
-                <h3 style="margin-top: 14px;">Fase: {{ $entry['heading'] }}</h3>
+                <h3 style="margin-top: 14px;">{{ $entry['heading'] }}</h3>
             @endif
 
             @foreach ($entry['sections'] as $section)

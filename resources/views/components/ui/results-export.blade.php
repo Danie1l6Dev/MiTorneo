@@ -1,35 +1,27 @@
 @props([
     'tournament',
-    // Every fecha with pending matches (MatchProgrammingReportService::pendingRounds()).
+    // Every fecha with at least one played match (MatchResultsReportService::playedRounds()).
     'rounds',
-    // Null = every category of the tournament.
-    'category' => null,
-    // false = render only the modal (no button/trigger of its own) -- for
-    // use from the tournament page's "Exportaciones" dropdown, whose menu
-    // item dispatches modal-show itself under the SAME name (see below).
+    // false = render only the modal -- see x-ui.programming-export's
+    // showTrigger docblock, this is its sibling for played matches.
     'showTrigger' => true,
 ])
 
 {{--
-    "Exportar programación": a modal to pick one or more fechas (or all of
-    them) for MatchProgrammingPdfController. Same fetch-then-save download
-    as x-ui.pdf-export-button, so the loading state follows the real
-    response. The modal renders inline (see x-ui.confirm-delete-form), so
-    it shares this x-data.
+    "Exportar resultados": a modal to pick one or more fechas (or all of
+    them) for MatchResultsPdfController::exportTournament() -- every
+    category together, split by fecha. Same fetch-then-save download as
+    x-ui.programming-export (which this is a sibling of, for played matches
+    instead of pending ones), so the loading state follows the real response.
 
-    $modalName is deterministic (not Str::random) so x-ui.export-menu's menu
-    item -- rendered elsewhere in the DOM, outside this component -- can
-    dispatch 'modal-show' for this exact name without needing it passed back
-    out. Never nest a flux:modal.trigger (or this component with
-    showTrigger) inside a flux:menu.item directly: confirmed live that two
-    Flux-controlled popovers reacting to the same click (the menu's own
-    close-on-select and the modal trying to open) breaks click handling
-    app-wide until a reload.
+    $modalName is deterministic -- see x-ui.programming-export's docblock for
+    why, and for why a flux:modal.trigger must never be nested directly
+    inside a flux:menu.item.
 --}}
 @php
-    $modalName = 'programming-export-'.$tournament->id.($category ? '-'.$category->id : '');
-    $baseUrl = route('tournaments.programming.pdf', array_filter([$tournament, 'category' => $category?->id]));
-    $filePrefix = 'programacion-'.str(collect([$tournament->name, $category?->name])->filter()->implode('-'))->slug();
+    $modalName = 'results-export-'.$tournament->id;
+    $baseUrl = route('tournaments.results.pdf', $tournament);
+    $filePrefix = 'resultados-'.str($tournament->name)->slug();
 @endphp
 
 <div
@@ -76,18 +68,16 @@
 >
     @if ($showTrigger)
         <flux:modal.trigger name="{{ $modalName }}">
-            <flux:button icon="clock" {{ $attributes }}>{{ __('Programación') }}</flux:button>
+            <flux:button icon="document-text" {{ $attributes }}>{{ __('Resultados') }}</flux:button>
         </flux:modal.trigger>
     @endif
 
     <flux:modal name="{{ $modalName }}" class="w-full max-w-sm">
         <div class="space-y-5">
             <div class="space-y-1">
-                <flux:heading size="lg">{{ __('Exportar programación') }}</flux:heading>
+                <flux:heading size="lg">{{ __('Exportar resultados') }}</flux:heading>
                 <flux:text class="text-zinc-500 dark:text-white/60">
-                    {{ $category
-                        ? __('Partidos pendientes de :category en las fechas que elijas.', ['category' => $category->name])
-                        : __('Partidos pendientes de todas las categorías en las fechas que elijas.') }}
+                    {{ __('Partidos ya jugados de todas las categorías en las fechas que elijas.') }}
                 </flux:text>
             </div>
 

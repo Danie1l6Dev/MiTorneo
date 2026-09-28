@@ -14,11 +14,15 @@ use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Exports match results as a PDF, at four levels: one match (full report --
+ * Exports match results as a PDF, at five levels: one match (full report --
  * rosters, statistics, events, sanctions), one jornada/knockout round, one
- * whole phase, or every played match of a category in a tournament split by
- * phase and jornada/round. Same per-user letterhead switch as the standings
- * export (generic MiTorneo vs. Faudis' LIFUTGUA), see PdfLetterheadService.
+ * whole phase, every played match of a category in a tournament split by
+ * phase and jornada/round, or -- exportTournament() -- every category of the
+ * tournament together, split by the fecha(s) chosen (mirrors
+ * MatchProgrammingPdfController's "Exportar programación", for results
+ * instead of pending matches). Same per-user letterhead switch as the
+ * standings export (generic MiTorneo vs. Faudis' LIFUTGUA), see
+ * PdfLetterheadService.
  */
 class MatchResultsPdfController extends Controller
 {
@@ -93,7 +97,7 @@ class MatchResultsPdfController extends Controller
 
         $phaseSections = $phases
             ->map(fn (CompetitionPhase $phase): array => [
-                'heading' => $phase->name,
+                'heading' => __('Fase: :name', ['name' => $phase->name]),
                 'sections' => $this->report->phaseSections($phase, onlyPlayed: true),
             ])
             ->filter(fn (array $entry): bool => $entry['sections']->isNotEmpty())
@@ -108,5 +112,39 @@ class MatchResultsPdfController extends Controller
         ])->setPaper('letter');
 
         return $pdf->download('resultados-'.str($tournament->name.'-'.$category->name)->slug().'.pdf');
+    }
+
+    /**
+     * Every category's PLAYED matches of $tournament, fecha by fecha, for
+     * the chosen ?rounds= (5,6, or "all" for every fecha with a played
+     * match) -- same URL contract as MatchProgrammingPdfController::export(),
+     * so x-ui.results-export can reuse its exact fecha-picker JS.
+     */
+    public function exportTournament(Request $request, Tournament $tournament): StreamedResponse|Response
+    {
+        $this->authorize('view', $tournament);
+
+        $validated = $request->validate([
+            'rounds' => ['required', 'string', 'regex:/^(all|\d+(,\d+)*)$/'],
+        ]);
+
+        $roundNumbers = $validated['rounds'] === 'all'
+            ? null
+            : collect(explode(',', $validated['rounds']))->map(fn (string $round): int => (int) $round)->unique()->sort()->values()->all();
+
+        $phases = $this->report->tournamentRoundSections($tournament, $roundNumbers);
+
+        abort_if($phases === [], 404);
+
+        $pdf = Pdf::loadView('pdf.match-results', [
+            'tournament' => $tournament,
+            'meta' => [],
+            'phases' => $phases,
+            ...$this->letterhead->forUser(auth()->user()),
+        ])->setPaper('letter');
+
+        $roundsSlug = $roundNumbers === null ? 'todas-las-fechas' : 'fecha-'.implode('-', $roundNumbers);
+
+        return $pdf->download('resultados-'.str($tournament->name.'-'.$roundsSlug)->slug().'.pdf');
     }
 }
