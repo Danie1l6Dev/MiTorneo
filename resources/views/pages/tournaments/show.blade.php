@@ -174,6 +174,36 @@
             <flux:callout variant="danger" icon="exclamation-circle" :heading="session('error')" />
         @endif
 
+        {{-- Only a suggestion -- see Tournament::allCategoriesHaveChampion()
+             and TournamentController::finish(). Nothing finishes a
+             tournament on its own; this just surfaces the moment so it
+             doesn't go unnoticed, and leaves the actual decision (and its
+             timing, since it freezes rosterWindow()'s end date) to the
+             organizer. --}}
+        @if ($readyToFinish)
+            <flux:callout variant="warning" icon="trophy" :heading="__('Todas las categorías ya tienen campeón')">
+                <flux:callout.text>
+                    {{ __('¿Querés marcar este torneo como finalizado?') }}
+                </flux:callout.text>
+
+                <x-slot:actions>
+                    <x-ui.confirm-delete-form
+                        :action="route('tournaments.finish', $tournament)"
+                        method="PATCH"
+                        variant="warning"
+                        icon="flag"
+                        :heading="__('¿Finalizar este torneo?')"
+                        :description="__('Se podrá reabrir después desde Editar si hace falta.')"
+                        :confirm-label="__('Finalizar torneo')"
+                    >
+                        <flux:button variant="primary" size="sm" icon="flag">
+                            {{ __('Finalizar torneo') }}
+                        </flux:button>
+                    </x-ui.confirm-delete-form>
+                </x-slot:actions>
+            </flux:callout>
+        @endif
+
         @if ($tournament->slug)
             <x-ui.copy-link
                 :url="route('public.tournaments.show', $tournament)"

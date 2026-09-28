@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TournamentStatus;
 use App\Http\Requests\TournamentRequest;
 use App\Models\CompetitionPhase;
 use App\Models\Tournament;
@@ -66,7 +67,13 @@ class TournamentController extends Controller
         // in the "Exportar resultados" menu.
         $resultRounds = $results->playedRounds($tournament);
 
-        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds', 'resultRounds'));
+        // Offers "Finalizar torneo" on the page only once every category
+        // already has a champion and nobody's done it by hand yet -- see
+        // Tournament::allCategoriesHaveChampion().
+        $readyToFinish = $tournament->status !== TournamentStatus::Finished
+            && $tournament->allCategoriesHaveChampion();
+
+        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds', 'resultRounds', 'readyToFinish'));
     }
 
     public function edit(Tournament $tournament): View
@@ -107,5 +114,22 @@ class TournamentController extends Controller
         $tournament->regenerateSlug();
 
         return back()->with('status', __('Se generó un nuevo enlace público. El enlace anterior ha dejado de funcionar.'));
+    }
+
+    /**
+     * Manual "Finalizar torneo" action offered from the show page once
+     * every category already has a champion (see
+     * Tournament::allCategoriesHaveChampion()) -- nothing does this
+     * automatically. Finishing freezes rosterWindow()'s end date, so it's
+     * left to the organizer's judgment rather than triggered on its own.
+     */
+    public function finish(Tournament $tournament): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        $tournament->status = TournamentStatus::Finished;
+        $tournament->save();
+
+        return back()->with('status', __('Torneo marcado como finalizado.'));
     }
 }

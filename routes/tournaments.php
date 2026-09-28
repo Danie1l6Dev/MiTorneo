@@ -35,6 +35,11 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('tournaments/{tournament}/regenerate-slug', [TournamentController::class, 'regenerateSlug'])
         ->name('tournaments.regenerate-slug');
 
+    // "Finalizar torneo": offered on the show page once every category has
+    // a champion -- see TournamentController::finish().
+    Route::patch('tournaments/{tournament}/finish', [TournamentController::class, 'finish'])
+        ->name('tournaments.finish');
+
     // "Inscripción" of a tournament from the global catalog -- see
     // docs/plan-reestructuracion/01-clubes-equipos-categorias-globales.md
     // (T01-24/T01-25). Deliberately separate from the legacy

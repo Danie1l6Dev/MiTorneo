@@ -199,4 +199,36 @@ class Tournament extends Model
 
         return [$start, $end];
     }
+
+    /**
+     * Whether every one of this tournament's categories has reached a
+     * declared champion on its LAST phase (the one nothing was advanced
+     * into -- highest `order` in that category's tournament-scoped chain,
+     * see PhaseEligibilityService::nextPhase()). False when there are no
+     * categories yet, or any category has no phase at all, or its final
+     * phase hasn't declared one -- the signal tournaments/show.blade.php
+     * uses to offer "Finalizar torneo" instead of leaving it to be noticed
+     * by hand.
+     */
+    public function allCategoriesHaveChampion(): bool
+    {
+        $categoryIds = $this->globalCategories()->pluck('categories.id');
+
+        if ($categoryIds->isEmpty()) {
+            return false;
+        }
+
+        // Phases come back ascending by `order`, so the last one per
+        // category (a single-line chain per category/tournament) is its
+        // final phase -- the only one whose champion actually counts.
+        $finalPhaseByCategory = $this->competitionPhases()
+            ->orderBy('order')
+            ->get(['category_id', 'champion_team_id'])
+            ->groupBy('category_id')
+            ->map(fn ($phases) => $phases->last());
+
+        return $categoryIds->every(
+            fn (int $categoryId): bool => $finalPhaseByCategory->get($categoryId)?->champion_team_id !== null
+        );
+    }
 }
