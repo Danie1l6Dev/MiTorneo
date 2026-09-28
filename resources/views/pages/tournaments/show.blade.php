@@ -60,79 +60,93 @@
                      being connected to the DOM as the event bubbles up --
                      fragile right as the menu closes and removes/hides this
                      item) since the modal's own listener is registered with
-                     Alpine's .document modifier (x-on:modal-show.document). --}}
+                     Alpine's .document modifier (x-on:modal-show.document).
+
+                     Posiciones downloads immediately (no modal), so it's the
+                     one item whose loading state should actually show
+                     SOMEWHERE -- but once the menu closes on click, a
+                     spinner on the item itself is never seen. exportingStandings
+                     lives on this wrapping div instead, one level above the
+                     dropdown, so the trigger button's own data-loading can
+                     read it and show the spinner there (same
+                     data-loading/opacity mechanism as x-ui.pdf-export-button)
+                     for as long as the download takes -- the menu item just
+                     calls the method, inherited from this scope like any
+                     Alpine child does for whatever it doesn't declare
+                     locally. --}}
                 @if ($hasStandingsExport || $programmingRounds !== [] || $resultRounds !== [])
-                    <flux:dropdown>
-                        <flux:button icon="arrow-down-tray" icon-trailing="chevron-down" variant="ghost">
-                            {{ __('Exportaciones') }}
-                        </flux:button>
+                    <div
+                        x-data="{
+                            exportingStandings: false,
+                            async downloadStandings() {
+                                this.exportingStandings = true
 
-                        <flux:menu>
-                            @if ($hasStandingsExport)
-                                {{-- Letterhead (generic vs. Faudis' municipal one) is
-                                     picked server-side, see MunicipalStandingsPdfController. --}}
-                                <flux:menu.item
-                                    icon="chart-bar"
-                                    x-data="{
-                                        exporting: false,
-                                        async download() {
-                                            this.exporting = true
+                                try {
+                                    const response = await fetch({{ \Illuminate\Support\Js::from(route('tournaments.standings.pdf', $tournament)) }})
 
-                                            try {
-                                                const response = await fetch({{ \Illuminate\Support\Js::from(route('tournaments.standings.pdf', $tournament)) }})
+                                    if (! response.ok) {
+                                        throw new Error('export failed')
+                                    }
 
-                                                if (! response.ok) {
-                                                    throw new Error('export failed')
-                                                }
+                                    const blob = await response.blob()
+                                    const url = URL.createObjectURL(blob)
 
-                                                const blob = await response.blob()
-                                                const url = URL.createObjectURL(blob)
+                                    const link = document.createElement('a')
+                                    link.href = url
+                                    link.download = {{ \Illuminate\Support\Js::from('tabla-posiciones-'.str($tournament->name)->slug().'.pdf') }};
+                                    link.click()
 
-                                                const link = document.createElement('a')
-                                                link.href = url
-                                                link.download = {{ \Illuminate\Support\Js::from('tabla-posiciones-'.str($tournament->name)->slug().'.pdf') }};
-                                                link.click()
+                                    URL.revokeObjectURL(url)
+                                } catch (error) {
+                                    alert({{ \Illuminate\Support\Js::from(__('No se pudo generar el PDF. Intenta de nuevo.')) }})
+                                } finally {
+                                    this.exportingStandings = false
+                                }
+                            },
+                        }"
+                        class="inline-block"
+                    >
+                        <flux:dropdown>
+                            <flux:button icon="arrow-down-tray" icon-trailing="chevron-down" variant="ghost" :loading="true" x-bind:data-loading="exportingStandings">
+                                {{ __('Exportaciones') }}
+                            </flux:button>
 
-                                                URL.revokeObjectURL(url)
-                                            } catch (error) {
-                                                alert({{ \Illuminate\Support\Js::from(__('No se pudo generar el PDF. Intenta de nuevo.')) }})
-                                            } finally {
-                                                this.exporting = false
-                                            }
-                                        },
-                                    }"
-                                    x-on:click="download()"
-                                >
-                                    {{ __('Posiciones') }}
-                                </flux:menu.item>
-                            @endif
+                            <flux:menu>
+                                @if ($hasStandingsExport)
+                                    {{-- Letterhead (generic vs. Faudis' municipal one) is
+                                         picked server-side, see MunicipalStandingsPdfController. --}}
+                                    <flux:menu.item icon="chart-bar" x-data x-on:click="downloadStandings()">
+                                        {{ __('Posiciones') }}
+                                    </flux:menu.item>
+                                @endif
 
-                            {{-- Official programming sheet (pending matches) of the
-                                 chosen fechas, every category -- see
-                                 MatchProgrammingPdfController. --}}
-                            @if ($programmingRounds !== [])
-                                <flux:menu.item
-                                    icon="clock"
-                                    x-data
-                                    x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('programming-export-'.$tournament->id) }} } })))"
-                                >
-                                    {{ __('Programación') }}
-                                </flux:menu.item>
-                            @endif
+                                {{-- Official programming sheet (pending matches) of the
+                                     chosen fechas, every category -- see
+                                     MatchProgrammingPdfController. --}}
+                                @if ($programmingRounds !== [])
+                                    <flux:menu.item
+                                        icon="clock"
+                                        x-data
+                                        x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('programming-export-'.$tournament->id) }} } })))"
+                                    >
+                                        {{ __('Programación') }}
+                                    </flux:menu.item>
+                                @endif
 
-                            {{-- Results of the chosen fechas, every category together --
-                                 see MatchResultsPdfController::exportTournament(). --}}
-                            @if ($resultRounds !== [])
-                                <flux:menu.item
-                                    icon="document-text"
-                                    x-data
-                                    x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('results-export-'.$tournament->id) }} } })))"
-                                >
-                                    {{ __('Resultados') }}
-                                </flux:menu.item>
-                            @endif
-                        </flux:menu>
-                    </flux:dropdown>
+                                {{-- Results of the chosen fechas, every category together --
+                                     see MatchResultsPdfController::exportTournament(). --}}
+                                @if ($resultRounds !== [])
+                                    <flux:menu.item
+                                        icon="document-text"
+                                        x-data
+                                        x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('results-export-'.$tournament->id) }} } })))"
+                                    >
+                                        {{ __('Resultados') }}
+                                    </flux:menu.item>
+                                @endif
+                            </flux:menu>
+                        </flux:dropdown>
+                    </div>
 
                     {{-- Fecha-picker modals for Programación/Resultados, triggered
                          from the menu items above -- see the dropdown's docblock. --}}
