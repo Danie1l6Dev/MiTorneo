@@ -10,8 +10,8 @@
 
     A section with byDay = true (MatchProgrammingReportService::sectionsByDays())
     is one calendar day instead of one jornada: its title already is the day,
-    so blocks skip the DÍA line, and a JORNADA column says which jornada each
-    match belongs to.
+    so blocks skip the DÍA line, and a FASE / JORNADA column says where each
+    match sits (Jornada 3, Cuartos de final, Semifinal, Final...).
 
     Tables are allowed to split across pages (dompdf repeats their header
     row on the next page) -- forcing a whole table onto one page left the
@@ -126,7 +126,7 @@
                                     <th style="width: 7%;">Vs</th>
                                     <th>Club</th>
                                     @if ($section['byDay'] ?? false)
-                                        <th style="width: 14%;">Jornada</th>
+                                        <th style="width: 26%;">Fase / jornada</th>
                                     @endif
                                     <th style="width: 15%;">Grupo</th>
                                 </tr>
@@ -141,9 +141,9 @@
                                         <td>Vs</td>
                                         <td>{{ $match->awayTeam->name }}</td>
                                         @if ($section['byDay'] ?? false)
-                                            <td>{{ $match->round_number ?? '-' }}</td>
+                                            <td>{{ $section['stages'][$match->id] ?? '-' }}</td>
                                         @endif
-                                        <td>{{ $match->group?->name ?? 'Único' }}</td>
+                                        <td>{{ $match->group?->name ?? ($match->competitionPhase->type === \App\Enums\CompetitionPhaseType::Knockout ? '-' : 'Único') }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

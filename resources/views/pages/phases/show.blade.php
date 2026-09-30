@@ -673,6 +673,9 @@
                          export also carries the 3er/4to puesto match, which
                          shares its round. --}}
                     @unless (empty($bracketRounds))
+                        {{-- Menu + modal in one box: as two direct children of the heading row,
+                             justify-between would float the menu to the middle. --}}
+                        <div>
                         <x-ui.pdf-export-menu :label="__('Exportar resultados')" variant="ghost" size="sm">
                             @foreach ($bracketRounds as $round)
                                 <flux:menu.item
@@ -695,7 +698,21 @@
                             >
                                 {{ __('Toda la categoría (partidos jugados)') }}
                             </flux:menu.item>
+                            @if ($resultDays !== [])
+                                <flux:menu.item
+                                    icon="calendar"
+                                    x-data
+                                    x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('results-range-export-'.$phase->tournament_id.'-'.$category->id) }} } })))"
+                                >
+                                    {{ __('Por rango de fechas…') }}
+                                </flux:menu.item>
+                            @endif
                         </x-ui.pdf-export-menu>
+
+                        @if ($resultDays !== [])
+                            <x-ui.results-range-export :tournament="$phase->tournament" :category="$category" :days="$resultDays" />
+                        @endif
+                        </div>
                     @endunless
                 </div>
 

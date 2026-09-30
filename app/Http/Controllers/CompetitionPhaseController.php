@@ -258,9 +258,7 @@ class CompetitionPhaseController extends Controller
 
         // Calendar days with a played match in this category -- the "rango de fechas"
         // results export on the calendar tab.
-        $resultDays = $phase->type === CompetitionPhaseType::League
-            ? $results->playedDays($phase->tournament, $category)
-            : [];
+        $resultDays = $results->playedDays($phase->tournament, $category);
 
         return view('pages.phases.show', compact(
             'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'thirdPlaceMatch',

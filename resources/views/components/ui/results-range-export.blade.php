@@ -70,7 +70,7 @@
             <div class="space-y-1">
                 <flux:heading size="lg">{{ __('Resultados por rango de fechas') }}</flux:heading>
                 <flux:text class="text-zinc-500 dark:text-white/60">
-                    {{ __('Partidos ya jugados de :category entre las fechas que elijas, sin importar a qué jornada pertenezcan.', ['category' => $category->name]) }}
+                    {{ __('Partidos ya jugados de :category entre las fechas que elijas, sin importar su jornada o fase (incluye cuartos, semifinal y final).', ['category' => $category->name]) }}
                 </flux:text>
             </div>
 

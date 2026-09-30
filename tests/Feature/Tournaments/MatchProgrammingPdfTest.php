@@ -175,8 +175,34 @@ class MatchProgrammingPdfTest extends TestCase
         $this->assertStringContainsString('TIGRES', $html);
         $this->assertStringNotContainsString('PANTERAS', $html); // the 13th
         $this->assertStringNotContainsString('JUGADO', $html);
-        $this->assertStringContainsString('<th style="width: 14%;">Jornada</th>', $html);
+        $this->assertStringContainsString('<th style="width: 26%;">Fase / jornada</th>', $html);
         $this->assertTrue(strpos($html, 'Categoría: SUB-13') < strpos($html, 'Categoría: SUB-15'));
+    }
+
+    public function test_the_by_day_sheet_includes_knockout_matches_with_their_stage(): void
+    {
+        $data = $this->makeTournament();
+        $programming = app(MatchProgrammingReportService::class);
+
+        // makeTournament() already has one pending knockout match on the 12th (a
+        // lone cross in its round, so it's the "Final").
+        $this->assertSame(['2026-09-12', '2026-09-13', '2026-09-19'], $programming->pendingDays($data['tournament']));
+
+        $sections = $programming->sectionsByDays($data['tournament'], '2026-09-12', '2026-09-12');
+        $html = view('pdf.match-programming', [
+            'tournament' => $data['tournament'],
+            'category' => null,
+            'sections' => $sections,
+            ...app(PdfLetterheadService::class)->forUser($data['user']),
+        ])->render();
+
+        $this->assertStringContainsString('CUARTOS', $html);
+        $this->assertStringContainsString(' - Final</td>', $html);
+        $this->assertStringContainsString('Jornada 5', $html);
+        $this->assertStringContainsString('Fase / jornada', $html);
+
+        // The jornada-based sheet still leaves knockout matches out.
+        $this->assertStringNotContainsString('CUARTOS', $this->render($data, [5]));
     }
 
     public function test_the_date_range_params_download_and_is_validated(): void
@@ -192,12 +218,12 @@ class MatchProgrammingPdfTest extends TestCase
         $this->get(route('tournaments.programming.pdf', [$data['tournament'], 'from' => '2026-09-13', 'to' => '2026-09-12']))->assertRedirect();
     }
 
-    public function test_pending_days_lists_only_dated_pending_league_matches(): void
+    public function test_pending_days_lists_only_dated_pending_matches_knockout_included(): void
     {
         $data = $this->makeTournament();
 
         $this->assertSame(['2026-09-12', '2026-09-13', '2026-09-19'], app(MatchProgrammingReportService::class)->pendingDays($data['tournament']));
-        $this->assertSame(['2026-09-13'], app(MatchProgrammingReportService::class)->pendingDays($data['tournament'], $data['sub15']));
+        $this->assertSame(['2026-09-12', '2026-09-13'], app(MatchProgrammingReportService::class)->pendingDays($data['tournament'], $data['sub15']));
     }
 
     public function test_invalid_or_empty_selections_are_rejected(): void

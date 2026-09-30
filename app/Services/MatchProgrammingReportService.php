@@ -22,6 +22,8 @@ use Illuminate\Support\Collection;
  */
 class MatchProgrammingReportService
 {
+    public function __construct(private PhaseBoardService $board) {}
+
     /**
      * Every jornada with at least one pending match, ascending -- what the
      * export picker offers.
@@ -48,7 +50,7 @@ class MatchProgrammingReportService
      */
     public function pendingDays(Tournament $tournament, ?Category $category = null): array
     {
-        return $this->pendingMatches($tournament, $category)
+        return $this->pendingMatches($tournament, $category, includeKnockout: true)
             ->whereNotNull('scheduled_at')
             ->pluck('scheduled_at')
             ->map(fn ($scheduledAt): string => Carbon::parse($scheduledAt)->toDateString())
@@ -257,14 +259,16 @@ class MatchProgrammingReportService
      * section per day (ascending), split by category (youngest first), then
      * into one block per venue. Matches from different jornadas share a day
      * whenever the organizer pulled one forward to fill it, so each row also
-     * says which jornada it belongs to (the view prints it).
+     * says which stage it belongs to: "Jornada 3" or, for a knockout match, "Cuartos
+     * de final", "Semifinal", "Final"... (the view prints it). Knockout matches
+     * count too -- a day is a day, whatever phase it belongs to.
      *
-     * @return list<array{round: null, byDay: true, title: string, categories: list<array{category: Category, blocks: list<array{day: Carbon|null, venue: string|null, matches: Collection<int, TournamentMatch>}>}>}>
+     * @return list<array{round: null, byDay: true, stages: array<int, string>, title: string, categories: list<array{category: Category, blocks: list<array{day: Carbon|null, venue: string|null, matches: Collection<int, TournamentMatch>}>}>}>
      */
     public function sectionsByDays(Tournament $tournament, string $from, string $to, ?Category $category = null): array
     {
-        $matches = $this->whereInDayRange($this->pendingMatches($tournament, $category), $from, $to)
-            ->with(['homeTeam', 'awayTeam', 'group', 'category', 'venue'])
+        $matches = $this->whereInDayRange($this->pendingMatches($tournament, $category, includeKnockout: true), $from, $to)
+            ->with(['homeTeam', 'awayTeam', 'group', 'category', 'venue', 'competitionPhase', 'secondLeg'])
             ->get();
 
         $categoryOrder = Category::query()
@@ -273,12 +277,15 @@ class MatchProgrammingReportService
             ->pluck('id')
             ->flip();
 
+        $stages = $this->stageLabels($matches);
+
         return $matches
             ->groupBy(fn (TournamentMatch $match): string => $match->scheduled_at->toDateString())
             ->sortKeys()
             ->map(fn (Collection $dayMatches, string $day): array => [
                 'round' => null,
                 'byDay' => true,
+                'stages' => $stages,
                 'title' => $this->dayTitle($day),
                 'categories' => $dayMatches
                     ->groupBy('category_id')
@@ -353,7 +360,7 @@ class MatchProgrammingReportService
      *
      * @return Builder<TournamentMatch>
      */
-    private function pendingMatches(Tournament $tournament, ?Category $category): Builder
+    private function pendingMatches(Tournament $tournament, ?Category $category, bool $includeKnockout = false): Builder
     {
         return TournamentMatch::query()
             ->where('tournament_id', $tournament->id)
@@ -361,6 +368,41 @@ class MatchProgrammingReportService
             ->whereIn('status', [MatchStatus::Scheduled, MatchStatus::Postponed])
             ->whereNotNull('home_team_id')
             ->whereNotNull('away_team_id')
-            ->whereHas('competitionPhase', fn (Builder $query) => $query->where('type', CompetitionPhaseType::League));
+            ->when(! $includeKnockout, fn (Builder $query) => $query->whereHas('competitionPhase', fn (Builder $phase) => $phase->where('type', CompetitionPhaseType::League)));
+    }
+
+    /**
+     * Where each match sits, phase included ("Liga - Jornada 3", "Fase eliminatoria -
+     * Cuartos de final - Ida"), for sheets that mix phases (the by-day
+     * exports): "Jornada 3" in a league; "Cuartos de final", "Semifinal",
+     * "Final"... (plus " - Ida" / " - Vuelta" for a two-legged cross) in a
+     * knockout phase; "3er y 4to puesto" for that match. Needs competitionPhase
+     * and secondLeg loaded.
+     *
+     * @param  Collection<int, TournamentMatch>  $matches
+     * @return array<int, string> Keyed by match id.
+     */
+    public function stageLabels(Collection $matches): array
+    {
+        $roundLabels = [];
+
+        return $matches->mapWithKeys(function (TournamentMatch $match) use (&$roundLabels): array {
+            $phase = $match->competitionPhase;
+
+            $stage = match (true) {
+                $phase->type === CompetitionPhaseType::League => __('Jornada :number', ['number' => $match->round_number]),
+                $match->is_third_place => __('3er y 4to puesto'),
+                default => collect([
+                    ($roundLabels[$phase->id] ??= collect($this->board->bracketRounds($phase))->pluck('label', 'round_number')->all())[$match->round_number] ?? null,
+                    match (true) {
+                        $match->first_leg_match_id !== null => __('Vuelta'),
+                        $match->secondLeg !== null => __('Ida'),
+                        default => null,
+                    },
+                ])->filter()->implode(' - '),
+            };
+
+            return [$match->id => $phase->name.' - '.$stage];
+        })->all();
     }
 }

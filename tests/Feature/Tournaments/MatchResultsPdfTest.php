@@ -129,7 +129,7 @@ class MatchResultsPdfTest extends TestCase
         $this->assertSame('SUB-13', $phases[0]['sections'][0]['title']);
         $rows = $phases[0]['sections'][0]['blocks'][0]['rows'];
         $this->assertCount(2, $rows);
-        $this->assertSame(['Jornada 1', 'Jornada 2'], array_column($rows, 'note'));
+        $this->assertSame(['LIGA - Jornada 1', 'LIGA - Jornada 2'], array_column($rows, 'note'));
 
         $response = $this->actingAs($data['user'])->get(route('tournaments.results.pdf', [$data['tournament'], 'from' => '2026-09-12', 'to' => '2026-09-12']));
         $response->assertOk();

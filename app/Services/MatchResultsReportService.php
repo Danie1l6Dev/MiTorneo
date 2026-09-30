@@ -101,8 +101,9 @@ class MatchResultsReportService
     }
 
     /**
-     * Every calendar day (Y-m-d, ascending) on which at least one league
-     * match was PLAYED -- what the "por día" results picker offers.
+     * Every calendar day (Y-m-d, ascending) on which at least one
+     * match was PLAYED -- knockout ones included -- what the "por día"
+     * results picker offers.
      *
      * @return list<string>
      */
@@ -113,7 +114,6 @@ class MatchResultsReportService
             ->when($category, fn ($query) => $query->where('category_id', $category->id))
             ->where('status', MatchStatus::Finished)
             ->whereNotNull('scheduled_at')
-            ->whereHas('competitionPhase', fn ($query) => $query->where('type', CompetitionPhaseType::League))
             ->pluck('scheduled_at')
             ->map(fn ($scheduledAt): string => Carbon::parse($scheduledAt)->toDateString())
             ->unique()
@@ -124,11 +124,12 @@ class MatchResultsReportService
 
     /**
      * The same tournament-wide results as tournamentRoundSections(), picked
-     * by calendar day instead of jornada: the PLAYED league matches
-     * scheduled between $from and $to (Y-m-d, both included), one
-     * heading per day, then one section per category (youngest first) with its matches by kickoff
-     * time. Each match notes which jornada it belongs to, since a day can
-     * mix jornadas when the organizer pulls a match forward.
+     * by calendar day instead of jornada: the PLAYED matches -- league and
+     * knockout -- scheduled between $from and $to (Y-m-d, both included), one
+     * heading per day, then one section per category (youngest first) with its
+     * matches by kickoff time. Each match notes its stage ("Jornada 3",
+     * "Cuartos de final - Ida", "Semifinal", "Final"...), since a day can mix
+     * jornadas and phases when the organizer pulls a match forward.
      * $category narrows it to that one category.
      *
      * @return list<array{heading: string, sections: list<array{title: string, subtitle: string|null, blocks: list<array{label: string|null, rows: list<array<string, mixed>>, resting: string|null}>}>}>
@@ -139,8 +140,7 @@ class MatchResultsReportService
             TournamentMatch::query()
                 ->where('tournament_id', $tournament->id)
                 ->when($category, fn ($query) => $query->where('category_id', $category->id))
-                ->where('status', MatchStatus::Finished)
-                ->whereHas('competitionPhase', fn ($query) => $query->where('type', CompetitionPhaseType::League)),
+                ->where('status', MatchStatus::Finished),
             $from,
             $to
         )->with('category')->get();
@@ -150,6 +150,8 @@ class MatchResultsReportService
         }
 
         $this->loadReportRelations($matches);
+        (new EloquentCollection($matches->all()))->load(['competitionPhase', 'secondLeg']);
+        $stages = $this->programming->stageLabels($matches);
 
         $categoryOrder = Category::query()
             ->whereIn('id', $matches->pluck('category_id')->unique())
@@ -175,7 +177,7 @@ class MatchResultsReportService
                                     fn (TournamentMatch $a, TournamentMatch $b): int => ($a->hasKickoffTime() ? $a->scheduled_at->timestamp : PHP_INT_MAX) <=> ($b->hasKickoffTime() ? $b->scheduled_at->timestamp : PHP_INT_MAX),
                                     fn (TournamentMatch $a, TournamentMatch $b): int => $a->id <=> $b->id,
                                 ])
-                                ->map(fn (TournamentMatch $match): array => $this->row($match, $match->round_number !== null ? __('Jornada :number', ['number' => $match->round_number]) : null))
+                                ->map(fn (TournamentMatch $match): array => $this->row($match, $stages[$match->id] ?? null))
                                 ->values()
                                 ->all(),
                             'resting' => null,
