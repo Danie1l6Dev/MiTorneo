@@ -101,6 +101,43 @@ class MatchResultsPdfTest extends TestCase
         }
     }
 
+    public function test_results_can_be_exported_by_calendar_day_across_jornadas(): void
+    {
+        $data = $this->makeLeague();
+        // Jornada 1 played on the 12th; jornada 2's match was pulled forward and
+        // also played that same day. A third one on the 19th stays out.
+        $data['played']->update(['scheduled_at' => '2026-09-12 09:00:00']);
+        $data['pending']->update(['scheduled_at' => '2026-09-12 11:00:00', 'status' => MatchStatus::Finished, 'home_score' => 1, 'away_score' => 1]);
+        TournamentMatch::factory()->for($data['phase'])->create([
+            'round_number' => 3,
+            'home_team_id' => $data['home']->id,
+            'away_team_id' => $data['away']->id,
+            'scheduled_at' => '2026-09-19 09:00:00',
+            'status' => MatchStatus::Finished,
+            'home_score' => 3,
+            'away_score' => 3,
+        ]);
+
+        $service = app(MatchResultsReportService::class);
+
+        $this->assertSame(['2026-09-12', '2026-09-19'], $service->playedDays($data['tournament']));
+
+        $phases = $service->tournamentDaySections($data['tournament'], '2026-09-12', '2026-09-18');
+
+        $this->assertCount(1, $phases);
+        $this->assertSame('sábado 12 de septiembre de 2026', $phases[0]['heading']);
+        $this->assertSame('SUB-13', $phases[0]['sections'][0]['title']);
+        $rows = $phases[0]['sections'][0]['blocks'][0]['rows'];
+        $this->assertCount(2, $rows);
+        $this->assertSame(['Jornada 1', 'Jornada 2'], array_column($rows, 'note'));
+
+        $response = $this->actingAs($data['user'])->get(route('tournaments.results.pdf', [$data['tournament'], 'from' => '2026-09-12', 'to' => '2026-09-12']));
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+
+        $this->get(route('tournaments.results.pdf', [$data['tournament'], 'from' => '2026-01-01', 'to' => '2026-01-02']))->assertNotFound();
+    }
+
     public function test_the_municipal_letterhead_account_can_export_too(): void
     {
         $data = $this->makeLeague();
@@ -226,5 +263,57 @@ class MatchResultsPdfTest extends TestCase
             ->assertOk()
             ->assertSee('Exportar PDF')
             ->assertSee(str_replace('/', '\/', route('matches.pdf', $data['played'])), false);
+    }
+
+    public function test_the_calendar_offers_the_date_range_export_only_when_a_played_match_has_a_day(): void
+    {
+        $data = $this->makeLeague();
+
+        $this->actingAs($data['user'])
+            ->get(route('phases.show', $data['phase']))
+            ->assertOk()
+            ->assertDontSee('Resultados por rango de fechas');
+
+        $data['played']->update(['scheduled_at' => '2026-09-12 09:00:00']);
+
+        $this->actingAs($data['user'])
+            ->get(route('phases.show', $data['phase']))
+            ->assertOk()
+            ->assertSee('Resultados por rango de fechas')
+            ->assertSee('Por rango de fechas');
+    }
+
+    public function test_the_date_range_export_can_be_narrowed_to_one_category(): void
+    {
+        $data = $this->makeLeague();
+        $data['played']->update(['scheduled_at' => '2026-09-12 09:00:00']);
+
+        $otherCategory = Category::factory()->for($data['tournament'])->create(['name' => 'Sub-15']);
+        $otherPhase = CompetitionPhase::factory()->for($data['tournament'])->for($otherCategory)->create(['type' => CompetitionPhaseType::League]);
+        TournamentMatch::factory()->for($otherPhase)->create([
+            'round_number' => 1,
+            'home_team_id' => Team::factory()->for($data['tournament'])->for($otherCategory)->create()->id,
+            'away_team_id' => Team::factory()->for($data['tournament'])->for($otherCategory)->create()->id,
+            'scheduled_at' => '2026-09-12 11:00:00',
+            'status' => MatchStatus::Finished,
+            'home_score' => 1,
+            'away_score' => 0,
+        ]);
+
+        $service = app(MatchResultsReportService::class);
+
+        $all = $service->tournamentDaySections($data['tournament'], '2026-09-12', '2026-09-12');
+        $one = $service->tournamentDaySections($data['tournament'], '2026-09-12', '2026-09-12', $data['category']);
+
+        $this->assertCount(2, $all[0]['sections']);
+        $this->assertCount(1, $one[0]['sections']);
+        $this->assertSame(['2026-09-12'], $service->playedDays($data['tournament'], $data['category']));
+
+        $this->actingAs($data['user'])
+            ->get(route('tournaments.results.pdf', [$data['tournament'], 'category' => $data['category']->id, 'from' => '2026-09-12', 'to' => '2026-09-12']))
+            ->assertOk();
+
+        $foreign = Category::factory()->for(Tournament::factory()->for($data['user']))->create();
+        $this->get(route('tournaments.results.pdf', [$data['tournament'], 'category' => $foreign->id, 'from' => '2026-09-12', 'to' => '2026-09-12']))->assertNotFound();
     }
 }

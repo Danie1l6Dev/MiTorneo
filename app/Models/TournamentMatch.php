@@ -137,7 +137,7 @@ class TournamentMatch extends Model
 
     /**
      * "sáb. 19 sep. · 7:30 AM · CANCHA BOSCÁN" -- when and where it is set to be
-     * played, or null while it has no day. What the "Programar fecha" tool shows as
+     * played, or null while it has no day. What the "Programar jornada" tool shows as
      * a match's current programming.
      */
     public function scheduleSummary(): ?string

@@ -266,7 +266,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Sanctions are only ever created by SanctionService, from card events
     // -- no create/store/destroy routes, this resource is read + resolve
-    // only. How many fechas have been served is always computed from the
+    // only. How many jornadas have been served is always computed from the
     // team's own match calendar (see Sanction::matchesServedCount()),
     // never a manual step, so there's no "mark served" route either.
     Route::resource('sanctions', SanctionController::class)->only(['index', 'show']);
@@ -325,7 +325,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('tournaments/{tournament}/categories/{category}/results/pdf', [MatchResultsPdfController::class, 'exportCategory'])
         ->name('tournaments.categories.results.pdf');
 
-    // Every category's played matches, split by the chosen fecha(s) -- see
+    // Every category's played matches, split by the chosen jornada(s) -- see
     // MatchResultsPdfController::exportTournament() and x-ui.results-export.
     Route::get('tournaments/{tournament}/results/pdf', [MatchResultsPdfController::class, 'exportTournament'])
         ->name('tournaments.results.pdf');
@@ -335,12 +335,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('tournaments/{tournament}/categories/{category}/statistics/pdf', [StatisticsPdfController::class, 'export'])
         ->name('tournaments.categories.statistics.pdf');
 
-    // Official programming sheet of one fecha (?round=, optional ?category=)
+    // Official programming sheet of one jornada (?round=, optional ?category=)
     // -- see MatchProgrammingPdfController.
     Route::get('tournaments/{tournament}/programming/pdf', [MatchProgrammingPdfController::class, 'export'])
         ->name('tournaments.programming.pdf');
 
-    // "Programar fecha": mass-assign days, hours and canchas to one fecha's
+    // "Programar jornada": mass-assign days, hours and canchas to one jornada's
     // pending matches (pick per category, review the proposal, save) -- see
     // TournamentProgrammingController.
     Route::get('tournaments/{tournament}/programming', [TournamentProgrammingController::class, 'edit'])

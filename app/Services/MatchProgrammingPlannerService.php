@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * The calculation behind the "Programar fecha" tool: given ONE fecha of a
+ * The calculation behind the "Programar jornada" tool: given ONE jornada of a
  * tournament and, per category/group, a day + cancha (+ optionally a first
  * kickoff time and the minutes between matches), proposes a day/time/cancha
  * for every pending match. Pure -- it never saves anything; the controller
@@ -70,7 +70,7 @@ class MatchProgrammingPlannerService
     }
 
     /**
-     * One category's matches of a fecha in the order they'll be played, with a
+     * One category's matches of a jornada in the order they'll be played, with a
      * single day/cancha/first-hour/rest applied to all of them. A category
      * with groups is chained group after group.
      *

@@ -73,7 +73,7 @@ class DatabaseSeeder extends Seeder
         // match history) to show immediately instead of an empty state.
         $referees = $this->seedReferees($user);
 
-        // A few canchas so the "Canchas" section and the "Programar fecha"
+        // A few canchas so the "Canchas" section and the "Programar jornada"
         // tool have something to pick from right away.
         $this->seedVenues($user);
 
@@ -402,8 +402,21 @@ class DatabaseSeeder extends Seeder
         $fixtureIndex = 0;
         $matches = collect();
 
-        foreach (app(LeagueScheduleService::class)->generate($teams, ScheduleFormat::SingleRound) as $round) {
-            foreach ($round['fixtures'] as $fixture) {
+        $rounds = app(LeagueScheduleService::class)->generate($teams, ScheduleFormat::SingleRound);
+        $venues = $phase->tournament->user->venues()->orderBy('id')->get();
+
+        // One jornada per week, the last one on the most recent past Saturday
+        // -- every seeded match is already finished, so its day is behind us.
+        $lastSaturday = now()->startOfWeek()->addDays(5)->startOfDay();
+
+        if ($lastSaturday->isFuture()) {
+            $lastSaturday->subWeek();
+        }
+
+        foreach ($rounds as $roundIndex => $round) {
+            $roundDay = $lastSaturday->copy()->subWeeks(count($rounds) - 1 - $roundIndex);
+
+            foreach ($round['fixtures'] as $slot => $fixture) {
                 [$homeScore, $awayScore] = $scores[$fixtureIndex] ?? [random_int(0, 4), random_int(0, 4)];
 
                 $match = new TournamentMatch;
@@ -418,6 +431,21 @@ class DatabaseSeeder extends Seeder
                 $match->home_score = $homeScore;
                 $match->away_score = $awayScore;
                 $match->status = MatchStatus::Finished;
+
+                // Kickoffs two hours apart on the round's Saturday, cycling the
+                // canchas; every 3rd jornada one match was moved to Sunday, like
+                // an organizer filling a day with a match from another jornada.
+                $kickoff = $roundDay->copy()->setTime(8 + ($slot * 2) % 10, 0);
+
+                if (($round['round_number'] % 3) === 0 && $slot === 2) {
+                    $kickoff->addDay();
+                }
+
+                $match->scheduled_at = $kickoff;
+
+                if ($venues->isNotEmpty()) {
+                    $match->venue_id = $venues[($slot + ($group?->order ?? 0)) % $venues->count()]->id;
+                }
 
                 if ($referees !== null && $referees->isNotEmpty() && $fixtureIndex % 5 !== 4) {
                     $match->referee_id = $referees[$fixtureIndex % $referees->count()]->id;

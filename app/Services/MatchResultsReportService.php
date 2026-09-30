@@ -15,6 +15,7 @@ use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -79,7 +80,7 @@ class MatchResultsReportService
     }
 
     /**
-     * Every fecha with at least one PLAYED league match, ascending -- what
+     * Every jornada with at least one PLAYED league match, ascending -- what
      * the tournament-wide results export picker offers (mirrors
      * MatchProgrammingReportService::pendingRounds() for pending matches).
      *
@@ -100,13 +101,101 @@ class MatchResultsReportService
     }
 
     /**
-     * Every category's PLAYED league matches of $tournament, fecha first
-     * (every played fecha when $roundNumbers is null) then category
+     * Every calendar day (Y-m-d, ascending) on which at least one league
+     * match was PLAYED -- what the "por día" results picker offers.
+     *
+     * @return list<string>
+     */
+    public function playedDays(Tournament $tournament, ?Category $category = null): array
+    {
+        return TournamentMatch::query()
+            ->where('tournament_id', $tournament->id)
+            ->when($category, fn ($query) => $query->where('category_id', $category->id))
+            ->where('status', MatchStatus::Finished)
+            ->whereNotNull('scheduled_at')
+            ->whereHas('competitionPhase', fn ($query) => $query->where('type', CompetitionPhaseType::League))
+            ->pluck('scheduled_at')
+            ->map(fn ($scheduledAt): string => Carbon::parse($scheduledAt)->toDateString())
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The same tournament-wide results as tournamentRoundSections(), picked
+     * by calendar day instead of jornada: the PLAYED league matches
+     * scheduled between $from and $to (Y-m-d, both included), one
+     * heading per day, then one section per category (youngest first) with its matches by kickoff
+     * time. Each match notes which jornada it belongs to, since a day can
+     * mix jornadas when the organizer pulls a match forward.
+     * $category narrows it to that one category.
+     *
+     * @return list<array{heading: string, sections: list<array{title: string, subtitle: string|null, blocks: list<array{label: string|null, rows: list<array<string, mixed>>, resting: string|null}>}>}>
+     */
+    public function tournamentDaySections(Tournament $tournament, string $from, string $to, ?Category $category = null): array
+    {
+        $matches = $this->programming->whereInDayRange(
+            TournamentMatch::query()
+                ->where('tournament_id', $tournament->id)
+                ->when($category, fn ($query) => $query->where('category_id', $category->id))
+                ->where('status', MatchStatus::Finished)
+                ->whereHas('competitionPhase', fn ($query) => $query->where('type', CompetitionPhaseType::League)),
+            $from,
+            $to
+        )->with('category')->get();
+
+        if ($matches->isEmpty()) {
+            return [];
+        }
+
+        $this->loadReportRelations($matches);
+
+        $categoryOrder = Category::query()
+            ->whereIn('id', $matches->pluck('category_id')->unique())
+            ->orderedByAge()
+            ->pluck('id')
+            ->flip();
+
+        return $matches
+            ->groupBy(fn (TournamentMatch $match): string => $match->scheduled_at->toDateString())
+            ->sortKeys()
+            ->map(fn (Collection $dayMatches, string $day): array => [
+                'heading' => $this->programming->dayTitle($day),
+                'sections' => $dayMatches
+                    ->groupBy('category_id')
+                    ->sortBy(fn (Collection $categoryMatches, int $categoryId): int => $categoryOrder[$categoryId] ?? 0)
+                    ->map(fn (Collection $categoryMatches): array => [
+                        'title' => $categoryMatches->first()->category->name,
+                        'subtitle' => null,
+                        'blocks' => [[
+                            'label' => null,
+                            'rows' => $categoryMatches
+                                ->sortBy([
+                                    fn (TournamentMatch $a, TournamentMatch $b): int => ($a->hasKickoffTime() ? $a->scheduled_at->timestamp : PHP_INT_MAX) <=> ($b->hasKickoffTime() ? $b->scheduled_at->timestamp : PHP_INT_MAX),
+                                    fn (TournamentMatch $a, TournamentMatch $b): int => $a->id <=> $b->id,
+                                ])
+                                ->map(fn (TournamentMatch $match): array => $this->row($match, $match->round_number !== null ? __('Jornada :number', ['number' => $match->round_number]) : null))
+                                ->values()
+                                ->all(),
+                            'resting' => null,
+                        ]],
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Every category's PLAYED league matches of $tournament, jornada first
+     * (every played jornada when $roundNumbers is null) then category
      * (youngest first) within it -- the tournament-wide "Exportar
-     * resultados" button's shape, mirroring how the "Programar fecha" tool
+     * resultados" button's shape, mirroring how the "Programar jornada" tool
      * groups pending matches (MatchProgrammingReportService::sections()) but
      * for results. Only league phases count: a knockout round number
-     * doesn't line up with the tournament's fechas, same reasoning as there.
+     * doesn't line up with the tournament's jornadas, same reasoning as there.
      *
      * @param  list<int>|null  $roundNumbers
      * @return list<array{heading: string, sections: list<array{title: string, subtitle: string|null, blocks: list<array{label: string|null, rows: list<array<string, mixed>>, resting: string|null}>}>}>
@@ -147,9 +236,9 @@ class MatchResultsReportService
                     ->flatMap(function (Collection $group) use ($phasesById, $round): Collection {
                         $phase = $phasesById[$group->first()->competition_phase_id];
 
-                        // Narrowed to this one fecha, a league phase has at
+                        // Narrowed to this one jornada, a league phase has at
                         // most one section -- its own "Jornada N" title is
-                        // redundant here (the fecha is already the outer
+                        // redundant here (the jornada is already the outer
                         // heading), so it's swapped for the category's name.
                         return $this->phaseSections($phase, $round, onlyPlayed: true)
                             ->map(fn (array $section): array => [

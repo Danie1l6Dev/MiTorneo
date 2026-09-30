@@ -12,8 +12,10 @@ use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * The official "programación" PDF: the pending matches of the chosen fechas
- * (?rounds=5,6, or ?rounds=all for every pending one) across the whole
+ * The official "programación" PDF: the pending matches of the chosen jornadas
+ * (?rounds=5,6, or ?rounds=all for every pending one) -- or, alternatively,
+ * of a calendar-day range (?from=2026-09-19&to=2026-09-20), for when the
+ * organizer pulled a match forward from a later jornada -- across the whole
  * tournament, or -- with ?category= -- just one category. Same per-user
  * letterhead switch as every other export, see PdfLetterheadService.
  */
@@ -24,11 +26,15 @@ class MatchProgrammingPdfController extends Controller
         $this->authorize('view', $tournament);
 
         $validated = $request->validate([
-            'rounds' => ['required', 'string', 'regex:/^(all|\d+(,\d+)*)$/'],
+            'rounds' => ['required_without:from', 'nullable', 'string', 'regex:/^(all|\d+(,\d+)*)$/'],
+            'from' => ['required_without:rounds', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['required_with:from', 'nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
             'category' => ['nullable', 'integer'],
         ]);
 
-        $roundNumbers = $validated['rounds'] === 'all'
+        $byDays = isset($validated['from']);
+
+        $roundNumbers = $byDays || $validated['rounds'] === 'all'
             ? null
             : collect(explode(',', $validated['rounds']))->map(fn (string $round): int => (int) $round)->unique()->sort()->values()->all();
 
@@ -41,7 +47,9 @@ class MatchProgrammingPdfController extends Controller
             $category = Category::query()->findOrFail($validated['category']);
         }
 
-        $sections = $programming->sections($tournament, $roundNumbers, $category);
+        $sections = $byDays
+            ? $programming->sectionsByDays($tournament, $validated['from'], $validated['to'], $category)
+            : $programming->sections($tournament, $roundNumbers, $category);
 
         abort_if($sections === [], 404);
 
@@ -52,7 +60,11 @@ class MatchProgrammingPdfController extends Controller
             ...$letterhead->forUser($request->user()),
         ])->setPaper('letter');
 
-        $roundsSlug = $roundNumbers === null ? 'todas-las-fechas' : 'fecha-'.implode('-', $roundNumbers);
+        $roundsSlug = match (true) {
+            $byDays => 'del-'.$validated['from'].'-al-'.$validated['to'],
+            $roundNumbers === null => 'todas-las-jornadas',
+            default => 'jornada-'.implode('-', $roundNumbers),
+        };
         $fileName = 'programacion-'.str(collect([$tournament->name, $category?->name, $roundsSlug])->filter()->implode('-'))->slug().'.pdf';
 
         return $pdf->download($fileName);

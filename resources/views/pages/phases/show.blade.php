@@ -270,7 +270,22 @@
                             >
                                 {{ __('Toda la categoría (partidos jugados)') }}
                             </flux:menu.item>
+                            {{-- Only the days with a played match, whatever jornada they
+                                 belong to -- the modal below; see x-ui.results-range-export. --}}
+                            @if ($resultDays !== [])
+                                <flux:menu.item
+                                    icon="calendar"
+                                    x-data
+                                    x-on:click="$nextTick(() => document.dispatchEvent(new CustomEvent('modal-show', { detail: { name: {{ \Illuminate\Support\Js::from('results-range-export-'.$phase->tournament_id.'-'.$category->id) }} } })))"
+                                >
+                                    {{ __('Por rango de fechas…') }}
+                                </flux:menu.item>
+                            @endif
                         </x-ui.pdf-export-menu>
+
+                        @if ($resultDays !== [])
+                            <x-ui.results-range-export :tournament="$phase->tournament" :category="$category" :days="$resultDays" />
+                        @endif
                     @endif
 
                     {{-- Programming sheet (pending matches) of this category only;
@@ -284,10 +299,10 @@
                             href="{{ route('tournaments.programming.edit', $phase->tournament) }}"
                             x-bind:href="{{ \Illuminate\Support\Js::from(route('tournaments.programming.edit', $phase->tournament)) }} + '?' + new URLSearchParams({ round: roundNumbers[activeGroup][currentRound[activeGroup]], category: {{ $category->id }} })"
                         >
-                            {{ __('Programar fecha') }}
+                            {{ __('Programar jornada') }}
                         </flux:button>
 
-                        <x-ui.programming-export :tournament="$phase->tournament" :rounds="$programmingRounds" :category="$category" variant="ghost" size="sm" />
+                        <x-ui.programming-export :tournament="$phase->tournament" :rounds="$programmingRounds" :days="$programmingDays" :category="$category" variant="ghost" size="sm" />
                     @endif
                     </div>
                 </div>

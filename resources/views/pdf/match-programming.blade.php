@@ -3,14 +3,19 @@
     (MatchProgrammingReportService::sections()), plus the letterhead vars
     (PdfLetterheadService).
 
-    Modeled on the league's own programming sheets: each fecha on its own
+    Modeled on the league's own programming sheets: each jornada on its own
     page, split by category, then one "LUGAR / DÍA" table per venue + day:
     HORA | CLUB | VS | CLUB | GRUPO. A block with no venue has no LUGAR
     line; one with no date has no DÍA line and no HORA column.
 
+    A section with byDay = true (MatchProgrammingReportService::sectionsByDays())
+    is one calendar day instead of one jornada: its title already is the day,
+    so blocks skip the DÍA line, and a JORNADA column says which jornada each
+    match belongs to.
+
     Tables are allowed to split across pages (dompdf repeats their header
     row on the next page) -- forcing a whole table onto one page left the
-    first page blank whenever a fecha had more matches than fit on it.
+    first page blank whenever a jornada had more matches than fit on it.
 --}}
 <!DOCTYPE html>
 <html lang="es">
@@ -32,11 +37,11 @@
             header.default { top: -110px; }
         @endif
 
-        .fecha-section + .fecha-section {
+        .jornada-section + .jornada-section {
             page-break-before: always;
         }
 
-        .fecha-title {
+        .jornada-title {
             font-size: 17px;
             font-weight: bold;
             text-transform: uppercase;
@@ -96,8 +101,8 @@
     <h2 style="margin-bottom: 4px;">{{ $tournament->name }}</h2>
 
     @foreach ($sections as $section)
-        <div class="fecha-section">
-            <div class="fecha-title">{{ $section['title'] }}</div>
+        <div class="jornada-section">
+            <div class="jornada-title">{{ $section['title'] }}</div>
 
             @foreach ($section['categories'] as $categorySection)
                 <div class="category-title">Categoría: {{ $categorySection['category']->name }}</div>
@@ -107,7 +112,7 @@
                         @if ($block['venue'])
                             <div class="line">Lugar: {{ $block['venue'] }}</div>
                         @endif
-                        @if ($block['day'])
+                        @if ($block['day'] && ! ($section['byDay'] ?? false))
                             <div class="line">Día: {{ $block['day']->locale('es')->translatedFormat('l j \d\e F \d\e Y') }}</div>
                         @endif
 
@@ -120,6 +125,9 @@
                                     <th>Club</th>
                                     <th style="width: 7%;">Vs</th>
                                     <th>Club</th>
+                                    @if ($section['byDay'] ?? false)
+                                        <th style="width: 14%;">Jornada</th>
+                                    @endif
                                     <th style="width: 15%;">Grupo</th>
                                 </tr>
                             </thead>
@@ -132,6 +140,9 @@
                                         <td>{{ $match->homeTeam->name }}</td>
                                         <td>Vs</td>
                                         <td>{{ $match->awayTeam->name }}</td>
+                                        @if ($section['byDay'] ?? false)
+                                            <td>{{ $match->round_number ?? '-' }}</td>
+                                        @endif
                                         <td>{{ $match->group?->name ?? 'Único' }}</td>
                                     </tr>
                                 @endforeach

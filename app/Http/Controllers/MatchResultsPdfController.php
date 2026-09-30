@@ -18,7 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * rosters, statistics, events, sanctions), one jornada/knockout round, one
  * whole phase, every played match of a category in a tournament split by
  * phase and jornada/round, or -- exportTournament() -- every category of the
- * tournament together, split by the fecha(s) chosen (mirrors
+ * tournament together, split by the jornada(s) chosen (mirrors
  * MatchProgrammingPdfController's "Exportar programación", for results
  * instead of pending matches). Same per-user letterhead switch as the
  * standings export (generic MiTorneo vs. Faudis' LIFUTGUA), see
@@ -115,36 +115,55 @@ class MatchResultsPdfController extends Controller
     }
 
     /**
-     * Every category's PLAYED matches of $tournament, fecha by fecha, for
-     * the chosen ?rounds= (5,6, or "all" for every fecha with a played
+     * Every category's PLAYED matches of $tournament, jornada by jornada, for
+     * the chosen ?rounds= (5,6, or "all" for every jornada with a played
      * match) -- same URL contract as MatchProgrammingPdfController::export(),
-     * so x-ui.results-export can reuse its exact fecha-picker JS.
+     * so x-ui.results-export can reuse its exact jornada-picker JS.
      */
     public function exportTournament(Request $request, Tournament $tournament): StreamedResponse|Response
     {
         $this->authorize('view', $tournament);
 
         $validated = $request->validate([
-            'rounds' => ['required', 'string', 'regex:/^(all|\d+(,\d+)*)$/'],
+            'rounds' => ['required_without:from', 'nullable', 'string', 'regex:/^(all|\d+(,\d+)*)$/'],
+            'from' => ['required_without:rounds', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['required_with:from', 'nullable', 'date_format:Y-m-d', 'after_or_equal:from'],
+            'category' => ['nullable', 'integer'],
         ]);
 
-        $roundNumbers = $validated['rounds'] === 'all'
+        $byDays = isset($validated['from']);
+
+        $category = null;
+
+        if (isset($validated['category'])) {
+            // Only a category actually played in THIS tournament.
+            abort_unless($tournament->competitionPhases()->where('category_id', $validated['category'])->exists(), 404);
+            $category = Category::query()->findOrFail($validated['category']);
+        }
+
+        $roundNumbers = $byDays || $validated['rounds'] === 'all'
             ? null
             : collect(explode(',', $validated['rounds']))->map(fn (string $round): int => (int) $round)->unique()->sort()->values()->all();
 
-        $phases = $this->report->tournamentRoundSections($tournament, $roundNumbers);
+        $phases = $byDays
+            ? $this->report->tournamentDaySections($tournament, $validated['from'], $validated['to'], $category)
+            : $this->report->tournamentRoundSections($tournament, $roundNumbers);
 
         abort_if($phases === [], 404);
 
         $pdf = Pdf::loadView('pdf.match-results', [
             'tournament' => $tournament,
-            'meta' => [],
+            'meta' => $category ? [__('Categoría') => $category->name] : [],
             'phases' => $phases,
             ...$this->letterhead->forUser(auth()->user()),
         ])->setPaper('letter');
 
-        $roundsSlug = $roundNumbers === null ? 'todas-las-fechas' : 'fecha-'.implode('-', $roundNumbers);
+        $roundsSlug = match (true) {
+            $byDays => 'del-'.$validated['from'].'-al-'.$validated['to'],
+            $roundNumbers === null => 'todas-las-jornadas',
+            default => 'jornada-'.implode('-', $roundNumbers),
+        };
 
-        return $pdf->download('resultados-'.str($tournament->name.'-'.$roundsSlug)->slug().'.pdf');
+        return $pdf->download('resultados-'.str($tournament->name.'-'.($category ? $category->name.'-' : '').$roundsSlug)->slug().'.pdf');
     }
 }

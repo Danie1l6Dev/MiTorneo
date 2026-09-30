@@ -13,17 +13,17 @@ use Illuminate\Support\Collection;
 
 /**
  * The official "programación" sheet: the still-to-be-played matches of one
- * or more fechas (league jornada numbers) across a whole tournament -- or
+ * or more jornadas (league jornada numbers) across a whole tournament -- or
  * just one of its categories -- modeled on the programming sheets Faudis'
- * league already hands out. Laid out fecha > category > (day + venue)
+ * league already hands out. Laid out jornada > category > (day + venue)
  * block, so every block is one "LUGAR / DÍA" table like the reference.
  * Only league phases count: a knockout phase's round numbers don't line up
- * with the tournament's fechas.
+ * with the tournament's jornadas.
  */
 class MatchProgrammingReportService
 {
     /**
-     * Every fecha with at least one pending match, ascending -- what the
+     * Every jornada with at least one pending match, ascending -- what the
      * export picker offers.
      *
      * @return list<int>
@@ -40,7 +40,49 @@ class MatchProgrammingReportService
     }
 
     /**
-     * Every still-to-be-played league match of one fecha across the whole
+     * Every calendar day (Y-m-d, ascending) that has at least one pending
+     * match -- what the "por día" export picker offers. Undated matches
+     * have no day, so they never show up here.
+     *
+     * @return list<string>
+     */
+    public function pendingDays(Tournament $tournament, ?Category $category = null): array
+    {
+        return $this->pendingMatches($tournament, $category)
+            ->whereNotNull('scheduled_at')
+            ->pluck('scheduled_at')
+            ->map(fn ($scheduledAt): string => Carbon::parse($scheduledAt)->toDateString())
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Narrows $query to matches whose kickoff falls between $from and $to
+     * (Y-m-d strings, both days included), whatever the time of day.
+     *
+     * @template TQuery of Builder
+     *
+     * @param  TQuery  $query
+     * @return TQuery
+     */
+    public function whereInDayRange(Builder $query, string $from, string $to): Builder
+    {
+        return $query->whereBetween('scheduled_at', [Carbon::parse($from)->startOfDay(), Carbon::parse($to)->endOfDay()]);
+    }
+
+    /**
+     * "Sábado 19 de septiembre de 2026" -- how a calendar day is titled in
+     * the by-day exports.
+     */
+    public function dayTitle(string $day): string
+    {
+        return Carbon::parse($day)->locale('es')->translatedFormat('l j \d\e F \d\e Y');
+    }
+
+    /**
+     * Every still-to-be-played league match of one jornada across the whole
      * tournament -- what the mass programming tool assigns days and hours to.
      * Matches locked by an expulsion walkover never take part.
      *
@@ -54,11 +96,11 @@ class MatchProgrammingReportService
     }
 
     /**
-     * How far along each fecha's programming is: every match of the fecha that
+     * How far along each jornada's programming is: every match of the jornada that
      * still has to be played or was already played (cancelled ones don't count),
      * and how many of those are "ready" -- they already have a day, or were
      * already played (finished), even if they never had a date. What the
-     * "Programar fecha" picker shows on each fecha's tile.
+     * "Programar jornada" picker shows on each jornada's tile.
      *
      * @return array<int, array{total: int, ready: int}>
      */
@@ -80,11 +122,11 @@ class MatchProgrammingReportService
     }
 
     /**
-     * Everything the "Programar fecha" page needs, in one go: every fecha that
+     * Everything the "Programar jornada" page needs, in one go: every jornada that
      * still has pending matches, each with its progress and its categories
      * (youngest first) -- and per category its progress plus the pending
      * matches themselves, in play order. The page keeps this in the browser and
-     * filters it there, so switching fecha or category never reloads anything.
+     * filters it there, so switching jornada or category never reloads anything.
      *
      * @return list<array{number: int, title: string, total: int, ready: int, categories: list<array{id: int, name: string, total: int, ready: int, matches: list<array{id: int, home: string, away: string, group: string|null, has_day: bool, current: string|null}>}>}>
      */
@@ -96,7 +138,7 @@ class MatchProgrammingReportService
             ->with(['homeTeam', 'awayTeam', 'group', 'category', 'venue'])
             ->get();
 
-        // Progress counts every match of the fecha (played ones included), not
+        // Progress counts every match of the jornada (played ones included), not
         // just the pending ones listed below.
         $roundStats = $this->roundSummaries($tournament);
         $categoryStats = TournamentMatch::query()
@@ -166,8 +208,8 @@ class MatchProgrammingReportService
     }
 
     /**
-     * The pending matches of $roundNumbers (every pending fecha when null),
-     * one section per fecha, split by category (youngest first), then into
+     * The pending matches of $roundNumbers (every pending jornada when null),
+     * one section per jornada, split by category (youngest first), then into
      * one block per day + venue: days ascending with undated matches last,
      * venues alphabetically with "no venue" last. Inside a block, matches
      * go by kickoff time, then group.
@@ -196,6 +238,49 @@ class MatchProgrammingReportService
                 'round' => $round,
                 'title' => $this->roundTitle($round),
                 'categories' => $roundMatches
+                    ->groupBy('category_id')
+                    ->sortBy(fn (Collection $categoryMatches, int $categoryId): int => $categoryOrder[$categoryId])
+                    ->map(fn (Collection $categoryMatches): array => [
+                        'category' => $categoryMatches->first()->category,
+                        'blocks' => $this->blocks($categoryMatches),
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Same sheet as sections(), but picked by calendar day instead of
+     * jornada: the pending matches scheduled between $from and $to (Y-m-d, both included), one
+     * section per day (ascending), split by category (youngest first), then
+     * into one block per venue. Matches from different jornadas share a day
+     * whenever the organizer pulled one forward to fill it, so each row also
+     * says which jornada it belongs to (the view prints it).
+     *
+     * @return list<array{round: null, byDay: true, title: string, categories: list<array{category: Category, blocks: list<array{day: Carbon|null, venue: string|null, matches: Collection<int, TournamentMatch>}>}>}>
+     */
+    public function sectionsByDays(Tournament $tournament, string $from, string $to, ?Category $category = null): array
+    {
+        $matches = $this->whereInDayRange($this->pendingMatches($tournament, $category), $from, $to)
+            ->with(['homeTeam', 'awayTeam', 'group', 'category', 'venue'])
+            ->get();
+
+        $categoryOrder = Category::query()
+            ->whereIn('id', $matches->pluck('category_id')->unique())
+            ->orderedByAge()
+            ->pluck('id')
+            ->flip();
+
+        return $matches
+            ->groupBy(fn (TournamentMatch $match): string => $match->scheduled_at->toDateString())
+            ->sortKeys()
+            ->map(fn (Collection $dayMatches, string $day): array => [
+                'round' => null,
+                'byDay' => true,
+                'title' => $this->dayTitle($day),
+                'categories' => $dayMatches
                     ->groupBy('category_id')
                     ->sortBy(fn (Collection $categoryMatches, int $categoryId): int => $categoryOrder[$categoryId])
                     ->map(fn (Collection $categoryMatches): array => [
@@ -244,7 +329,7 @@ class MatchProgrammingReportService
     }
 
     /**
-     * "Quinta fecha", like the reference sheets -- plain "Fecha 25" past
+     * "Quinta jornada", like the reference sheets -- plain "Jornada 25" past
      * the spelled-out ones.
      */
     public function roundTitle(int $roundNumber): string
@@ -258,8 +343,8 @@ class MatchProgrammingReportService
         ];
 
         return isset($ordinals[$roundNumber])
-            ? __(':ordinal fecha', ['ordinal' => $ordinals[$roundNumber]])
-            : __('Fecha :number', ['number' => $roundNumber]);
+            ? __(':ordinal jornada', ['ordinal' => $ordinals[$roundNumber]])
+            : __('Jornada :number', ['number' => $roundNumber]);
     }
 
     /**

@@ -59,13 +59,19 @@ class TournamentController extends Controller
             ->pluck('category_id')
             ->unique();
 
-        // Fechas with at least one match still to be played -- one entry
+        // Jornadas with at least one match still to be played -- one entry
         // each in the "Exportar programación" menu.
         $programmingRounds = $programming->pendingRounds($tournament);
 
-        // Fechas with at least one match already played -- one entry each
+        // Jornadas with at least one match already played -- one entry each
         // in the "Exportar resultados" menu.
         $resultRounds = $results->playedRounds($tournament);
+
+        // Calendar days with at least one pending / played match -- the "por día"
+        // alternative in the same two export modals (organizers often pull a
+        // later jornada forward, so a day is not always a whole jornada).
+        $programmingDays = $programming->pendingDays($tournament);
+        $resultDays = $results->playedDays($tournament);
 
         // Offers "Finalizar torneo" on the page only once every category
         // already has a champion and nobody's done it by hand yet -- see
@@ -73,7 +79,7 @@ class TournamentController extends Controller
         $readyToFinish = $tournament->status !== TournamentStatus::Finished
             && $tournament->allCategoriesHaveChampion();
 
-        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds', 'resultRounds', 'readyToFinish'));
+        return view('pages.tournaments.show', compact('tournament', 'globalTeamCounts', 'lockedCategoryIds', 'programmingRounds', 'programmingDays', 'resultRounds', 'resultDays', 'readyToFinish'));
     }
 
     public function edit(Tournament $tournament): View

@@ -21,7 +21,7 @@
 
     Sigue siendo un <input type="hidden"> normal por debajo, así que
     funciona con cualquier <form> tal cual (incluido un listener
-    x-on:change/x-on:input en un ancestro, como el de "Programar fecha" --
+    x-on:change/x-on:input en un ancestro, como el de "Programar jornada" --
     pick()/clear() disparan esos eventos a mano sobre el hidden porque
     :value no lo hace solo).
 

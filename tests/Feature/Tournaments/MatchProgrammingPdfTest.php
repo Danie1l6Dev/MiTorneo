@@ -18,9 +18,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The official programming sheet: the chosen fechas' pending league
+ * The official programming sheet: the chosen jornadas' pending league
  * matches, across every category of the tournament (or just one), laid
- * out fecha > category > venue + day.
+ * out jornada > category > venue + day.
  */
 class MatchProgrammingPdfTest extends TestCase
 {
@@ -78,7 +78,7 @@ class MatchProgrammingPdfTest extends TestCase
         ])->render();
     }
 
-    public function test_it_downloads_for_one_several_or_all_fechas_and_for_one_category(): void
+    public function test_it_downloads_for_one_several_or_all_jornadas_and_for_one_category(): void
     {
         $data = $this->makeTournament();
         $this->actingAs($data['user']);
@@ -98,7 +98,7 @@ class MatchProgrammingPdfTest extends TestCase
 
         $html = $this->render($data, [5]);
 
-        $this->assertStringContainsString('Quinta fecha', $html);
+        $this->assertStringContainsString('Quinta jornada', $html);
         $this->assertStringContainsString('Categoría: SUB-13', $html);
         $this->assertStringContainsString('Categoría: SUB-15', $html);
         $this->assertStringContainsString('Lugar: CANCHA PARQUE BOSCÁN', $html);
@@ -123,15 +123,15 @@ class MatchProgrammingPdfTest extends TestCase
         $this->assertSame(2, substr_count($html, 'Lugar:'));
     }
 
-    public function test_several_fechas_each_get_their_own_section(): void
+    public function test_several_jornadas_each_get_their_own_section(): void
     {
         $data = $this->makeTournament();
 
         $html = $this->render($data, [5, 6]);
 
-        $this->assertStringContainsString('Quinta fecha', $html);
-        $this->assertStringContainsString('Sexta fecha', $html);
-        $this->assertTrue(strpos($html, 'Quinta fecha') < strpos($html, 'Sexta fecha'));
+        $this->assertStringContainsString('Quinta jornada', $html);
+        $this->assertStringContainsString('Sexta jornada', $html);
+        $this->assertTrue(strpos($html, 'Quinta jornada') < strpos($html, 'Sexta jornada'));
         $this->assertSame($html, $this->render($data, null));
     }
 
@@ -145,13 +145,59 @@ class MatchProgrammingPdfTest extends TestCase
         $this->assertStringNotContainsString('PANTERAS', $html);
     }
 
-    public function test_pending_rounds_only_counts_fechas_with_pending_league_matches(): void
+    public function test_pending_rounds_only_counts_jornadas_with_pending_league_matches(): void
     {
         $data = $this->makeTournament();
         $programming = app(MatchProgrammingReportService::class);
 
         $this->assertSame([5, 6], $programming->pendingRounds($data['tournament']));
         $this->assertSame([5], $programming->pendingRounds($data['tournament'], $data['sub15']));
+    }
+
+    public function test_it_exports_by_calendar_day_mixing_jornadas_grouped_by_day_and_category(): void
+    {
+        $data = $this->makeTournament();
+        // A jornada-6 match the organizer pulled forward to Saturday 12th.
+        $this->match($data['tournament'], $data['sub15'], 'Adelantado', 'Rival', round: 6, at: '2026-09-12 11:00:00');
+
+        $sections = app(MatchProgrammingReportService::class)->sectionsByDays($data['tournament'], '2026-09-12', '2026-09-12');
+        $html = view('pdf.match-programming', [
+            'tournament' => $data['tournament'],
+            'category' => null,
+            'sections' => $sections,
+            ...app(PdfLetterheadService::class)->forUser($data['user']),
+        ])->render();
+
+        $this->assertCount(1, $sections);
+        $this->assertStringContainsString('sábado 12 de septiembre de 2026', $html);
+        $this->assertStringNotContainsString('Día:', $html);
+        $this->assertStringContainsString('ADELANTADO', $html);
+        $this->assertStringContainsString('TIGRES', $html);
+        $this->assertStringNotContainsString('PANTERAS', $html); // the 13th
+        $this->assertStringNotContainsString('JUGADO', $html);
+        $this->assertStringContainsString('<th style="width: 14%;">Jornada</th>', $html);
+        $this->assertTrue(strpos($html, 'Categoría: SUB-13') < strpos($html, 'Categoría: SUB-15'));
+    }
+
+    public function test_the_date_range_params_download_and_is_validated(): void
+    {
+        $data = $this->makeTournament();
+        $this->actingAs($data['user']);
+
+        $response = $this->get(route('tournaments.programming.pdf', [$data['tournament'], 'from' => '2026-09-12', 'to' => '2026-09-13']));
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+
+        $this->get(route('tournaments.programming.pdf', [$data['tournament'], 'from' => '2026-09-30', 'to' => '2026-09-30']))->assertNotFound();
+        $this->get(route('tournaments.programming.pdf', [$data['tournament'], 'from' => '2026-09-13', 'to' => '2026-09-12']))->assertRedirect();
+    }
+
+    public function test_pending_days_lists_only_dated_pending_league_matches(): void
+    {
+        $data = $this->makeTournament();
+
+        $this->assertSame(['2026-09-12', '2026-09-13', '2026-09-19'], app(MatchProgrammingReportService::class)->pendingDays($data['tournament']));
+        $this->assertSame(['2026-09-13'], app(MatchProgrammingReportService::class)->pendingDays($data['tournament'], $data['sub15']));
     }
 
     public function test_invalid_or_empty_selections_are_rejected(): void
@@ -183,7 +229,7 @@ class MatchProgrammingPdfTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_the_tournament_page_offers_the_fecha_picker(): void
+    public function test_the_tournament_page_offers_the_jornada_picker(): void
     {
         $data = $this->makeTournament();
 
@@ -191,9 +237,9 @@ class MatchProgrammingPdfTest extends TestCase
             ->get(route('tournaments.show', $data['tournament']))
             ->assertOk()
             ->assertSee('Exportar programación')
-            ->assertSee('Todas las fechas')
-            ->assertSee('Fecha 5')
-            ->assertSee('Fecha 6');
+            ->assertSee('Todas las jornadas')
+            ->assertSee('Jornada 5')
+            ->assertSee('Jornada 6');
     }
 
     public function test_a_day_without_a_kickoff_time_shows_hora_por_definir(): void

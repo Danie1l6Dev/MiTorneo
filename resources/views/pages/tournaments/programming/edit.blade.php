@@ -1,10 +1,10 @@
-<x-layouts::app :title="__('Programar fecha')">
+<x-layouts::app :title="__('Programar jornada')">
     <div class="w-full space-y-8 animate-fade-in-up">
-        <x-ui.page-header :title="__('Programar fecha')" :subtitle="__('Asigna día, cancha y horas a los partidos pendientes de una fecha, categoría por categoría.')">
+        <x-ui.page-header :title="__('Programar jornada')" :subtitle="__('Asigna día, cancha y horas a los partidos pendientes de una jornada, categoría por categoría.')">
             <x-slot:breadcrumbs>
                 <x-ui.breadcrumbs :items="[
                     ['label' => $tournament->name, 'href' => route('tournaments.show', $tournament)],
-                    ['label' => __('Programar fecha')],
+                    ['label' => __('Programar jornada')],
                 ]" />
             </x-slot:breadcrumbs>
 
@@ -15,7 +15,7 @@
 
             @if ($catalog !== [])
                 <div class="mt-1 flex flex-wrap items-center gap-2">
-                    <x-ui.stat-pill icon="calendar-days" :value="count($catalog)" :label="trans_choice('fecha pendiente|fechas pendientes', count($catalog))" color="cyan" />
+                    <x-ui.stat-pill icon="calendar-days" :value="count($catalog)" :label="trans_choice('jornada pendiente|jornadas pendientes', count($catalog))" color="cyan" />
                     <x-ui.stat-pill icon="clock" :value="$totalPending - $totalReady" :label="trans_choice('partido por programar|partidos por programar', $totalPending - $totalReady)" color="amber" />
                     <x-ui.stat-pill icon="check-circle" :value="$totalReady" :label="trans_choice('partido listo|partidos listos', $totalReady)" color="green" />
                 </div>
@@ -43,8 +43,8 @@
         @if ($catalog === [])
             <x-ui.empty-state icon="calendar-days" :message="__('No hay partidos pendientes por programar en este torneo.')" />
         @else
-            {{-- The whole catalog (every fecha, its categories and their pending matches)
-                 arrives once, as JSON, and Alpine filters it right here: picking a fecha
+            {{-- The whole catalog (every jornada, its categories and their pending matches)
+                 arrives once, as JSON, and Alpine filters it right here: picking a jornada
                  or a category is instant and never reloads the page. Only the proposal
                  panel asks the server (TournamentProgrammingController::preview()),
                  because clashes need the database. --}}
@@ -159,9 +159,9 @@
             >
                 <div class="space-y-4">
                     <div class="space-y-1">
-                        <flux:heading size="lg">{{ __('Fecha a programar') }}</flux:heading>
+                        <flux:heading size="lg">{{ __('Jornada a programar') }}</flux:heading>
                         <flux:text class="text-sm text-zinc-500 dark:text-white/60">
-                            {{ __('La barra muestra cuántos partidos de cada fecha ya están listos: con día asignado o ya jugados.') }}
+                            {{ __('La barra muestra cuántos partidos de cada jornada ya están listos: con día asignado o ya jugados.') }}
                         </flux:text>
                     </div>
 
@@ -176,8 +176,8 @@
                             >
                                 <div class="flex items-start justify-between gap-2">
                                     <div>
-                                        <span class="sr-only" x-text="'{{ __('Fecha') }} ' + item.number"></span>
-                                        <div class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/40" aria-hidden="true">{{ __('Fecha') }}</div>
+                                        <span class="sr-only" x-text="'{{ __('Jornada') }} ' + item.number"></span>
+                                        <div class="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/40" aria-hidden="true">{{ __('Jornada') }}</div>
                                         <div class="font-display text-3xl font-bold leading-none tabular-nums text-zinc-900 dark:text-white" aria-hidden="true" x-text="item.number"></div>
                                     </div>
 
@@ -205,7 +205,7 @@
                 <template x-if="roundData === null">
                     <div class="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-zinc-300 px-6 py-10 text-center dark:border-white/15">
                         <flux:icon.cursor-arrow-rays variant="outline" class="size-6 text-zinc-400 dark:text-white/40" />
-                        <flux:text class="text-zinc-500 dark:text-white/60">{{ __('Elige una fecha para empezar.') }}</flux:text>
+                        <flux:text class="text-zinc-500 dark:text-white/60">{{ __('Elige una jornada para empezar.') }}</flux:text>
                     </div>
                 </template>
 
@@ -215,7 +215,7 @@
 
                         <label class="flex cursor-pointer items-center gap-2 text-sm text-zinc-600 dark:text-white/70">
                             <input type="checkbox" x-model="overwrite" x-on:change="toggleOverwrite()" class="rounded border-zinc-300">
-                            {{ __('Incluir partidos que ya tienen fecha') }}
+                            {{ __('Incluir partidos que ya tienen día') }}
                         </label>
                     </div>
 
@@ -223,7 +223,7 @@
                         <div class="space-y-1">
                             <flux:heading size="sm">{{ __('Categoría') }}</flux:heading>
                             <flux:text class="text-sm text-zinc-500 dark:text-white/60">
-                                {{ __('Programa una categoría a la vez: verás solo sus partidos de esta fecha.') }}
+                                {{ __('Programa una categoría a la vez: verás solo sus partidos de esta jornada.') }}
                             </flux:text>
                         </div>
 
@@ -269,7 +269,7 @@
 
                     <div x-show="category !== null && matches.length === 0" x-cloak>
                         <flux:callout variant="success" icon="check-circle" :heading="__('Todos los partidos pendientes de esta categoría ya tienen día asignado.')">
-                            {{ __('Activa «Incluir partidos que ya tienen fecha» si quieres volver a programarlos.') }}
+                            {{ __('Activa «Incluir partidos que ya tienen día» si quieres volver a programarlos.') }}
                         </flux:callout>
                     </div>
 

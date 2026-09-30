@@ -8,7 +8,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Step 2 of the "Programar fecha" tool: the (possibly hand-edited) day, time
+ * Step 2 of the "Programar jornada" tool: the (possibly hand-edited) day, time
  * and cancha of every proposed match. A match left without a day is skipped,
  * not cleared. The scheduling-clash check runs in the controller, so a clash
  * can bring the preview back instead of just an error banner.

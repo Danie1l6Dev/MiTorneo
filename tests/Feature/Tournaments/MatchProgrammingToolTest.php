@@ -17,7 +17,7 @@ use Tests\Feature\Tournaments\Concerns\MakesSchedulableMatches;
 use Tests\TestCase;
 
 /**
- * "Programar fecha": assigning days, hours and canchas to the pending matches
+ * "Programar jornada": assigning days, hours and canchas to the pending matches
  * of ONE category in ONE fecha (TournamentProgrammingController +
  * MatchProgrammingPlannerService).
  */
@@ -170,7 +170,7 @@ class MatchProgrammingToolTest extends TestCase
             ->get(route('tournaments.show', $data['tournament']))
             ->assertOk()
             ->assertSee(route('tournaments.programming.edit', $data['tournament']), false)
-            ->assertSee('Programar fecha');
+            ->assertSee('Programar jornada');
     }
 
     public function test_the_page_gets_every_fecha_with_its_categories_and_matches_in_one_go(): void
@@ -183,7 +183,7 @@ class MatchProgrammingToolTest extends TestCase
             ->viewData('catalog');
 
         $this->assertSame([5, 6], array_column($catalog, 'number'));
-        $this->assertSame('Quinta fecha', $catalog[0]['title']);
+        $this->assertSame('Quinta jornada', $catalog[0]['title']);
         // Youngest category first.
         $this->assertSame(['SUB-13', 'SUB-15'], array_column($catalog[0]['categories'], 'name'));
         $this->assertSame(['SUB-13'], array_column($catalog[1]['categories'], 'name'));
@@ -281,7 +281,7 @@ class MatchProgrammingToolTest extends TestCase
             ->assertSee('config[start]', false)
             ->assertSee('config[rest]', false)
             ->assertSee('Descanso entre partidos')
-            ->assertSee('Elige una fecha para empezar')
+            ->assertSee('Elige una jornada para empezar')
             ->assertSee('Elige una categoría para ver sus partidos');
     }
 
@@ -558,7 +558,7 @@ class MatchProgrammingToolTest extends TestCase
         $this->actingAs($data['user'])
             ->get(route('phases.show', $phase))
             ->assertOk()
-            ->assertSee('Programar fecha')
+            ->assertSee('Programar jornada')
             ->assertSee(str_replace('/', '\\/', route('tournaments.programming.edit', $data['tournament'])), false)
             ->assertSee('roundNumbers[activeGroup][currentRound[activeGroup]]', false)
             ->assertSee('category: '.$data['sub13']->id, false);

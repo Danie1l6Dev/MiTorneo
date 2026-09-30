@@ -1,5 +1,5 @@
 {{--
-    The proposal panel of "Programar fecha": every match of the chosen category
+    The proposal panel of "Programar jornada": every match of the chosen category
     in play order, each with the day / time / cancha the fields above produce
     (still editable one by one) and whatever clashes that slot has. Rendered
     with the page and re-rendered on its own by

@@ -20,8 +20,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
- * "Programar fecha": assigns days, hours and canchas to the pending league
- * matches of ONE category in ONE fecha of a tournament. Pick the fecha, pick
+ * "Programar jornada": assigns days, hours and canchas to the pending league
+ * matches of ONE category in ONE jornada of a tournament. Pick the jornada, pick
  * the category, then fill day / cancha / first hour / rest: the proposed slot
  * of every match of that category refreshes on its own as the fields change
  * (preview(), fetched by the page), and saving applies it (store()). Meant for
@@ -33,9 +33,9 @@ class TournamentProgrammingController extends Controller
     {
         $this->authorize('update', $tournament);
 
-        // Every fecha with its categories and pending matches, sent once: the page
+        // Every jornada with its categories and pending matches, sent once: the page
         // keeps it in the browser and filters it there (a few dozen KB even for
-        // hundreds of matches), so picking a fecha or a category never reloads.
+        // hundreds of matches), so picking a jornada or a category never reloads.
         $catalog = $report->programmingCatalog($tournament);
 
         $round = collect($catalog)->firstWhere('number', $request->integer('round'));
@@ -93,7 +93,7 @@ class TournamentProgrammingController extends Controller
         $proposed = $request->proposed();
 
         // Re-read from the database instead of trusting the ids posted: only
-        // this tournament's pending league matches of this fecha count.
+        // this tournament's pending league matches of this jornada count.
         $matches = $planner->candidates($tournament, $round, overwrite: true)->whereIn('id', array_keys($proposed));
         $proposed = array_intersect_key($proposed, $matches->keyBy('id')->all());
 

@@ -28,12 +28,12 @@
                 @endphp
 
                 {{-- Single "Exportaciones" dropdown (flux:dropdown/flux:menu) for
-                     the three PDF exports -- "Programar fecha" stays outside since
+                     the three PDF exports -- "Programar jornada" stays outside since
                      it navigates to a tool, it doesn't export anything.
 
                      Posiciones downloads directly (its own x-data fetch+blob,
                      same pattern as x-ui.pdf-export-button). Programación/
-                     Resultados each need a fecha-picker modal, but that modal is
+                     Resultados each need a jornada-picker modal, but that modal is
                      NOT nested inside the menu item -- a flux:modal.trigger
                      directly inside a flux:menu.item confirmed live to break
                      click handling app-wide (two Flux-controlled popovers
@@ -121,7 +121,7 @@
                                 @endif
 
                                 {{-- Official programming sheet (pending matches) of the
-                                     chosen fechas, every category -- see
+                                     chosen jornadas, every category -- see
                                      MatchProgrammingPdfController. --}}
                                 @if ($programmingRounds !== [])
                                     <flux:menu.item
@@ -133,7 +133,7 @@
                                     </flux:menu.item>
                                 @endif
 
-                                {{-- Results of the chosen fechas, every category together --
+                                {{-- Results of the chosen jornadas, every category together --
                                      see MatchResultsPdfController::exportTournament(). --}}
                                 @if ($resultRounds !== [])
                                     <flux:menu.item
@@ -148,19 +148,19 @@
                         </flux:dropdown>
                     </div>
 
-                    {{-- Fecha-picker modals for Programación/Resultados, triggered
+                    {{-- Jornada-picker modals for Programación/Resultados, triggered
                          from the menu items above -- see the dropdown's docblock. --}}
                     @if ($programmingRounds !== [])
-                        <x-ui.programming-export :tournament="$tournament" :rounds="$programmingRounds" :show-trigger="false" />
+                        <x-ui.programming-export :tournament="$tournament" :rounds="$programmingRounds" :days="$programmingDays" :show-trigger="false" />
                     @endif
                     @if ($resultRounds !== [])
-                        <x-ui.results-export :tournament="$tournament" :rounds="$resultRounds" :show-trigger="false" />
+                        <x-ui.results-export :tournament="$tournament" :rounds="$resultRounds" :days="$resultDays" :show-trigger="false" />
                     @endif
                 @endif
 
                 @if ($programmingRounds !== [])
                     <flux:button :href="route('tournaments.programming.edit', $tournament)" variant="ghost" icon="calendar-days" wire:navigate>
-                        {{ __('Programar fecha') }}
+                        {{ __('Programar jornada') }}
                     </flux:button>
                 @endif
 
