@@ -290,7 +290,7 @@
                             <input type="hidden" name="overwrite" :value="overwrite ? 1 : 0">
 
                             <div
-                                class="grid gap-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:grid-cols-2 lg:grid-cols-4"
+                                class="grid gap-4 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel sm:grid-cols-2 lg:grid-cols-5"
                                 x-on:input="queue()"
                                 x-on:change="queue()"
                                 x-on:keydown.enter.prevent
@@ -310,6 +310,16 @@
                                     :placeholder="__('Sin cancha')"
                                     :search-placeholder="__('Buscar cancha...')"
                                     :empty-message="__('Ninguna cancha coincide con la búsqueda.')"
+                                />
+
+                                <x-ui.searchable-select
+                                    name="config[referee_id]"
+                                    :options="$referees->map(fn ($referee) => ['id' => $referee->id, 'label' => $referee->full_name])"
+                                    :selected="($config['referee_id'] ?? '') ?: null"
+                                    :label="__('Árbitro')"
+                                    :placeholder="__('Sin árbitro')"
+                                    :search-placeholder="__('Buscar árbitro...')"
+                                    :empty-message="__('Ningún árbitro coincide con la búsqueda.')"
                                 />
 
                                 <flux:input

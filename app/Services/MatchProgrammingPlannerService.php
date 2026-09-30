@@ -75,8 +75,8 @@ class MatchProgrammingPlannerService
      * with groups is chained group after group.
      *
      * @param  Collection<int, TournamentMatch>  $matches  All belonging to one category.
-     * @param  array{date?: string|null, venue_id?: int|string|null, start?: string|null, rest?: int|string|null}  $config
-     * @return array<int, array{at: CarbonInterface, venue_id: int|null}> Keyed by match id.
+     * @param  array{date?: string|null, venue_id?: int|string|null, referee_id?: int|string|null, start?: string|null, rest?: int|string|null}  $config
+     * @return array<int, array{at: CarbonInterface|null, venue_id: int|null, referee_id: int|null}> Keyed by match id.
      */
     public function planCategory(Collection $matches, array $config): array
     {
@@ -103,8 +103,8 @@ class MatchProgrammingPlannerService
      * ("hora por definir").
      *
      * @param  list<array{key: string, category: Category, group: string|null, matches: Collection<int, TournamentMatch>}>  $rows
-     * @param  array<string, array{date?: string|null, venue_id?: int|string|null, start?: string|null, rest?: int|string|null}>  $config  Keyed by row key.
-     * @return array<int, array{at: CarbonInterface, venue_id: int|null}> Keyed by match id.
+     * @param  array<string, array{date?: string|null, venue_id?: int|string|null, referee_id?: int|string|null, start?: string|null, rest?: int|string|null}>  $config  Keyed by row key.
+     * @return array<int, array{at: CarbonInterface|null, venue_id: int|null, referee_id: int|null}> Keyed by match id.
      */
     public function plan(array $rows, array $config): array
     {
@@ -115,17 +115,27 @@ class MatchProgrammingPlannerService
             $rowConfig = $config[$row['key']] ?? [];
             $date = $rowConfig['date'] ?? null;
 
+            $venueId = filled($rowConfig['venue_id'] ?? null) ? (int) $rowConfig['venue_id'] : null;
+            $refereeId = filled($rowConfig['referee_id'] ?? null) ? (int) $rowConfig['referee_id'] : null;
+
+            // No day yet: nothing to schedule, but a chosen cancha / referee still
+            // applies -- every field of the tool is optional.
             if (blank($date)) {
+                if ($venueId !== null || $refereeId !== null) {
+                    foreach ($row['matches'] as $match) {
+                        $proposed[$match->id] = ['at' => null, 'venue_id' => $venueId, 'referee_id' => $refereeId];
+                    }
+                }
+
                 continue;
             }
 
-            $venueId = filled($rowConfig['venue_id'] ?? null) ? (int) $rowConfig['venue_id'] : null;
             $start = $rowConfig['start'] ?? null;
             $interval = $row['category']->matchDurationMinutes() + (filled($rowConfig['rest'] ?? null) ? (int) $rowConfig['rest'] : 0);
 
             if (blank($start)) {
                 foreach ($row['matches'] as $match) {
-                    $proposed[$match->id] = ['at' => TournamentMatch::composeScheduledAt($date, null), 'venue_id' => $venueId];
+                    $proposed[$match->id] = ['at' => TournamentMatch::composeScheduledAt($date, null), 'venue_id' => $venueId, 'referee_id' => $refereeId];
                 }
 
                 continue;
@@ -139,7 +149,7 @@ class MatchProgrammingPlannerService
             }
 
             foreach ($row['matches'] as $match) {
-                $proposed[$match->id] = ['at' => $cursor->copy(), 'venue_id' => $venueId];
+                $proposed[$match->id] = ['at' => $cursor->copy(), 'venue_id' => $venueId, 'referee_id' => $refereeId];
                 $cursor = $cursor->copy()->addMinutes($interval);
             }
 

@@ -6,6 +6,7 @@ use App\Enums\MatchStatus;
 use App\Models\Category;
 use App\Models\Group;
 use App\Models\LeagueSchedule;
+use App\Models\Referee;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use App\Models\User;
@@ -368,7 +369,7 @@ class MatchProgrammingToolTest extends TestCase
         $data = $this->setUpFecha();
 
         $this->actingAs($data['user'])
-            ->post(route('tournaments.programming.preview', $data['tournament']), $this->previewPayload($data, ['date' => '']))
+            ->post(route('tournaments.programming.preview', $data['tournament']), $this->previewPayload($data, ['date' => '', 'venue_id' => '']))
             ->assertOk()
             ->assertSee('Elige el día para ver la propuesta')
             ->assertSee('TIGRES')
@@ -426,7 +427,7 @@ class MatchProgrammingToolTest extends TestCase
         $data = $this->setUpFecha();
 
         $withoutDay = $this->actingAs($data['user'])
-            ->post(route('tournaments.programming.preview', $data['tournament']), $this->previewPayload($data, ['date' => '']))
+            ->post(route('tournaments.programming.preview', $data['tournament']), $this->previewPayload($data, ['date' => '', 'venue_id' => '']))
             ->getContent();
         $clean = $this->actingAs($data['user'])
             ->post(route('tournaments.programming.preview', $data['tournament']), $this->previewPayload($data))
@@ -703,5 +704,120 @@ class MatchProgrammingToolTest extends TestCase
                 $data['matches']['tigres']->id => ['date' => '2026-09-12', 'time' => '07:30', 'venue_id' => $foreign->id],
             ]))
             ->assertSessionHasErrors('matches.'.$data['matches']['tigres']->id.'.venue_id');
+    }
+
+    public function test_saving_assigns_the_referee_and_keeps_an_existing_one_when_none_is_chosen(): void
+    {
+        $data = $this->setUpFecha();
+        $m = $data['matches'];
+        $referee = Referee::factory()->create(['user_id' => $data['user']->id]);
+        $keeper = Referee::factory()->create(['user_id' => $data['user']->id]);
+        $m['osos']->update(['referee_id' => $keeper->id]);
+
+        $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.store', $data['tournament']), $this->storePayload($data, [
+                $m['tigres']->id => ['date' => '2026-09-12', 'time' => '07:30', 'venue_id' => $data['venue']->id, 'referee_id' => $referee->id],
+                $m['osos']->id => ['date' => '2026-09-12', 'time' => '08:30', 'venue_id' => $data['venue']->id, 'referee_id' => ''],
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame($referee->id, $m['tigres']->fresh()->referee_id);
+        $this->assertSame($keeper->id, $m['osos']->fresh()->referee_id);
+    }
+
+    public function test_another_organizers_referee_is_rejected(): void
+    {
+        $data = $this->setUpFecha();
+        $foreign = Referee::factory()->create(['user_id' => User::factory()->create()->id]);
+
+        $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.store', $data['tournament']), $this->storePayload($data, [
+                $data['matches']['tigres']->id => ['date' => '2026-09-12', 'time' => '07:30', 'referee_id' => $foreign->id],
+            ]))
+            ->assertSessionHasErrors('matches.'.$data['matches']['tigres']->id.'.referee_id');
+    }
+
+    public function test_a_match_marked_no_programar_is_left_untouched_on_save(): void
+    {
+        $data = $this->setUpFecha();
+        $m = $data['matches'];
+
+        $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.store', $data['tournament']), $this->storePayload($data, [
+                $m['tigres']->id => ['date' => '2026-09-12', 'time' => '07:30', 'venue_id' => $data['venue']->id, 'skip' => '1'],
+                $m['osos']->id => ['date' => '2026-09-12', 'time' => '08:30', 'venue_id' => $data['venue']->id],
+            ]))
+            ->assertRedirect();
+
+        $this->assertNull($m['tigres']->fresh()->scheduled_at);
+        $this->assertNotNull($m['osos']->fresh()->scheduled_at);
+    }
+
+    public function test_the_preview_replans_without_the_skipped_match_and_remembers_it(): void
+    {
+        $data = $this->setUpFecha();
+        $m = $data['matches'];
+
+        // Tigres can't play: osos takes the first slot (07:30) instead of 08:30.
+        $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.preview', $data['tournament']), [
+                ...$this->previewPayload($data),
+                'matches' => [$m['tigres']->id => ['skip' => '1']],
+            ])
+            ->assertOk()
+            ->assertSee('name="matches['.$m['tigres']->id.'][skip]"', false)
+            // Its own day/time inputs come back empty and locked.
+            ->assertSeeInOrder(['name="matches['.$m['tigres']->id.'][date]"', 'value=""', 'disabled'], false)
+            ->assertSee('checked', false)
+            ->assertSee('name="matches['.$m['osos']->id.'][time]"', false)
+            ->assertSee('value="07:30"', false)
+            ->assertDontSee('value="08:30"', false);
+    }
+
+    public function test_every_field_is_optional_a_cancha_or_referee_alone_can_be_saved(): void
+    {
+        $data = $this->setUpFecha();
+        $m = $data['matches'];
+        $referee = Referee::factory()->create(['user_id' => $data['user']->id]);
+
+        // Preview: no day, but a cancha + referee chosen still counts as a proposal
+        // (the save button is offered).
+        $html = $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.preview', $data['tournament']), $this->previewPayload($data, ['date' => '', 'start' => '', 'referee_id' => $referee->id]))
+            ->assertOk()
+            ->getContent();
+        $this->assertStringNotContainsString('disabled="disabled"', $html);
+
+        // Save: no day given -> the day stays null, cancha and referee are applied.
+        $this->post(route('tournaments.programming.store', $data['tournament']), $this->storePayload($data, [
+            $m['tigres']->id => ['date' => '', 'time' => '', 'venue_id' => $data['venue']->id, 'referee_id' => $referee->id],
+            $m['osos']->id => ['date' => '', 'time' => '', 'venue_id' => '', 'referee_id' => ''],
+        ]))->assertRedirect();
+
+        $tigres = $m['tigres']->fresh();
+        $this->assertNull($tigres->scheduled_at);
+        $this->assertSame($data['venue']->id, $tigres->venue_id);
+        $this->assertSame($referee->id, $tigres->referee_id);
+        $this->assertNull($m['osos']->fresh()->venue_id);
+    }
+
+    public function test_the_preview_loads_what_each_match_already_has(): void
+    {
+        $data = $this->setUpFecha();
+        $m = $data['matches'];
+        $m['tigres']->update(['scheduled_at' => '2026-09-19 10:15:00', 'venue_id' => $data['venue']->id]);
+
+        // No config at all: the match's own day and time come back in its inputs,
+        // and "overwrite" lets the dated match into the list.
+        $this->actingAs($data['user'])
+            ->post(route('tournaments.programming.preview', $data['tournament']), [
+                'round' => 5,
+                'category' => $data['sub13']->id,
+                'overwrite' => 1,
+                'config' => ['date' => '', 'venue_id' => '', 'start' => '', 'rest' => ''],
+            ])
+            ->assertOk()
+            ->assertSee('value="2026-09-19"', false)
+            ->assertSee('value="10:15"', false);
     }
 }
