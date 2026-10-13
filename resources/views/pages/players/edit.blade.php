@@ -118,6 +118,54 @@
                 </div>
             </form>
 
+            {{-- Like the list below it, this sits OUTSIDE the form above
+                 (each row is a form of its own, and nesting forms isn't
+                 valid HTML) but still inside the same card, since it's one
+                 more action on the same "planteles" list. Unlike "Quitar de
+                 un plantel", the primary plantel (players.team_id) IS
+                 offered here: moving replaces the link instead of dropping
+                 it, so the player is never left without one -- see
+                 PlayerController::moveTeam(). --}}
+            @if ($moveDestinations->isNotEmpty())
+                <div class="mt-6 space-y-2 border-t border-zinc-200 pt-6 dark:border-white/10">
+                    <flux:label>{{ __('Cambiar de plantel') }}</flux:label>
+                    <flux:text class="text-sm text-zinc-500 dark:text-white/50">
+                        {{ __('Pasa al jugador de uno de sus planteles actuales a otro del mismo club -- por ejemplo, del grupo A al grupo B de la misma categoría. Sale de uno y entra al otro en un solo paso, sin desactivarlo ni volver a cargarlo. Sus goles, tarjetas y sanciones ya registrados en el plantel anterior no se ven afectados.') }}
+                    </flux:text>
+
+                    @foreach ($currentTeams as $team)
+                        @continue(! $moveDestinations->has($team->id))
+
+                        <form method="POST" action="{{ route('players.teams.move', [$player, $team]) }}"
+                              class="space-y-3 rounded-xl border border-zinc-200 p-4 dark:border-white/10">
+                            @csrf
+
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span class="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-white/50">
+                                    {{ $team->category->name }}
+                                </span>
+                                <flux:text class="font-medium text-zinc-900 dark:text-white">{{ $team->name }}</flux:text>
+                                @if ($team->id === $player->team_id)
+                                    <flux:badge size="sm" color="zinc">{{ __('Plantel principal') }}</flux:badge>
+                                @endif
+                            </div>
+
+                            <flux:select name="destination_team_id" placeholder="{{ __('Pasarlo a...') }}" required>
+                                @foreach ($moveDestinations->get($team->id) as $destination)
+                                    <flux:select.option value="{{ $destination->id }}">
+                                        {{ $destination->category->name }} · {{ $destination->name }}
+                                    </flux:select.option>
+                                @endforeach
+                            </flux:select>
+
+                            <flux:button type="submit" variant="filled" size="sm" icon="arrow-right-circle" class="w-full sm:w-auto">
+                                {{ __('Mover') }}
+                            </flux:button>
+                        </form>
+                    @endforeach
+                </div>
+            @endif
+
             @php $extraTeams = $currentTeams->reject(fn ($team) => $team->id === $player->team_id); @endphp
 
             {{-- Deliberately OUTSIDE the form above (nesting a second
@@ -158,7 +206,7 @@
             <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
                 <flux:heading size="sm" class="mb-2">{{ __('Eliminar del club') }}</flux:heading>
                 <flux:text class="mb-4 text-zinc-500 dark:text-white/50">
-                    {{ __('Saca a :name de :club por completo, en todas sus categorías. Se bloquea si ya tiene goles, tarjetas o sanciones registradas ahí -- para ese caso, usá "Desactivar" en su lugar.', ['name' => $player->full_name, 'club' => $player->team->club->name]) }}
+                    {{ __('Saca a :name de :club por completo, en todas sus categorías. Se bloquea si ya tiene goles, tarjetas o sanciones registradas ahí -- para ese caso, usa "Desactivar" en su lugar.', ['name' => $player->full_name, 'club' => $player->team->club->name]) }}
                 </flux:text>
 
                 <x-ui.confirm-delete-form

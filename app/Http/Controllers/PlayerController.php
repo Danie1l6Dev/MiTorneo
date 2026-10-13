@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -270,7 +271,15 @@ class PlayerController extends Controller
         $currentTeams = $player->allTeams();
         $clubTeams = Team::sortedByCategoryAge($currentTeams->merge($player->candidateTeamsForEnrollment()));
 
-        return view('pages.players.edit', compact('player', 'clubTeams', 'currentTeams'));
+        // "Cambiar de plantel": for each plantel the player is on right now,
+        // where they could be moved instead -- see moveTeam() below and
+        // Player::moveCandidateTeams(). Keyed by origin plantel so the view
+        // renders one picker per row without asking the model again.
+        $moveDestinations = $currentTeams
+            ->mapWithKeys(fn (Team $team) => [$team->id => $player->moveCandidateTeams($team)])
+            ->reject(fn (Collection $destinations) => $destinations->isEmpty());
+
+        return view('pages.players.edit', compact('player', 'clubTeams', 'currentTeams', 'moveDestinations'));
     }
 
     public function update(PlayerRequest $request, Player $player): RedirectResponse
@@ -343,6 +352,45 @@ class PlayerController extends Controller
         $this->roster->removeTeam($player, $team);
 
         return to_route('players.edit', $player)->with('status', __('Jugador quitado de ese plantel.'));
+    }
+
+    /**
+     * "Cambiar de plantel": swaps ONE of this player's current planteles for
+     * another plantel of the same club -- typically the same category's grupo
+     * A for its grupo B, when the club rearranged who plays where. Replaces
+     * the link instead of adding a second one, so it saves the
+     * deactivate-and-register-again round trip the organizer had to do
+     * before, and it works for the primary plantel (players.team_id) too,
+     * which detachTeam() can't touch.
+     *
+     * Only a plantel out of Player::moveCandidateTeams() is accepted (same
+     * club, not one they're already on, age-eligible): anything else is
+     * rejected without moving anything, the same way promote() does it.
+     * Goals, cards and sanctions already recorded for the origin plantel
+     * stay there -- they point at team_id/player_id, never at this link.
+     */
+    public function moveTeam(Request $request, Player $player, Team $team): RedirectResponse
+    {
+        $this->authorize('update', $player);
+
+        abort_unless($player->allTeams()->contains('id', $team->id), 404);
+
+        $destinationId = $request->integer('destination_team_id');
+        $destination = $destinationId ? $player->moveCandidateTeams($team)->firstWhere('id', $destinationId) : null;
+
+        if (! $destination) {
+            return back()->with('error', __(
+                'No se pudo mover a :name: ese plantel no es de este club, ya lo tiene o su fecha de nacimiento no lo permite.',
+                ['name' => $player->full_name]
+            ));
+        }
+
+        $this->roster->moveBetweenTeams($player, $team, $destination);
+
+        return to_route('players.edit', $player)->with('status', __(
+            ':name pasó de :from a :to.',
+            ['name' => $player->full_name, 'from' => $team->name, 'to' => $destination->name]
+        ));
     }
 
     /**

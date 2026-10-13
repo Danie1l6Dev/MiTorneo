@@ -212,6 +212,14 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('players/{player}/teams/{team}', [PlayerController::class, 'detachTeam'])
         ->name('players.teams.destroy');
 
+    // Swaps one of the player's current planteles for another one of the
+    // same club (typically the same category's grupo A for its grupo B),
+    // instead of deactivating them and registering them again -- see
+    // PlayerController::moveTeam().
+    Route::post('players/{player}/teams/{team}/move', [PlayerController::class, 'moveTeam'])
+        ->whereNumber('player')
+        ->name('players.teams.move');
+
     // Moves a single player out of $team once its category no longer fits
     // them (age rule) into whichever older category in the same club does
     // -- see Player::promotionCandidateTeams()/promoteFromTeam().

@@ -16,6 +16,8 @@ enum RosterStartReason: string
     case Transferred = 'transferred';
     /** Pasó de un plantel a otro del mismo club (por edad). */
     case Promoted = 'promoted';
+    /** Pasó a otro plantel del mismo club por decisión del club (cambio de grupo, reacomodo de planteles). */
+    case Moved = 'moved';
     /** Reconstruido después del hecho, sin fecha real -- ver PlayerHistoryBackfillService. */
     case Estimated = 'estimated';
 
@@ -26,6 +28,7 @@ enum RosterStartReason: string
             self::Added => 'Plantel adicional',
             self::Transferred => 'Transferido desde otro club',
             self::Promoted => 'Promovido',
+            self::Moved => 'Cambio de plantel',
             self::Estimated => 'Estimado',
         };
     }

@@ -110,14 +110,34 @@ class PlayerRosterService
     }
 
     /**
-     * Moves the player from $from to $to (another plantel of the same club),
-     * replacing the link: whichever way they were on $from -- team_id or a
-     * pivot row -- is what's replaced, and a pivot jersey number carries over.
-     * $from's line closes as promoted and $to's opens the same way.
+     * Moves the player from $from to $to because $from's category no longer
+     * fits their age -- see relink() for what "moving" actually does here.
      */
     public function promote(Player $player, Team $from, Team $to): void
     {
-        DB::transaction(function () use ($player, $from, $to): void {
+        $this->relink($player, $from, $to, RosterStartReason::Promoted, RosterEndReason::Promoted);
+    }
+
+    /**
+     * Same swap as promote(), but because the club rearranged its planteles
+     * (typically the same category's grupo A <-> grupo B), not because of the
+     * player's age -- so it reads as "Cambio de plantel" in their history
+     * instead of a promotion. See PlayerController::moveTeam().
+     */
+    public function moveBetweenTeams(Player $player, Team $from, Team $to): void
+    {
+        $this->relink($player, $from, $to, RosterStartReason::Moved, RosterEndReason::Moved);
+    }
+
+    /**
+     * Replaces the player's link to $from with one to $to (another plantel of
+     * the same club): whichever way they were on $from -- team_id or a pivot
+     * row -- is what's replaced, and a pivot jersey number carries over.
+     * $from's line closes and $to's opens with the given reasons.
+     */
+    private function relink(Player $player, Team $from, Team $to, RosterStartReason $startReason, RosterEndReason $endReason): void
+    {
+        DB::transaction(function () use ($player, $from, $to, $startReason, $endReason): void {
             $jerseyNumber = $player->jersey_number;
 
             if ($player->team_id === $from->id) {
@@ -133,8 +153,8 @@ class PlayerRosterService
                 $player->teams()->attach($to->id, ['jersey_number' => $jerseyNumber]);
             }
 
-            $this->close($player, $from, RosterEndReason::Promoted);
-            $this->open($player, $to, RosterStartReason::Promoted, $jerseyNumber);
+            $this->close($player, $from, $endReason);
+            $this->open($player, $to, $startReason, $jerseyNumber);
         });
     }
 

@@ -247,6 +247,23 @@ class Player extends Model
      */
     public function promotionCandidateTeams(Team $fromTeam): Collection
     {
+        return $this->moveCandidateTeams($fromTeam);
+    }
+
+    /**
+     * Every plantel of $fromTeam's own club this player could be moved INTO
+     * right now: one they're not already on and whose category their age
+     * allows -- including another plantel of $fromTeam's SAME category (the
+     * grupo A -> grupo B case, where a club rearranges who plays in which
+     * plantel), which is what makes this more than just the promotion list.
+     * Same club-and-age filter either way, so promotionCandidateTeams() is
+     * this list read for one particular reason. Sorted youngest category
+     * first (Team::sortedByCategoryAge() via candidateTeamsForEnrollment()).
+     *
+     * @return Collection<int, Team>
+     */
+    public function moveCandidateTeams(Team $fromTeam): Collection
+    {
         if ($fromTeam->club_id === null) {
             return collect();
         }

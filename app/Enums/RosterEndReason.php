@@ -14,6 +14,8 @@ enum RosterEndReason: string
     case Transferred = 'transferred';
     /** Pasó a otro plantel del mismo club (por edad). */
     case Promoted = 'promoted';
+    /** Pasó a otro plantel del mismo club por decisión del club (cambio de grupo, reacomodo de planteles). */
+    case Moved = 'moved';
     /** El plantel se eliminó. */
     case TeamDeleted = 'team_deleted';
     /** Reconstruido después del hecho: se sabe que ya no está, no cómo ni cuándo exactamente. */
@@ -25,6 +27,7 @@ enum RosterEndReason: string
             self::Removed => 'Retirado',
             self::Transferred => 'Transferido a otro club',
             self::Promoted => 'Promovido a otro plantel',
+            self::Moved => 'Cambio de plantel',
             self::TeamDeleted => 'Plantel eliminado',
             self::Unknown => 'Motivo desconocido',
         };
