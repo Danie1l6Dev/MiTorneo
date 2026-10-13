@@ -118,6 +118,15 @@
                             </x-ui.confirm-delete-form>
                         @endif
 
+                        {{-- Bulk "Cambiar de plantel": only for a plantel of
+                             a club, which is the only kind with sibling
+                             planteles to move anyone into. --}}
+                        @if ($team->club_id && $roster->isNotEmpty())
+                            <flux:button :href="route('teams.players.move.create', $team)" variant="ghost" size="sm" icon="arrow-right-circle" wire:navigate>
+                                {{ __('Mover jugadores') }}
+                            </flux:button>
+                        @endif
+
                         <flux:button :href="$team->club_id ? route('clubs.players.create', $team->club) : route('teams.players.create', $team)" variant="primary" size="sm" icon="plus" wire:navigate>
                             {{ __('Agregar jugador') }}
                         </flux:button>

@@ -229,6 +229,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('teams/{team}/players/{player}/promote', [PlayerController::class, 'promote'])
         ->name('teams.players.promote.store');
 
+    // Bulk version of "Cambiar de plantel": mark several of this plantel's
+    // players and send them all to another plantel of the same club -- see
+    // PlayerController::moveManyForm()/moveMany().
+    Route::get('teams/{team}/players/move', [PlayerController::class, 'moveManyForm'])
+        ->name('teams.players.move.create');
+
+    Route::post('teams/{team}/players/move', [PlayerController::class, 'moveMany'])
+        ->name('teams.players.move.store');
+
     // Bulk version: promotes every unambiguous case in $team's roster at
     // once, see PlayerController::promoteEligible().
     Route::post('teams/{team}/players/promote-eligible', [PlayerController::class, 'promoteEligible'])

@@ -151,6 +151,135 @@ class PlayerTeamMoveTest extends TestCase
         $this->assertSame($groupA->id, $player->refresh()->team_id);
     }
 
+    public function test_moving_several_players_at_once_sends_every_marked_one_to_the_chosen_plantel(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $category = $this->preProny($user);
+
+        $groupA = $this->makeTeam($club, $category, 'Nilmar (A)');
+        $groupB = $this->makeTeam($club, $category, 'Nilmar (B)');
+
+        $moving = Player::factory()->count(2)->for($groupA)->create(['birth_date' => '2015-06-25']);
+        $staying = Player::factory()->for($groupA)->create(['birth_date' => '2015-06-25']);
+
+        $this->actingAs($user)
+            ->post(route('teams.players.move.store', $groupA), [
+                'destination_team_id' => $groupB->id,
+                'player_ids' => $moving->pluck('id')->all(),
+            ])
+            ->assertRedirect(route('teams.show', $groupA));
+
+        foreach ($moving as $player) {
+            $this->assertSame($groupB->id, $player->refresh()->team_id);
+        }
+
+        // Only the marked ones move -- the rest of the roster stays put.
+        $this->assertSame($groupA->id, $staying->refresh()->team_id);
+    }
+
+    public function test_a_marked_player_the_destination_does_not_fit_is_skipped_instead_of_failing_the_batch(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+
+        $category = $this->preProny($user);
+        $youngerCategory = Category::factory()->create(['tournament_id' => null, 'user_id' => $user->id, 'name' => 'Baby', 'birth_year_from' => 2020, 'birth_year_to' => 2021]);
+
+        $origin = $this->makeTeam($club, $category, 'Nilmar (A)');
+        $destination = $this->makeTeam($club, $youngerCategory, 'Nilmar Baby');
+
+        // Born 2020, playing up in Pre-Pony: Baby is his own category, so he
+        // fits it. The 2015 one doesn't -- the age rule allows playing up
+        // into an older category, never down into a younger one.
+        $fits = Player::factory()->for($origin)->create(['birth_date' => '2020-03-01']);
+        $doesNotFit = Player::factory()->for($origin)->create(['birth_date' => '2015-06-25']);
+
+        $this->actingAs($user)
+            ->post(route('teams.players.move.store', $origin), [
+                'destination_team_id' => $destination->id,
+                'player_ids' => [$fits->id, $doesNotFit->id],
+            ])
+            ->assertRedirect(route('teams.show', $origin))
+            ->assertSessionHas('status');
+
+        $this->assertSame($destination->id, $fits->refresh()->team_id);
+        $this->assertSame($origin->id, $doesNotFit->refresh()->team_id);
+    }
+
+    public function test_moving_several_players_without_marking_anyone_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $category = $this->preProny($user);
+
+        $groupA = $this->makeTeam($club, $category, 'Nilmar (A)');
+        $groupB = $this->makeTeam($club, $category, 'Nilmar (B)');
+
+        $player = Player::factory()->for($groupA)->create(['birth_date' => '2015-06-25']);
+
+        $this->actingAs($user)
+            ->from(route('teams.players.move.create', $groupA))
+            ->post(route('teams.players.move.store', $groupA), ['destination_team_id' => $groupB->id])
+            ->assertRedirect(route('teams.players.move.create', $groupA))
+            ->assertSessionHas('error');
+
+        $this->assertSame($groupA->id, $player->refresh()->team_id);
+    }
+
+    public function test_a_destination_plantel_of_another_club_is_rejected_in_the_bulk_move(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $otherClub = Club::factory()->for($user)->create(['name' => 'Juventus']);
+        $category = $this->preProny($user);
+
+        $groupA = $this->makeTeam($club, $category, 'Nilmar (A)');
+        $otherClubTeam = $this->makeTeam($otherClub, $category, 'Juventus');
+
+        $player = Player::factory()->for($groupA)->create(['birth_date' => '2015-06-25']);
+
+        $this->actingAs($user)
+            ->from(route('teams.players.move.create', $groupA))
+            ->post(route('teams.players.move.store', $groupA), [
+                'destination_team_id' => $otherClubTeam->id,
+                'player_ids' => [$player->id],
+            ])
+            ->assertSessionHas('error');
+
+        $this->assertSame($groupA->id, $player->refresh()->team_id);
+    }
+
+    public function test_the_plantel_page_links_to_the_bulk_move_picker(): void
+    {
+        $user = User::factory()->create();
+        $club = Club::factory()->for($user)->create(['name' => 'Nilmar']);
+        $category = $this->preProny($user);
+
+        $groupA = $this->makeTeam($club, $category, 'Nilmar (A)');
+        $this->makeTeam($club, $category, 'Nilmar (B)');
+
+        Player::factory()->for($groupA)->create(['birth_date' => '2015-06-25']);
+
+        $this->actingAs($user)
+            ->get(route('teams.show', $groupA))
+            ->assertOk()
+            ->assertSee('Mover jugadores')
+            ->assertSee(route('teams.players.move.create', $groupA), escape: false);
+
+        $this->actingAs($user)
+            ->get(route('teams.players.move.create', $groupA))
+            ->assertOk()
+            ->assertSee('Mover jugadores')
+            // Team names are stored uppercased (NormalizesToUppercase).
+            ->assertSee('NILMAR (B)')
+            // The submit button is disabled until someone is marked, and Flux
+            // reads [disabled] on a submit button as "submitting": without
+            // :loading="false" it would hide the label behind a spinner that
+            // never stops.
+            ->assertDontSee('data-flux-loading-indicator', escape: false);
+    }
+
     public function test_the_edit_page_offers_the_other_group_of_the_same_category_as_a_destination(): void
     {
         $user = User::factory()->create();

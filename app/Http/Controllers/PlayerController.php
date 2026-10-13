@@ -394,6 +394,106 @@ class PlayerController extends Controller
     }
 
     /**
+     * Picker for moving SEVERAL of $team's players to another plantel of the
+     * same club in one step -- what a club that swapped its grupo A and grupo
+     * B rosters actually needs, instead of repeating the per-player "Cambiar
+     * de plantel" on every ficha. Destinations are listed here plainly (every
+     * other plantel of the club); whether each SELECTED player may actually
+     * go there is decided per player in moveMany(), since age eligibility is
+     * the player's, not the plantel's.
+     */
+    public function moveManyForm(Team $team): View
+    {
+        $this->authorize('update', $team);
+
+        $team->load(['category', 'club']);
+
+        $roster = $team->currentRoster()
+            ->sort(fn (Player $a, Player $b): int => ($b->is_active <=> $a->is_active) ?: strcmp($a->full_name, $b->full_name))
+            ->values();
+
+        $destinations = $team->club_id === null
+            ? collect()
+            : Team::sortedByCategoryAge(
+                Team::query()
+                    ->where('club_id', $team->club_id)
+                    ->whereKeyNot($team->id)
+                    ->with('category')
+                    ->get()
+            )->values();
+
+        return view('pages.teams.move-players', compact('team', 'roster', 'destinations'));
+    }
+
+    /**
+     * Moves every marked player of $team to the chosen plantel, one
+     * moveTeam() each (same Player::moveCandidateTeams() check per player, so
+     * a destination that doesn't fit one of them is skipped instead of
+     * failing the whole batch). Reports how many moved and how many were
+     * left behind, the way promoteEligible() already does -- the skipped
+     * ones are always "already on that plantel" or "their birth_date doesn't
+     * allow that category".
+     */
+    public function moveMany(Request $request, Team $team): RedirectResponse
+    {
+        $this->authorize('update', $team);
+
+        $destinationId = $request->integer('destination_team_id');
+        $destination = $team->club_id !== null && $destinationId
+            ? Team::query()->where('club_id', $team->club_id)->whereKeyNot($team->id)->find($destinationId)
+            : null;
+
+        if (! $destination) {
+            return back()->with('error', __('Hay que elegir un plantel de destino de este mismo club.'));
+        }
+
+        $selectedIds = collect($request->input('player_ids', []))
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique();
+
+        $players = $team->currentRoster()->whereIn('id', $selectedIds);
+
+        if ($players->isEmpty()) {
+            return back()->with('error', __('Hay que marcar al menos un jugador para mover.'));
+        }
+
+        $moved = 0;
+        $skipped = 0;
+
+        foreach ($players as $player) {
+            if ($player->moveCandidateTeams($team)->contains('id', $destination->id)) {
+                $this->roster->moveBetweenTeams($player, $team, $destination);
+                $moved++;
+            } else {
+                $skipped++;
+            }
+        }
+
+        $skippedMessage = trans_choice(
+            ':count jugador no se pudo mover: ya está en ese plantel o su fecha de nacimiento no lo permite.|:count jugadores no se pudieron mover: ya están en ese plantel o su fecha de nacimiento no lo permite.',
+            $skipped,
+            ['count' => $skipped]
+        );
+
+        if ($moved === 0) {
+            return back()->with('error', $skippedMessage);
+        }
+
+        $status = trans_choice(
+            ':count jugador movido a :team.|:count jugadores movidos a :team.',
+            $moved,
+            ['count' => $moved, 'team' => $destination->name]
+        );
+
+        if ($skipped > 0) {
+            $status .= ' '.$skippedMessage;
+        }
+
+        return to_route('teams.show', $team)->with('status', $status);
+    }
+
+    /**
      * Removes every plantel this player has at $club -- both the pivot
      * ones and, if it belongs to $club, the primary team_id. Blocked
      * outright (rather than silently discarding it) when the player has
