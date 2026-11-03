@@ -160,9 +160,10 @@ class PhaseEligibilityTest extends TestCase
         $phase = CompetitionPhase::factory()->for($tournament)->for($category)->create(['type' => CompetitionPhaseType::League, 'order' => 1]);
         $teams = Team::factory()->for($tournament)->for($category)->count(6)->create();
 
+        // Different margins, so no total tie falls on the qualification line.
         $this->finishedMatch($phase, $teams[0], $teams[1]);
-        $this->finishedMatch($phase, $teams[2], $teams[3]);
-        $this->finishedMatch($phase, $teams[4], $teams[5]);
+        $this->finishedMatch($phase, $teams[2], $teams[3])->update(['home_score' => 2]);
+        $this->finishedMatch($phase, $teams[4], $teams[5])->update(['home_score' => 3]);
 
         $response = $this->actingAs($user)->post(route('phases.advance.store', $phase), [
             'name' => 'Semifinales',

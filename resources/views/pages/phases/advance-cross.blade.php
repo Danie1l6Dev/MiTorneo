@@ -30,16 +30,30 @@
 
             @if ($outcome['losers'] !== [])
                 <div class="space-y-1">
-                    <flux:text class="text-sm font-medium">{{ __('Perdedores, del mejor al peor (diferencia de goles, goles a favor y juego limpio)') }}</flux:text>
-                    <ol class="list-inside list-decimal text-sm text-zinc-600 dark:text-white/70">
-                        @foreach ($outcome['losers'] as $loser)
-                            <li>{{ $loser['team']->name }} ({{ $loser['goal_difference'] }} DG, {{ $loser['goals_for'] }} GF, {{ $loser['fair_play'] }} JL)</li>
-                        @endforeach
-                    </ol>
+                    <flux:text class="text-sm font-medium">{{ __('Perdedores (:count)', ['count' => count($outcome['losers'])]) }}</flux:text>
+                    <flux:text class="text-sm">{{ collect($outcome['losers'])->map(fn ($loser) => $loser['team']->name)->join(', ') }}</flux:text>
                 </div>
             @endif
         </div>
 
+        @php
+            $hasPendingTies = collect($outcome['losers'])->contains(fn (array $loser): bool => ($loser['tie'] ?? null) === 'pending');
+        @endphp
+
+        @if ($hasPendingTies)
+            {{-- Ties among the losers are settled on the phase page (with its
+                 sorteo buttons), not here: the form stays locked until then. --}}
+            <flux:callout variant="warning" icon="exclamation-triangle" :heading="__('Primero resuelve los desempates')">
+                <flux:callout.text>
+                    {{ __('Hay equipos empatados en todos los criterios entre los mejores perdedores. Realiza los sorteos en la fase y luego vuelve a definir los clasificados.') }}
+                </flux:callout.text>
+                <x-slot:actions>
+                    <flux:button :href="route('phases.show', $phase)" variant="primary" size="sm" icon:trailing="chevron-right" wire:navigate>
+                        {{ __('Ir a :name', ['name' => $phase->name]) }}
+                    </flux:button>
+                </x-slot:actions>
+            </flux:callout>
+        @else
         <div class="rounded-2xl border border-zinc-200 p-6 dark:border-white/10 glass-panel sm:p-8">
             <form
                 method="POST"
@@ -168,5 +182,6 @@
                 <flux:button type="submit" variant="primary">{{ __('Continuar') }}</flux:button>
             </form>
         </div>
+        @endif
     </div>
 </x-layouts::app>

@@ -531,7 +531,7 @@
 
                 <div class="grid gap-4 {{ count($standings) > 1 ? 'lg:grid-cols-2' : '' }}">
                     @foreach ($standings as $item)
-                        <x-ui.standings-table :label="$item['label']" :rows="$item['rows']" />
+                        <x-ui.standings-table :label="$item['label']" :rows="$item['rows']" :draw-phase="$phase" />
                     @endforeach
                 </div>
             </div>
@@ -957,6 +957,10 @@
                     </div>
 
                     @include('pages.phases._champion-card', ['team' => $champion])
+                @endif
+
+                @if ($crossRoundOutcome !== null && $crossRoundOutcome['losers'] !== [])
+                    @include('pages.phases._best-losers', ['losers' => $crossRoundOutcome['losers'], 'phase' => $phase])
                 @endif
 
                 @if ($crossRoundOutcome !== null)

@@ -9,6 +9,7 @@ use App\Enums\PairingScope;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\Team;
+use App\Models\TiebreakDraw;
 use App\Models\TournamentMatch;
 use Illuminate\Support\Collection;
 
@@ -411,6 +412,14 @@ class CrossRoundService
         }
 
         usort($losers, fn (array $a, array $b): int => [$b['goal_difference'], $b['goals_for'], $a['fair_play']] <=> [$a['goal_difference'], $a['goals_for'], $b['fair_play']]);
+
+        // Losers level on everything are a total tie: a stored sorteo settles it.
+        $losers = app(TiebreakDrawService::class)->settle(
+            $losers,
+            fn (array $row): string => $row['goal_difference'].'|'.$row['goals_for'].'|'.$row['fair_play'],
+            fn (array $row): int => $row['team']->id,
+            TiebreakDraw::batchesFor($phase),
+        );
 
         return ['direct' => $direct, 'winners' => $winners->values(), 'losers' => $losers, 'undecided' => $undecided];
     }

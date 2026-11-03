@@ -1,6 +1,8 @@
 @props([
     'label' => null,
     'rows' => [],
+    // Phase to draw ties in (admin only); null hides the Sortear buttons.
+    'drawPhase' => null,
 ])
 
 <div {{ $attributes->class('overflow-hidden rounded-2xl border border-zinc-200 dark:border-white/10 glass-panel') }}>
@@ -64,6 +66,8 @@
                                     @if ($row['expelled'] ?? false)
                                         <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
                                     @endif
+
+                                    <x-ui.tie-controls :row="$row" :previous="$rows[$index - 1] ?? null" :draw-phase="$drawPhase" />
                                 </div>
                             </td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['played'] }}</td>
@@ -106,6 +110,8 @@
                             @if ($row['expelled'] ?? false)
                                 <flux:badge size="sm" color="red">{{ __('Expulsado') }}</flux:badge>
                             @endif
+
+                            <x-ui.tie-controls :row="$row" :previous="$rows[$index - 1] ?? null" :draw-phase="$drawPhase" />
                         </div>
                         <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
                             {{ __('PJ') }} {{ $row['played'] }} &middot; {{ __('GF') }} {{ $row['goals_for'] }} &middot; {{ __('GC') }} {{ $row['goals_against'] }} &middot; {{ __('DG') }} {{ $row['goal_difference'] }}@if ($showFairPlay) &middot; {{ __('JL') }} {{ $row['fair_play'] ?? 0 }}@endif

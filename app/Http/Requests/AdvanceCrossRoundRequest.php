@@ -9,6 +9,7 @@ use App\Enums\ScheduleFormat;
 use App\Models\CompetitionPhase;
 use App\Services\CrossRoundService;
 use App\Services\PhaseEligibilityService;
+use App\Services\TiebreakDrawService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -78,6 +79,14 @@ class AdvanceCrossRoundRequest extends FormRequest
 
             if ($bestLosers > count($outcome['losers'])) {
                 $validator->errors()->add('best_losers', __('Solo hay :count perdedores en la ronda, no puedes clasificar :requested.', ['count' => count($outcome['losers']), 'requested' => $bestLosers]));
+
+                return;
+            }
+
+            $names = app(TiebreakDrawService::class)->pendingTieOnLine($outcome['losers'], $bestLosers);
+
+            if ($names !== null) {
+                $validator->errors()->add('best_losers', app(TiebreakDrawService::class)->lineMessage(__('los perdedores'), $names));
 
                 return;
             }

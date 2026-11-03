@@ -7,6 +7,7 @@ use App\Enums\MatchStatus;
 use App\Models\CompetitionPhase;
 use App\Models\Group;
 use App\Models\Team;
+use App\Models\TiebreakDraw;
 use App\Models\Tournament;
 use App\Models\TournamentMatch;
 use Illuminate\Support\Collection;
@@ -20,7 +21,7 @@ class StandingsService
      * table for the whole category otherwise. The table is always derived
      * fresh from the phase's finished matches.
      *
-     * @return array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>}>
+     * @return array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>}>
      */
     public function tablesForPhase(CompetitionPhase $phase): array
     {
@@ -28,24 +29,25 @@ class StandingsService
         $matches = $phase->matches;
         $roster = $phase->teams;
         $tournament = $phase->tournament;
+        $draws = TiebreakDraw::batchesFor($phase);
 
         if ($roster->isNotEmpty()) {
             return [[
                 'label' => $phase->name,
-                'rows' => $this->calculate($roster, $matches, $tournament),
+                'rows' => $this->calculate($roster, $matches, $tournament, $draws),
             ]];
         }
 
         if ($category->uses_groups) {
             return $category->groupsFor($tournament)->get()->map(fn (Group $group): array => [
                 'label' => $group->name,
-                'rows' => $this->calculate($group->teams, $matches->where('group_id', $group->id), $tournament),
+                'rows' => $this->calculate($group->teams, $matches->where('group_id', $group->id), $tournament, $draws),
             ])->values()->all();
         }
 
         return [[
             'label' => $category->name,
-            'rows' => $this->calculate($category->teamsForTournament($tournament), $matches, $tournament),
+            'rows' => $this->calculate($category->teamsForTournament($tournament), $matches, $tournament, $draws),
         ]];
     }
 
@@ -55,7 +57,7 @@ class StandingsService
      * roster. Nothing is resolved beyond picking rows off the already-ordered
      * tables: sorting/tie-breaking is entirely calculate()'s responsibility.
      *
-     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>}>  $tables
+     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>}>  $tables
      * @return Collection<int, Team>
      */
     public function topQualifiers(array $tables, int $perTable): Collection
@@ -87,7 +89,7 @@ class StandingsService
      * never produce a qualifier total that's a power of two) falls back to
      * seeding within itself.
      *
-     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>}>  $tables
+     * @param  array<int, array{label: string, rows: array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>}>  $tables
      * @return Collection<int, Team>
      */
     public function seedQualifiers(array $tables, int $perTable, DrawMethod $method): Collection
@@ -141,11 +143,17 @@ class StandingsService
      * only way StandingsServiceTest calls this directly) simply skips that
      * check -- every row comes back 'expelled' => false.
      *
+     * $draws are the stored "sorteos" of the phase (TiebreakDraw::batchesFor()):
+     * the last tie-break, applied to teams still totally level -- see
+     * TiebreakDrawService. Each row says whether it is in such a tie
+     * ('tie' => 'pending' or 'drawn').
+     *
      * @param  Collection<int, Team>  $teams
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>
+     * @param  array<int, array{group: string, positions: array<int, int>}>  $draws
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>
      */
-    public function calculate(Collection $teams, Collection $matches, ?Tournament $tournament = null): array
+    public function calculate(Collection $teams, Collection $matches, ?Tournament $tournament = null, array $draws = []): array
     {
         /** @var array<int, Team> $teamsById */
         $teamsById = $teams->keyBy(fn (Team $team): int => $team->id)->all();
@@ -222,11 +230,14 @@ class StandingsService
                 'goal_difference' => $row['goals_for'] - $row['goals_against'],
                 'points' => $row['points'],
                 'fair_play' => $fairPlay[$id] ?? 0,
+                'tie' => null,
+                'tie_teams' => [],
+                'draw_group' => null,
                 'expelled' => $tournament !== null && $team->isExpelledFrom($tournament),
             ];
         }
 
-        return $this->order($rows, $matches);
+        return $this->order($rows, $matches, $draws);
     }
 
     /**
@@ -249,24 +260,24 @@ class StandingsService
      * they, in turn, tie-broken via head-to-head the same as any other
      * cluster) rather than left in an arbitrary order.
      *
-     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>  $rows
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>  $rows
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>
      */
-    private function order(array $rows, Collection $matches): array
+    private function order(array $rows, Collection $matches, array $draws): array
     {
         $active = array_values(array_filter($rows, fn (array $row): bool => ! $row['expelled']));
         $expelled = array_values(array_filter($rows, fn (array $row): bool => $row['expelled']));
 
-        return [...$this->rank($active, $matches), ...$this->rank($expelled, $matches)];
+        return [...$this->rank($active, $matches, $draws), ...$this->rank($expelled, $matches, $draws)];
     }
 
     /**
-     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>  $rows
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>  $rows
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>
      */
-    private function rank(array $rows, Collection $matches): array
+    private function rank(array $rows, Collection $matches, array $draws): array
     {
         usort($rows, fn (array $a, array $b): int => [$b['points'], $b['goal_difference'], $b['goals_for']]
             <=> [$a['points'], $a['goal_difference'], $a['goals_for']]);
@@ -292,7 +303,21 @@ class StandingsService
             $i = $j + 1;
         }
 
-        return $ordered;
+        // Anything still level after fair play can only be settled by a draw:
+        // mark those rows, and put the ones already drawn in their drawn order.
+        $settled = app(TiebreakDrawService::class)->settle(
+            $ordered,
+            fn (array $row): string => $row['_tie_key'] ?? 'alone-'.$row['team']->id,
+            fn (array $row): int => $row['team']->id,
+            $draws,
+            fn (array $row): bool => $row['expelled'],
+        );
+
+        return array_map(function (array $row): array {
+            unset($row['_tie_key']);
+
+            return $row;
+        }, $settled);
     }
 
     /**
@@ -314,9 +339,9 @@ class StandingsService
      * sequence, and finally by fair play. Teams that remain tied even after
      * this keep their relative order from the input (stable).
      *
-     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>  $cluster
+     * @param  array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>  $cluster
      * @param  Collection<int, TournamentMatch>  $matches
-     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, expelled: bool}>
+     * @return array<int, array{team: Team, played: int, won: int, drawn: int, lost: int, goals_for: int, goals_against: int, goal_difference: int, points: int, fair_play: int, tie: string|null, tie_teams: array<int, int>, draw_group: string|null, expelled: bool}>
      */
     private function breakTieByHeadToHead(array $cluster, Collection $matches): array
     {
@@ -373,6 +398,19 @@ class StandingsService
             $miniStats[$a['team']->id]['goals_for'],
             $b['fair_play'],
         ]);
+
+        // Rows with the same key here are level on EVERYTHING -- the ones a
+        // draw has to settle.
+        foreach ($cluster as &$row) {
+            $row['_tie_key'] = implode('|', [
+                $row['points'], $row['goal_difference'], $row['goals_for'],
+                $miniStats[$row['team']->id]['points'],
+                $miniStats[$row['team']->id]['goal_difference'],
+                $miniStats[$row['team']->id]['goals_for'],
+                $row['fair_play'],
+            ]);
+        }
+        unset($row);
 
         return $cluster;
     }

@@ -10,6 +10,7 @@ use App\Models\CompetitionPhase;
 use App\Services\CrossRoundService;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
+use App\Services\TiebreakDrawService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -181,6 +182,16 @@ class AdvancePhaseRequest extends FormRequest
                 return;
             }
 
+            foreach ($tablesWithTeams as $table) {
+                $names = app(TiebreakDrawService::class)->pendingTieOnLine($table['rows'], $perTable);
+
+                if ($names !== null) {
+                    $validator->errors()->add('qualifiers_per_table', app(TiebreakDrawService::class)->lineMessage($table['label'], $names));
+
+                    return;
+                }
+            }
+
             $isLeague = $type === CompetitionPhaseType::League;
             $totalQualifiers = $standingsService->topQualifiers($tables, $perTable)->count();
 
@@ -234,6 +245,18 @@ class AdvancePhaseRequest extends FormRequest
                 $validator->errors()->add('qualifiers', __('En :table no pueden pasar directo más equipos de los que clasifican.', ['table' => $table['label']]));
 
                 return;
+            }
+        }
+
+        foreach (array_values($tables) as $index => $table) {
+            foreach ([$counts[$index] ?? 0, $direct[$index] ?? 0] as $line) {
+                $names = app(TiebreakDrawService::class)->pendingTieOnLine($table['rows'], $line);
+
+                if ($names !== null) {
+                    $validator->errors()->add('qualifiers', app(TiebreakDrawService::class)->lineMessage($table['label'], $names));
+
+                    return;
+                }
             }
         }
 

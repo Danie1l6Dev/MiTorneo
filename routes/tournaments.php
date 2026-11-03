@@ -24,6 +24,7 @@ use App\Http\Controllers\SanctionController;
 use App\Http\Controllers\StatisticsPdfController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TeamExpulsionController;
+use App\Http\Controllers\TiebreakDrawController;
 use App\Http\Controllers\TournamentCategoryController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\TournamentMatchController;
@@ -330,6 +331,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::delete('phases/{phase}/cut', [PhaseCutController::class, 'destroy'])
         ->name('phases.cut.destroy');
+
+    Route::post('phases/{phase}/tiebreak-draw', [TiebreakDrawController::class, 'store'])
+        ->name('phases.tiebreak-draw.store');
+
+    Route::delete('phases/{phase}/tiebreak-draw/{drawGroup}', [TiebreakDrawController::class, 'destroy'])
+        ->name('phases.tiebreak-draw.destroy');
 
     Route::post('phases/{phase}/champion', [PhaseChampionController::class, 'store'])
         ->name('phases.champion.store');
