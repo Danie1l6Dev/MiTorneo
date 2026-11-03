@@ -4,6 +4,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ClubController;
 use App\Http\Controllers\CoachController;
 use App\Http\Controllers\CompetitionPhaseController;
+use App\Http\Controllers\CrossRoundAdvancementController;
 use App\Http\Controllers\GroupController;
 use App\Http\Controllers\LeagueScheduleController;
 use App\Http\Controllers\MatchEventController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\MatchResultsPdfController;
 use App\Http\Controllers\MunicipalStandingsPdfController;
 use App\Http\Controllers\PhaseAdvancementController;
 use App\Http\Controllers\PhaseChampionController;
+use App\Http\Controllers\PhaseCutController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\PlayerProfileController;
 use App\Http\Controllers\PlayerSearchController;
@@ -316,6 +318,18 @@ Route::middleware(['auth'])->group(function () {
 
     Route::post('phases/{phase}/advance', [PhaseAdvancementController::class, 'store'])
         ->name('phases.advance.store');
+
+    Route::get('phases/{phase}/advance-cross', [CrossRoundAdvancementController::class, 'create'])
+        ->name('phases.advance-cross.create');
+
+    Route::post('phases/{phase}/advance-cross', [CrossRoundAdvancementController::class, 'store'])
+        ->name('phases.advance-cross.store');
+
+    Route::post('phases/{phase}/cut', [PhaseCutController::class, 'store'])
+        ->name('phases.cut.store');
+
+    Route::delete('phases/{phase}/cut', [PhaseCutController::class, 'destroy'])
+        ->name('phases.cut.destroy');
 
     Route::post('phases/{phase}/champion', [PhaseChampionController::class, 'store'])
         ->name('phases.champion.store');

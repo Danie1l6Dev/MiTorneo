@@ -13,6 +13,8 @@ use App\Services\KnockoutBracketService;
 use App\Services\MatchProgrammingReportService;
 use App\Services\MatchResultsReportService;
 use App\Services\PhaseBoardService;
+use App\Services\CrossRoundService;
+use App\Services\PhaseCutService;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
 use Illuminate\Http\RedirectResponse;
@@ -169,6 +171,8 @@ class CompetitionPhaseController extends Controller
         PhaseBoardService $boardService,
         MatchProgrammingReportService $programming,
         MatchResultsReportService $results,
+        PhaseCutService $cutService,
+        CrossRoundService $crossRoundService,
     ): View {
         $this->authorize('view', $phase);
 
@@ -196,9 +200,13 @@ class CompetitionPhaseController extends Controller
         // A knockout-type phase's champion comes from its bracket's final
         // once played; a league-type phase's only ever comes from directly
         // declaring one (see PhaseChampionController), never from a match.
-        $champion = $phase->type === CompetitionPhaseType::League
-            ? $phase->champion
-            : $boardService->championFromBracket($bracketRounds);
+        // A ronda de cruces never has one: its crosses only feed what is
+        // drawn next.
+        $champion = match (true) {
+            $phase->type === CompetitionPhaseType::League => $phase->champion,
+            $phase->cross_round => null,
+            default => $boardService->championFromBracket($bracketRounds),
+        };
 
         $tableCount = collect($standings)->filter(fn (array $table): bool => count($table['rows']) > 0)->count();
 
@@ -209,6 +217,17 @@ class CompetitionPhaseController extends Controller
             && ! $isAlreadyResolved;
 
         $canDeclareChampion = $eligibilityService->canDeclareChampion($phase, $tableCount);
+
+        $crossRoundOutcome = $phase->cross_round ? $crossRoundService->outcome($phase) : null;
+        $crossRoundBoard = $phase->cross_round ? $crossRoundService->columns($phase) : null;
+
+        $readyToAdvanceCross = $crossRoundOutcome !== null
+            && $phase->allMatchesFinished()
+            && $crossRoundOutcome['undecided'] === 0
+            && ! $isAlreadyResolved;
+
+        $canCut = $cutService->canCut($phase);
+        $canRestoreCut = $cutService->canRestore($phase);
 
         // Lets the page offer direct "previous/next phase" navigation
         // instead of forcing a detour back through the category page for
@@ -262,7 +281,7 @@ class CompetitionPhaseController extends Controller
 
         return view('pages.phases.show', compact(
             'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'thirdPlaceMatch',
-            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'drawReveal', 'statistics',
+            'champion', 'standings', 'readyToAdvance', 'isAlreadyResolved', 'canDeclareChampion', 'canCut', 'canRestoreCut', 'crossRoundOutcome', 'crossRoundBoard', 'readyToAdvanceCross', 'drawReveal', 'statistics',
             'previousPhase', 'nextPhase', 'programmingRounds', 'programmingDays', 'resultDays'
         ));
     }

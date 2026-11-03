@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CompetitionPhase;
 use App\Models\Tournament;
 use App\Services\CompetitionStatisticsService;
+use App\Services\CrossRoundService;
 use App\Services\PhaseBoardService;
 use App\Services\StandingsService;
 use Illuminate\Http\Request;
@@ -34,6 +35,7 @@ class PublicPhaseController extends Controller
         StandingsService $standingsService,
         CompetitionStatisticsService $statisticsService,
         PhaseBoardService $boardService,
+        CrossRoundService $crossRoundService,
     ): View {
         // $phase is bound straight from its own id, so a mismatched pair in
         // the URL must 404 instead of silently showing a phase from a
@@ -63,17 +65,23 @@ class PublicPhaseController extends Controller
             ? $standingsService->tablesForPhase($phase)
             : [];
 
-        $champion = $phase->type === CompetitionPhaseType::League
-            ? $phase->champion
-            : $boardService->championFromBracket($bracketRounds);
+        // A ronda de cruces never has one: its crosses only feed what is
+        // drawn next.
+        $champion = match (true) {
+            $phase->type === CompetitionPhaseType::League => $phase->champion,
+            $phase->cross_round => null,
+            default => $boardService->championFromBracket($bracketRounds),
+        };
 
         $statistics = $phase->type === CompetitionPhaseType::League
             ? $boardService->statisticsPanels($request, $tournament, $category, $statisticsService)
             : null;
 
+        $crossRoundBoard = $phase->cross_round ? $crossRoundService->columns($phase) : null;
+
         return view('pages.public.phases.show', compact(
             'tournament', 'phase', 'category', 'schedules', 'bracketRounds', 'bracketColumns', 'bracketSize', 'thirdPlaceMatch',
-            'champion', 'standings', 'statistics'
+            'champion', 'standings', 'statistics', 'crossRoundBoard'
         ));
     }
 }

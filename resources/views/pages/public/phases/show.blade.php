@@ -293,10 +293,12 @@
             <flux:separator variant="subtle" />
         @else
             <div id="cuadro" class="scroll-mt-24 space-y-6">
-                <flux:heading size="lg">{{ __('Cuadro de eliminación') }}</flux:heading>
+                <flux:heading size="lg">{{ $phase->cross_round ? __('Cruces de la ronda') : __('Cuadro de eliminación') }}</flux:heading>
 
                 @if (empty($bracketRounds))
                     <x-ui.empty-state icon="bolt" :message="__('Todavía no se ha generado el cuadro de esta fase.')" />
+                @elseif ($phase->cross_round)
+                    @include('pages.phases._cross-round-board', ['board' => $crossRoundBoard, 'public' => true])
                 @else
                     {{-- Mobile/tablet: rounds stacked top to bottom, one under the other. --}}
                     <div class="space-y-6 lg:hidden">

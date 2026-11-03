@@ -608,6 +608,84 @@
                 </div>
             @endforeach
 
+            @if ($canCut)
+                @php
+                    // An expelled team's played count says nothing about the
+                    // others (its matches were cancelled or lost by walkover),
+                    // so it stays out of this comparison.
+                    $playedByTable = collect($standings)
+                        ->map(fn (array $table): array => [
+                            'label' => $table['label'],
+                            'rows' => collect($table['rows'])->reject(fn (array $row): bool => $row['expelled']),
+                        ])
+                        ->filter(fn (array $table): bool => $table['rows']->isNotEmpty())
+                        ->map(fn (array $table): array => [
+                            'label' => $table['label'],
+                            'min' => $table['rows']->min('played'),
+                            'max' => $table['rows']->max('played'),
+                        ]);
+                @endphp
+
+                <div class="mt-4 space-y-3 rounded-2xl border border-amber-500/25 p-5 dark:border-amber-400/25 glass-panel">
+                    <div class="space-y-1">
+                        <flux:heading size="sm">{{ __('¿Cerrar la liga con los partidos jugados hasta ahora?') }}</flux:heading>
+                        <flux:text class="text-zinc-500 dark:text-white/60">
+                            {{ __('Si decidiste no jugar todos los partidos, puedes recortar la liga: los partidos pendientes quedan cancelados, no cuentan en la tabla y puedes pasar a la siguiente fase con las posiciones actuales.') }}
+                        </flux:text>
+                    </div>
+
+                    <div class="space-y-0.5">
+                        @foreach ($playedByTable as $played)
+                            <flux:text class="text-sm">
+                                {{ $played['label'] }}:
+                                {{ $played['min'] === $played['max']
+                                    ? trans_choice(':count partido jugado por equipo|:count partidos jugados por equipo', $played['max'], ['count' => $played['max']])
+                                    : __('entre :min y :max partidos jugados por equipo', ['min' => $played['min'], 'max' => $played['max']]) }}
+                            </flux:text>
+                        @endforeach
+
+                        @if ($playedByTable->pluck('max')->unique()->count() > 1 || $playedByTable->pluck('min')->unique()->count() > 1)
+                            <flux:text class="text-sm text-amber-600 dark:text-amber-400">
+                                {{ __('Los equipos no jugaron la misma cantidad de partidos: la tabla se ordena por puntos, no por promedio.') }}
+                            </flux:text>
+                        @endif
+                    </div>
+
+                    <x-ui.confirm-delete-form
+                        :action="route('phases.cut.store', $phase)"
+                        method="POST"
+                        :heading="__('¿Recortar la liga?')"
+                        :description="__('Los partidos pendientes quedarán cancelados y no contarán en la tabla. Podrás deshacerlo mientras no hayas avanzado a la siguiente fase.')"
+                        :confirm-label="__('Recortar liga')"
+                        icon="scissors"
+                        variant="warning"
+                    >
+                        <flux:button type="button" variant="primary" size="sm" icon="scissors">{{ __('Recortar liga') }}</flux:button>
+                    </x-ui.confirm-delete-form>
+                </div>
+            @elseif ($canRestoreCut)
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                    <div class="space-y-1">
+                        <flux:heading size="sm">{{ __('Esta liga fue recortada') }}</flux:heading>
+                        <flux:text class="text-zinc-500 dark:text-white/60">
+                            {{ __('Los partidos que no se jugaron quedaron cancelados. Puedes volver a programarlos mientras no hayas avanzado a la siguiente fase.') }}
+                        </flux:text>
+                    </div>
+
+                    <x-ui.confirm-delete-form
+                        :action="route('phases.cut.destroy', $phase)"
+                        method="DELETE"
+                        :heading="__('¿Deshacer el recorte?')"
+                        :description="__('Los partidos cancelados por el recorte volverán a quedar programados.')"
+                        :confirm-label="__('Deshacer recorte')"
+                        icon="arrow-uturn-left"
+                        variant="warning"
+                    >
+                        <flux:button type="button" size="sm" icon="arrow-uturn-left">{{ __('Deshacer recorte') }}</flux:button>
+                    </x-ui.confirm-delete-form>
+                </div>
+            @endif
+
             @if ($champion)
                 <div class="mt-4">
                     @include('pages.phases._champion-card', ['team' => $champion, 'undoRoute' => route('phases.champion.destroy', $phase)])
@@ -667,7 +745,7 @@
                 @endphp
 
                 <div class="flex flex-wrap items-center justify-between gap-3">
-                    <flux:heading size="lg">{{ __('Cuadro de eliminación') }}</flux:heading>
+                    <flux:heading size="lg">{{ $phase->cross_round ? __('Cruces de la ronda') : __('Cuadro de eliminación') }}</flux:heading>
 
                     {{-- One entry per round (octavos, cuartos...); the final's
                          export also carries the 3er/4to puesto match, which
@@ -718,6 +796,10 @@
 
                 @if (empty($bracketRounds))
                     <x-ui.empty-state icon="bolt" :message="__('Todavía no se ha generado el cuadro de esta fase.')" />
+                @elseif ($phase->cross_round)
+                    {{-- Not a bracket: its crosses aren't a power of two feeding a final, so
+                         they're laid out one column per group instead. --}}
+                    @include('pages.phases._cross-round-board', ['board' => $crossRoundBoard])
                 @else
                     {{-- Mobile/tablet: rounds stacked top to bottom, one under the other. --}}
                     <div class="space-y-6 lg:hidden">
@@ -875,6 +957,30 @@
                     </div>
 
                     @include('pages.phases._champion-card', ['team' => $champion])
+                @endif
+
+                @if ($crossRoundOutcome !== null)
+                    @if ($readyToAdvanceCross)
+                        <div class="space-y-3 rounded-2xl border border-green-500/25 p-5 dark:border-green-400/25 glass-panel">
+                            <flux:heading size="sm">{{ __('¿Pasar a la siguiente fase?') }}</flux:heading>
+                            <flux:text>
+                                {{ __('Todos los cruces de la ronda han finalizado. Define cuántos de los mejores perdedores también clasifican y crea la siguiente fase con un nuevo sorteo.') }}
+                            </flux:text>
+                            <flux:button :href="route('phases.advance-cross.create', $phase)" variant="primary" size="sm" wire:navigate>
+                                {{ __('Definir clasificados') }}
+                            </flux:button>
+                        </div>
+                    @elseif ($isAlreadyResolved && $nextPhase)
+                        <div class="space-y-3 rounded-2xl border border-zinc-200 p-5 dark:border-white/10 glass-panel">
+                            <flux:heading size="sm">{{ __('Esta fase ya fue avanzada') }}</flux:heading>
+                            <flux:text class="text-zinc-500">
+                                {{ __('Ya se creó una fase siguiente a partir de esta ronda. Elimínala si quieres volver a definir los clasificados.') }}
+                            </flux:text>
+                            <flux:button :href="route('phases.show', $nextPhase)" variant="primary" size="sm" icon:trailing="chevron-right" wire:navigate>
+                                {{ __('Ir a :name', ['name' => $nextPhase->name]) }}
+                            </flux:button>
+                        </div>
+                    @endif
                 @endif
             </div>
 

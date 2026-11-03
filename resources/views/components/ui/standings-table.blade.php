@@ -15,6 +15,12 @@
             <x-ui.empty-state icon="table-cells" :message="__('Todavía no hay equipos para esta tabla.')" />
         </div>
     @else
+        @php
+            // Fair-play penalty points only matter once someone has any: until
+            // then the column would just be a row of zeros.
+            $showFairPlay = collect($rows)->contains(fn (array $row): bool => ($row['fair_play'] ?? 0) > 0);
+        @endphp
+
         {{-- Desktop --}}
         <div class="hidden overflow-x-auto md:block">
             <table class="w-full text-sm">
@@ -29,6 +35,9 @@
                         <th class="px-2 py-2.5 text-center">{{ __('GF') }}</th>
                         <th class="px-2 py-2.5 text-center">{{ __('GC') }}</th>
                         <th class="px-2 py-2.5 text-center">{{ __('DG') }}</th>
+                        @if ($showFairPlay)
+                            <th class="px-2 py-2.5 text-center" title="{{ __('Puntos de juego limpio (tarjetas): menos es mejor; desempata cuando todo lo demás es igual') }}">{{ __('JL') }}</th>
+                        @endif
                         <th class="px-4 py-2.5 text-center">{{ __('PTS') }}</th>
                     </tr>
                 </thead>
@@ -64,6 +73,9 @@
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['goals_for'] }}</td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['goals_against'] }}</td>
                             <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['goal_difference'] }}</td>
+                            @if ($showFairPlay)
+                                <td class="px-2 py-2.5 text-center tabular-nums text-zinc-600 dark:text-white/70">{{ $row['fair_play'] ?? 0 }}</td>
+                            @endif
                             <td class="px-4 py-2.5 text-center font-display text-base font-bold tabular-nums text-zinc-900 dark:text-white">{{ $row['points'] }}</td>
                         </tr>
                     @endforeach
@@ -96,7 +108,7 @@
                             @endif
                         </div>
                         <div class="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
-                            {{ __('PJ') }} {{ $row['played'] }} &middot; {{ __('GF') }} {{ $row['goals_for'] }} &middot; {{ __('GC') }} {{ $row['goals_against'] }} &middot; {{ __('DG') }} {{ $row['goal_difference'] }}
+                            {{ __('PJ') }} {{ $row['played'] }} &middot; {{ __('GF') }} {{ $row['goals_for'] }} &middot; {{ __('GC') }} {{ $row['goals_against'] }} &middot; {{ __('DG') }} {{ $row['goal_difference'] }}@if ($showFairPlay) &middot; {{ __('JL') }} {{ $row['fair_play'] ?? 0 }}@endif
                         </div>
                     </div>
 

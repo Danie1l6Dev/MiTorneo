@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\CompetitionPhaseType;
 use App\Enums\DrawMethod;
+use App\Enums\PairingScope;
 use App\Enums\ScheduleFormat;
 use App\Http\Requests\AdvancePhaseRequest;
 use App\Models\CompetitionPhase;
+use App\Services\CrossRoundService;
 use App\Services\KnockoutBracketService;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
@@ -50,12 +52,16 @@ class PhaseAdvancementController extends Controller
         return view('pages.phases.advance', compact('phase', 'tables', 'maxPerTable', 'fixedPerTable', 'typeOptions'));
     }
 
-    public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService): RedirectResponse
+    public function store(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService, PhaseEligibilityService $eligibilityService, KnockoutBracketService $bracketService, CrossRoundService $crossRoundService): RedirectResponse
     {
         $this->authorize('create', [CompetitionPhase::class, $phase->category]);
 
         if ($redirect = $this->guard($phase, $eligibilityService)) {
             return $redirect;
+        }
+
+        if ($request->validated('type') === AdvancePhaseRequest::CROSS_ROUND) {
+            return $this->storeCrossRound($request, $phase, $standingsService, $crossRoundService, $bracketService);
         }
 
         $type = CompetitionPhaseType::from($request->validated('type'));
@@ -121,6 +127,46 @@ class PhaseAdvancementController extends Controller
         }
 
         return $redirect;
+    }
+
+    /**
+     * Create a "ronda de cruces" from this league's standings: the teams that
+     * qualify (minus the ones passing directly) are paired into single
+     * matches, and the ones passing directly just wait in the phase.
+     */
+    private function storeCrossRound(AdvancePhaseRequest $request, CompetitionPhase $phase, StandingsService $standingsService, CrossRoundService $crossRoundService, KnockoutBracketService $bracketService): RedirectResponse
+    {
+        $tables = $standingsService->tablesForPhase($phase);
+        $plan = $crossRoundService->plan(
+            $tables,
+            array_map('intval', (array) $request->validated('qualifiers')),
+            array_map('intval', (array) $request->validated('direct', [])),
+            DrawMethod::from($request->validated('draw_method')),
+            $request->filled('pairing_scope') ? PairingScope::from($request->validated('pairing_scope')) : null,
+        );
+
+        $newPhase = DB::transaction(function () use ($phase, $request, $plan, $bracketService): CompetitionPhase {
+            $newPhase = new CompetitionPhase;
+            $newPhase->tournament_id = $phase->tournament_id;
+            $newPhase->category_id = $phase->category_id;
+            $newPhase->name = (string) $request->validated('name');
+            $newPhase->type = CompetitionPhaseType::Knockout;
+            $newPhase->knockout_format = ScheduleFormat::SingleRound;
+            $newPhase->cross_round = true;
+            $newPhase->order = $phase->order + 1;
+            $newPhase->save();
+
+            $playingTeams = collect($plan['pairs'])->flatten(1);
+            $newPhase->teams()->attach($plan['direct']->concat($playingTeams)->pluck('id'));
+
+            $bracketService->generateCrossRound($newPhase, $plan['pairs']);
+
+            return $newPhase;
+        });
+
+        return to_route('phases.show', $newPhase)
+            ->with('status', __(':count cruces creados para :name.', ['count' => count($plan['pairs']), 'name' => $newPhase->name]))
+            ->with('drawReveal', $phase->id);
     }
 
     private function guard(CompetitionPhase $phase, PhaseEligibilityService $eligibilityService): ?RedirectResponse

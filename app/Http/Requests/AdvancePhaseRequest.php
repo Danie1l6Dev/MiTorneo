@@ -4,8 +4,10 @@ namespace App\Http\Requests;
 
 use App\Enums\CompetitionPhaseType;
 use App\Enums\DrawMethod;
+use App\Enums\PairingScope;
 use App\Enums\ScheduleFormat;
 use App\Models\CompetitionPhase;
+use App\Services\CrossRoundService;
 use App\Services\PhaseEligibilityService;
 use App\Services\StandingsService;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,6 +16,13 @@ use Illuminate\Validation\Validator;
 
 class AdvancePhaseRequest extends FormRequest
 {
+    /**
+     * Not a CompetitionPhaseType case: a "ronda de cruces" is stored as a
+     * knockout phase flagged `cross_round`, but it's offered (and validated)
+     * as its own choice since it takes different inputs.
+     */
+    public const CROSS_ROUND = 'cross_round';
+
     /**
      * Phase types where the exact number of qualifiers per table isn't
      * implied by the type itself, so the form must ask for it.
@@ -34,12 +43,23 @@ class AdvancePhaseRequest extends FormRequest
     public function rules(): array
     {
         $type = CompetitionPhaseType::tryFrom((string) $this->input('type'));
+        $isCrossRound = $this->input('type') === self::CROSS_ROUND;
         $requiresCount = $type !== null && in_array($type, self::TYPES_REQUIRING_QUALIFIER_COUNT, true);
         $isLeague = $type === CompetitionPhaseType::League;
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', Rule::enum(CompetitionPhaseType::class)],
+            'type' => ['required', Rule::in([...array_column(CompetitionPhaseType::cases(), 'value'), self::CROSS_ROUND])],
+            // Only for a ronda de cruces: how many teams qualify from each
+            // table and how many of those (the best ones) pass directly,
+            // both keyed by the table's position.
+            'qualifiers' => [$isCrossRound ? 'required' : 'prohibited', 'array'],
+            'qualifiers.*' => ['integer', 'min:0'],
+            'direct' => [$isCrossRound ? 'nullable' : 'prohibited', 'array'],
+            'direct.*' => ['integer', 'min:0'],
+            // Also only for a ronda de cruces: whether teams may only meet
+            // a team from another group, or anyone.
+            'pairing_scope' => [$isCrossRound ? 'nullable' : 'prohibited', Rule::enum(PairingScope::class)],
             'qualifiers_per_table' => [
                 $requiresCount ? 'required' : 'prohibited',
                 'integer',
@@ -86,6 +106,12 @@ class AdvancePhaseRequest extends FormRequest
             $phase = $this->route('phase');
 
             if (! $phase instanceof CompetitionPhase) {
+                return;
+            }
+
+            if ($this->input('type') === self::CROSS_ROUND) {
+                $this->validateCrossRound($validator, $phase);
+
                 return;
             }
 
@@ -182,5 +208,40 @@ class AdvancePhaseRequest extends FormRequest
                 ));
             }
         });
+    }
+
+    private function validateCrossRound(Validator $validator, CompetitionPhase $phase): void
+    {
+        if ($validator->errors()->hasAny(['qualifiers', 'qualifiers.*', 'direct', 'direct.*', 'draw_method', 'pairing_scope'])) {
+            return;
+        }
+
+        $tables = app(StandingsService::class)->tablesForPhase($phase);
+        $counts = array_map('intval', (array) $this->input('qualifiers', []));
+        $direct = array_map('intval', (array) $this->input('direct', []));
+
+        foreach (array_values($tables) as $index => $table) {
+            $available = count($table['rows']);
+            $qualifying = $counts[$index] ?? 0;
+
+            if ($qualifying > $available) {
+                $validator->errors()->add('qualifiers', __(':table solo tiene :available equipos, no puedes clasificar :count.', ['table' => $table['label'], 'available' => $available, 'count' => $qualifying]));
+
+                return;
+            }
+
+            if (($direct[$index] ?? 0) > $qualifying) {
+                $validator->errors()->add('qualifiers', __('En :table no pueden pasar directo más equipos de los que clasifican.', ['table' => $table['label']]));
+
+                return;
+            }
+        }
+
+        $scope = $this->filled('pairing_scope') ? PairingScope::from((string) $this->input('pairing_scope')) : null;
+        $plan = app(CrossRoundService::class)->plan($tables, $counts, $direct, DrawMethod::from((string) $this->input('draw_method')), $scope);
+
+        if ($plan['error'] !== null) {
+            $validator->errors()->add('qualifiers', $plan['error']);
+        }
     }
 }

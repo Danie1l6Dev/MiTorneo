@@ -54,6 +54,10 @@
                                 {{ $option['type']->label() }}@if (! $option['available']) — {{ __('no disponible') }}@endif
                             </flux:select.option>
                         @endforeach
+
+                        <flux:select.option value="cross_round" :selected="$currentType === 'cross_round'">
+                            {{ __('Ronda de cruces entre grupos') }}
+                        </flux:select.option>
                     </flux:select>
 
                     @foreach (collect($typeOptions)->where('available', false) as $option)
@@ -62,7 +66,7 @@
                 </div>
 
                 <div
-                    x-show="!['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}'].includes(type)"
+                    x-show="!['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}', 'cross_round'].includes(type)"
                     x-cloak
                     class="space-y-1.5"
                 >
@@ -73,7 +77,7 @@
                         max="{{ $maxPerTable ?: null }}"
                         label="{{ count($tables) > 1 ? __('¿Cuántos equipos clasifican de cada grupo?') : __('¿Cuántos equipos clasifican de la tabla?') }}"
                         value="{{ old('qualifiers_per_table', min(2, max($maxPerTable, 1))) }}"
-                        x-bind:disabled="['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}'].includes(type)"
+                        x-bind:disabled="['{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}', '{{ \App\Enums\CompetitionPhaseType::Final->value }}', 'cross_round'].includes(type)"
                     />
 
                     @if ($maxPerTable > 0)
@@ -82,6 +86,60 @@
                         </flux:text>
                     @endif
                 </div>
+
+                {{--
+                    Removed from the DOM (not just hidden) unless "Ronda de
+                    cruces" is picked: these inputs are prohibited for every
+                    other type, so they must not be submitted at all.
+                --}}
+                <template x-if="type === 'cross_round'">
+                    <div class="space-y-3">
+                        <flux:text class="text-sm text-zinc-500">
+                            {{ __('Indica cuántos equipos clasifican de cada tabla y cuántos de ellos (los mejores) pasan directo a la siguiente fase sin jugar la ronda. Los demás se cruzan en partidos únicos.') }}
+                        </flux:text>
+
+                        @foreach (array_values($tables) as $index => $table)
+                            <div class="grid grid-cols-[1fr_auto_auto] items-end gap-3">
+                                <flux:text class="pb-2 font-medium">{{ $table['label'] }} <span class="text-xs font-normal text-zinc-500">({{ count($table['rows']) }})</span></flux:text>
+                                <flux:input
+                                    name="qualifiers[{{ $index }}]"
+                                    type="number"
+                                    min="0"
+                                    max="{{ count($table['rows']) }}"
+                                    label="{{ __('Clasifican') }}"
+                                    value="{{ old('qualifiers.'.$index, count($table['rows'])) }}"
+                                    class="w-24"
+                                />
+                                <flux:input
+                                    name="direct[{{ $index }}]"
+                                    type="number"
+                                    min="0"
+                                    max="{{ count($table['rows']) }}"
+                                    label="{{ __('Pasan directo') }}"
+                                    value="{{ old('direct.'.$index, 0) }}"
+                                    class="w-24"
+                                />
+                            </div>
+                        @endforeach
+
+                        @if (count($tables) > 1)
+                            <flux:radio.group name="pairing_scope" label="{{ __('¿Quién puede enfrentarse a quién?') }}">
+                                @foreach (\App\Enums\PairingScope::cases() as $scope)
+                                    <flux:radio
+                                        value="{{ $scope->value }}"
+                                        label="{{ __($scope->label()) }}"
+                                        description="{{ __($scope->description()) }}"
+                                        :checked="old('pairing_scope', \App\Enums\PairingScope::BetweenGroups->value) === $scope->value"
+                                    />
+                                @endforeach
+                            </flux:radio.group>
+                        @endif
+
+                        <flux:text class="text-xs text-zinc-500">
+                            {{ __('Con "Por posición" y "Entre grupos", el mejor de un grupo cruza con el peor del otro (1.º A vs último B, 1.º B vs último A...). Con "Aleatorio" se sortea al azar, respetando la opción elegida arriba. Si un solo grupo juega la ronda, el mejor cruza con el peor dentro del mismo grupo.') }}
+                        </flux:text>
+                    </div>
+                </template>
 
                 <div x-show="type === '{{ \App\Enums\CompetitionPhaseType::Semifinal->value }}'" x-cloak>
                     @if ($fixedPerTable[\App\Enums\CompetitionPhaseType::Semifinal->value] === null)
@@ -123,6 +181,8 @@
                             </flux:radio.group>
                         </div>
 
+                        <template x-if="type !== 'cross_round'">
+                        <div class="space-y-6">
                         <div class="space-y-1.5">
                             <flux:radio.group name="knockout_format" label="{{ __('Formato de los cruces') }}">
                                 @foreach (\App\Enums\ScheduleFormat::cases() as $format)
@@ -175,11 +235,13 @@
                                 </flux:radio.group>
                             </template>
                         </div>
+                        </div>
+                        </template>
                     </div>
                 </template>
 
                 <flux:text class="text-sm text-zinc-500">
-                    {{ __('Si eliges eliminación directa, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...). Si eliges liga, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
+                    {{ __('Si eliges eliminación directa, el número total de clasificados debe ser una potencia de 2 (2, 4, 8, 16...). Si necesitas otra cantidad, usa una ronda de cruces. Si eliges liga, se creará una nueva fase de liga con los clasificados, sin necesidad de que el número sea potencia de 2.') }}
                 </flux:text>
 
                 <flux:button type="submit" variant="primary">{{ __('Continuar') }}</flux:button>

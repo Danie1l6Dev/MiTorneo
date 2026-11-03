@@ -111,12 +111,14 @@ class PhaseBoardService
             ->get()
             ->groupBy('round_number')
             ->sortKeys()
-            ->map(function (Collection $roundMatches, int $roundNumber): array {
+            ->map(function (Collection $roundMatches, int $roundNumber) use ($phase): array {
                 $crosses = $this->groupIntoCrosses($roundMatches);
 
                 return [
                     'round_number' => $roundNumber,
-                    'label' => $this->knockoutRoundLabel($crosses->count()),
+                    // A ronda de cruces isn't a bracket round, so a count-based
+                    // name like "Final" or "Semifinal" would mislead.
+                    'label' => $phase->cross_round ? __('Ronda de cruces') : $this->knockoutRoundLabel($crosses->count()),
                     'matches' => $crosses,
                 ];
             })

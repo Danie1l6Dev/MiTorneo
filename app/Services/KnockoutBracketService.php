@@ -99,6 +99,21 @@ class KnockoutBracketService
     }
 
     /**
+     * Build just the one round of a "ronda de cruces" (see
+     * CompetitionPhase::$cross_round): one single match per pair, with no
+     * later rounds wired up -- what follows is drawn again once these are
+     * played, from their winners (and best losers).
+     *
+     * @param  array<int, array{0: Team, 1: Team}>  $pairs
+     */
+    public function generateCrossRound(CompetitionPhase $phase, array $pairs): void
+    {
+        foreach ($pairs as [$home, $away]) {
+            $this->createMatch($phase, 1, $home->id, $away->id);
+        }
+    }
+
+    /**
      * The extra 3er/4to puesto cross: always a single match (see
      * generateBracket()'s docblock), sharing the final's own round_number
      * but flagged is_third_place so PhaseBoardService::bracketRounds() never
