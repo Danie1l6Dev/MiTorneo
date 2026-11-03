@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property CompetitionPhaseType $type
  * @property ScheduleFormat|null $knockout_format
  * @property bool $plays_third_place
+ * @property bool $cross_round
  * @property ScheduleFormat|null $final_knockout_format
  * @property int $order
  * @property int|null $champion_team_id
@@ -44,6 +45,7 @@ class CompetitionPhase extends Model
             'type' => CompetitionPhaseType::class,
             'knockout_format' => ScheduleFormat::class,
             'plays_third_place' => 'boolean',
+            'cross_round' => 'boolean',
             'final_knockout_format' => ScheduleFormat::class,
         ];
     }
@@ -107,11 +109,16 @@ class CompetitionPhase extends Model
     }
 
     /**
-     * Whether this phase has at least one match and every one of them is finished.
+     * Whether this phase has at least one match to play and every one of them
+     * is finished. A cancelled match (a team's expulsion, or a league cut
+     * short -- see PhaseCutService) is no longer expected to be played, so it
+     * neither blocks nor counts.
      */
     public function allMatchesFinished(): bool
     {
-        return $this->matches->isNotEmpty()
-            && $this->matches->every(fn (TournamentMatch $match): bool => $match->status === MatchStatus::Finished);
+        $expected = $this->matches->reject(fn (TournamentMatch $match): bool => $match->status === MatchStatus::Cancelled);
+
+        return $expected->isNotEmpty()
+            && $expected->every(fn (TournamentMatch $match): bool => $match->status === MatchStatus::Finished);
     }
 }

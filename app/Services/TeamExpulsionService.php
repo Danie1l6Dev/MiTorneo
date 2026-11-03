@@ -68,6 +68,7 @@ class TeamExpulsionService
         $matches = TournamentMatch::query()
             ->where('tournament_id', $tournament->id)
             ->where('category_id', $team->category_id)
+            ->where('cut_off', false)
             ->where(fn ($query) => $query->where('home_team_id', $team->id)->orWhere('away_team_id', $team->id))
             ->where(fn ($query) => $query->where('walkover_team_id', $team->id)->orWhere('status', MatchStatus::Cancelled))
             ->get();

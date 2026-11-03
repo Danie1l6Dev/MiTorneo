@@ -44,6 +44,7 @@ use Illuminate\Support\Collection;
  * @property MatchStatus $status
  * @property bool $is_walkover
  * @property bool $is_third_place
+ * @property bool $cut_off
  * @property int|null $walkover_team_id
  * @property int|null $round_number
  * @property Carbon|null $scheduled_at Day and kickoff time. A calendar generated
@@ -71,6 +72,7 @@ class TournamentMatch extends Model
             'status' => MatchStatus::class,
             'is_walkover' => 'boolean',
             'is_third_place' => 'boolean',
+            'cut_off' => 'boolean',
             'scheduled_at' => 'datetime',
         ];
     }
